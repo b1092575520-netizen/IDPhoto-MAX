@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>证件照排版 MAX</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="plugin-root">
+      <main class="content-scroll">
+        <section class="view active" id="mainView" style="display: block;">
+          <section class="section-block">
+            <div class="section-title"><span><span class="section-caret" data-icon="caret-down"></span>常规排版（自动加信息条）</span></div>
+            <div class="section-body two-columns">
+              <button class="panel-btn purple-btn size-btn" type="button" data-template="1寸 2.7x3.8" data-icon="photo"><span class="btn-label"><span class="size-name">1寸</span><br aria-hidden="true" /><span class="size-dim">2.7x3.8</span></span></button>
+              <button class="panel-btn purple-btn size-btn" type="button" data-template="标准2寸 3.5x4.9" data-icon="photo"><span class="btn-label"><span class="size-name">标准2寸</span><br aria-hidden="true" /><span class="size-dim">3.5x4.9</span></span></button>
+              <button class="panel-btn purple-btn size-btn" type="button" data-template="小2寸 3.3x4.8" data-icon="photo"><span class="btn-label"><span class="size-name">小2寸</span><br aria-hidden="true" /><span class="size-dim">3.3x4.8</span></span></button>
+              <button class="panel-btn purple-btn size-btn" type="button" data-template="香港台湾 3.0x4.0" data-icon="id-card"><span class="btn-label"><span class="size-name">香港台湾</span><br aria-hidden="true" /><span class="size-dim">3.0x4.0</span></span></button>
+            </div>
+          </section>
+
+          <section class="section-block">
+            <div class="section-title"><span><span class="section-caret" data-icon="caret-down"></span>签证排版</span></div>
+            <div class="section-body two-columns">
+              <button class="panel-btn green-btn size-btn" type="button" data-template="签证2寸 3.5x4.5" data-icon="passport"><span class="btn-label"><span class="size-name">签证2寸</span><br aria-hidden="true" /><span class="size-dim">3.5x4.5</span></span></button>
+              <button class="panel-btn green-btn size-btn" type="button" data-template="巴西 4.0x5.0" data-icon="flag-brazil"><span class="btn-label"><span class="size-name">巴西</span><br aria-hidden="true" /><span class="size-dim">4.0x5.0</span></span></button>
+              <button class="panel-btn green-btn size-btn" type="button" data-template="阿根廷 4.0x4.0" data-icon="flag-argentina"><span class="btn-label"><span class="size-name">阿根廷</span><br aria-hidden="true" /><span class="size-dim">4.0x4.0</span></span></button>
+              <button class="panel-btn green-btn size-btn" type="button" data-template="美签 5.0x5.0" data-icon="flag-usa"><span class="btn-label"><span class="size-name">美签</span><br aria-hidden="true" /><span class="size-dim">5.0x5.0</span></span></button>
+              <button class="panel-btn green-btn size-btn" type="button" data-template="美签 5.1x5.1" data-icon="flag-usa-alt"><span class="btn-label"><span class="size-name">美签</span><br aria-hidden="true" /><span class="size-dim">5.1x5.1</span></span></button>
+            </div>
+          </section>
+
+          <section class="section-block">
+            <div class="section-title"><span><span class="section-caret" data-icon="caret-down"></span>特种尺寸（允许旋转排法）</span></div>
+            <div class="section-body two-columns">
+              <button class="panel-btn brown-btn size-btn" type="button" data-template="毕业证 4.0x5.5" data-icon="graduation"><span class="btn-label"><span class="size-name">毕业证</span><br aria-hidden="true" /><span class="size-dim">4.0x5.5</span></span></button>
+              <button class="panel-btn brown-btn size-btn" type="button" data-template="结婚照 5.3x3.5" data-icon="wedding"><span class="btn-label"><span class="size-name">结婚照</span><br aria-hidden="true" /><span class="size-dim">5.3x3.5</span></span></button>
+            </div>
+          </section>
+
+          <section class="section-block">
+            <div class="section-title"><span><span class="section-caret" data-icon="caret-down"></span>输出选项</span></div>
+            <div class="section-body output-options">
+              <button class="toggle-btn switch-btn active" type="button" data-key="exportJpg" data-icon="image">
+                <span class="toggle-name">JPG</span><span class="toggle-state">开</span>
+              </button>
+              <button class="toggle-btn switch-btn active" type="button" data-key="nasArchive" data-icon="folder">
+                <span class="toggle-name">NAS</span><span class="toggle-state">开</span>
+              </button>
+              <button class="toggle-btn switch-btn quick-print-toggle" type="button" data-key="quickPrint" data-icon="printer">
+                <span class="toggle-name">打印</span><span class="toggle-state">关</span>
+              </button>
+            </div>
+            <button class="run-button" id="runButton" type="button" data-icon="rocket"><span class="btn-label">开始排版</span></button>
+          </section>
+        </section>
+
+        <section class="view settings-view" id="settingsView" style="display: none;">
+          <button class="settings-back" id="settingsBackButton" type="button">← 返回设置</button>
+          <div class="settings-grid">
+          <section class="section-block settings-card source-card">
+            <button class="section-title settings-card-toggle" type="button" aria-expanded="false"><span><span class="section-caret" data-icon="caret-right"></span>照片保存来源</span></button>
+            <div class="settings-card-body">
+              <div class="settings-note">严格按相机机身序列号识别。本店相机正常保存；外来照片或无序列号照片只排版、不保存。</div>
+              <div class="field-stack">
+                <label class="field-row" for="currentCameraStatus">
+                  <span>当前照片相机</span>
+                  <input id="currentCameraStatus" type="text" value="正在读取当前照片…" readonly />
+                </label>
+                <label class="field-row" for="shopCameraStatus">
+                  <span>已登记本店相机</span>
+                  <input id="shopCameraStatus" type="text" value="尚未登记本店相机" readonly />
+                </label>
+                <div class="settings-actions">
+                  <button class="panel-btn green-btn" id="registerCurrentCamera" type="button" disabled><span class="btn-label">设为本店相机并启用保存</span></button>
+                  <button class="panel-btn dark-btn" id="clearShopCameras" type="button"><span class="btn-label">清除相机名单</span></button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section-block settings-card">
+            <button class="section-title settings-card-toggle" type="button" aria-expanded="false"><span><span class="section-caret" data-icon="caret-down"></span>店铺与信息条</span></button>
+            <div class="settings-card-body">
+              <div class="field-stack">
+                <label class="field-row" for="shopName">
+                  <span>店铺名称</span>
+                  <input id="shopName" type="text" value="福清印象照相馆" placeholder="请输入店铺名称" />
+                </label>
+                <label class="field-row" for="shopPhone">
+                  <span>联系电话</span>
+                  <input id="shopPhone" type="text" value="13003825982（微信同号）" placeholder="请输入联系电话" />
+                </label>
+                <label class="field-row" for="shopTip">
+                  <span>温馨提示语</span>
+                  <input id="shopTip" type="text" value="[请妥善保管此单据]" placeholder="请输入温馨提示语" />
+                </label>
+                <button class="panel-btn purple-btn wide-btn" id="saveSettings" type="button" data-icon="save"><span class="btn-label">保存店铺信息</span></button>
+              </div>
+            </div>
+          </section>
+
+          <section class="section-block settings-card">
+            <button class="section-title settings-card-toggle" type="button" aria-expanded="false"><span><span class="section-caret" data-icon="caret-down"></span>输出与 NAS</span></button>
+            <div class="settings-card-body">
+              <div class="field-stack">
+                <label class="field-row" for="nasFolderStatus">
+                  <span>授权目录</span>
+                  <input id="nasFolderStatus" type="text" value="尚未授权（首次导出时选择）" readonly />
+                </label>
+                <div class="settings-actions">
+                  <button class="panel-btn green-btn" id="authorizeNasFolder" type="button"><span class="btn-label">选择或更换目录</span></button>
+                  <button class="panel-btn dark-btn" id="clearNasFolder" type="button"><span class="btn-label">清除目录授权</span></button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section-block settings-card">
+            <button class="section-title settings-card-toggle" type="button" aria-expanded="false"><span><span class="section-caret" data-icon="caret-down"></span>设置备份与迁移</span></button>
+            <div class="settings-card-body">
+              <div class="settings-note">备份包含店铺文字、裁切策略、本店相机、调试参数和 NAS 目录标签；NAS 文件夹权限需在新电脑重新授权。</div>
+              <div class="settings-actions">
+                <button class="panel-btn green-btn" id="backupSettings" type="button"><span class="btn-label">备份设置</span></button>
+                <button class="panel-btn dark-btn" id="restoreSettings" type="button"><span class="btn-label">恢复设置</span></button>
+              </div>
+            </div>
+          </section>
+
+          <section class="section-block settings-card">
+            <button class="section-title settings-card-toggle" type="button" aria-expanded="false"><span><span class="section-caret" data-icon="caret-down"></span>高级与调试</span></button>
+            <div class="settings-card-body">
+              <button class="toggle-btn debug-toggle" id="debugModeToggle" type="button">
+                <span class="toggle-name">开发者调试模式</span><span class="toggle-state">关</span>
+              </button>
+              <div class="debug-panel" id="debugPanel" style="display: none;">
+                <div class="debug-status" id="debugOverrideStatus">当前模板调试覆盖：无</div>
+                <div class="debug-help">开启后请单独执行一个模板；可拖动或缩放画布中的 DEBUG 图层，保存后只覆盖当前模板。</div>
+                <div class="debug-actions">
+                  <button class="panel-btn dark-btn" id="saveDebugTemplate" type="button"><span class="btn-label">保存当前模板调试参数</span></button>
+                  <button class="panel-btn dark-btn" id="resetDebugTemplate" type="button"><span class="btn-label">重置当前模板调试参数</span></button>
+                </div>
+              </div>
+              <div class="debug-help">
+                <strong>全模板视觉验收</strong>
+                一次生成全部 11 个模板供肉眼检查；强制关闭 DEBUG 标记，并且不会写入 JPG、NAS 或发送打印。
+              </div>
+              <button class="panel-btn green-btn wide-btn" id="runVisualAcceptance" type="button"><span class="btn-label">生成全部模板供验收</span></button>
+            </div>
+          </section>
+          </div>
+        </section>
+      </main>
+
+      <nav class="tab-row" aria-label="面板导航">
+        <button class="tab-button active" type="button" data-view="mainView">
+          <span class="tab-icon" data-icon="caret-down"></span>
+          <span>排版</span>
+        </button>
+        <button class="tab-button" type="button" data-view="settingsView">
+          <span class="tab-icon" data-icon="caret-right"></span>
+          <span>设置</span>
+        </button>
+      </nav>
+
+      <footer class="status-bar">
+        <span id="statusText">当前：标准2寸｜JPG 开｜NAS 开｜快印 关｜调试关</span>
+      </footer>
+    </div>
+
+    <script src="src/icons.js"></script>
+    <script src="src/core/errorService.js"></script>
+    <script src="src/core/templateRegistry.js"></script>
+    <script src="src/core/templateSelectionService.js"></script>
+    <script src="src/core/ratioChecker.js"></script>
+    <script src="src/core/dateService.js"></script>
+    <script src="src/core/pathService.js"></script>
+    <script src="src/core/settingsProfile.js"></script>
+    <script src="src/core/settingsBackupService.js"></script>
+    <script src="src/core/settingsStore.js"></script>
+    <script src="src/core/sourceEligibilityService.js"></script>
+    <script src="src/core/cropStrategyStore.js"></script>
+    <script src="src/core/smartCropPlanner.js"></script>
+    <script src="src/core/debugSettingsStore.js"></script>
+    <script src="src/core/templateOverrideService.js"></script>
+    <script src="src/core/layoutEngine.js"></script>
+    <script src="src/core/shortcutService.js"></script>
+    <script src="src/photoshop/photoshopExecution.js"></script>
+    <script src="src/photoshop/printService.js"></script>
+    <script src="src/photoshop/documentService.js"></script>
+    <script src="src/photoshop/contentAwareService.js"></script>
+    <script src="src/photoshop/cropService.js"></script>
+    <script src="src/photoshop/canvasService.js"></script>
+    <script src="src/photoshop/layerService.js"></script>
+    <script src="src/photoshop/infoBarRenderer.js"></script>
+    <script src="src/photoshop/exportService.js"></script>
+    <script src="src/ui/settingsViewController.js"></script>
+    <script src="src/core/layoutWorkflow.js"></script>
+    <script src="src/main.js"></script>
+  </body>
+</html>

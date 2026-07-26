@@ -1,0 +1,19 @@
+# Generated release artifacts
+dist/
+
+# Local backup archives
+backups/
+
+# Local dependency and cache directories
+node_modules/
+.cache/
+.tmp/
+
+# Runtime print-job sidecars
+*.idprint
+*.result.json
+
+# Editor and operating-system noise
+.DS_Store
+Thumbs.db
+*.swp
