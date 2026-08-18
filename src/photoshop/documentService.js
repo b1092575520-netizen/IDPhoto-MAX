@@ -106,6 +106,9 @@
     if (window.IDPhotoSourceEligibilityService && window.IDPhotoSourceEligibilityService.parseXmp) {
       info.sourceMetadata = window.IDPhotoSourceEligibilityService.parseXmp(raw);
     }
+    if (window.IDPhotoSourceEligibilityService && window.IDPhotoSourceEligibilityService.getStableSourceIdFromXmp) {
+      info.stableSourceId = window.IDPhotoSourceEligibilityService.getStableSourceIdFromXmp(raw);
+    }
     return info;
   }
 

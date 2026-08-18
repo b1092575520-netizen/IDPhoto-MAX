@@ -10,7 +10,14 @@
     var sourceEligibilityService = options.sourceEligibilityService;
     var settingsBackupService = options.settingsBackupService;
     var templateOverrideService = options.templateOverrideService;
+    var quickPrintPreferenceStore = options.quickPrintPreferenceStore;
     var onSettingsRestored = typeof options.onSettingsRestored === "function" ? options.onSettingsRestored : function () {};
+    var onQuickPrintPreferenceChanged = typeof options.onQuickPrintPreferenceChanged === "function"
+      ? options.onQuickPrintPreferenceChanged
+      : function () {};
+    var onCloseAfterPrintChanged = typeof options.onCloseAfterPrintChanged === "function"
+      ? options.onCloseAfterPrintChanged
+      : function () {};
     var onStatus = typeof options.onStatus === "function" ? options.onStatus : function () {};
     var formatError = typeof options.formatError === "function" ? options.formatError : function (error) { return error && error.message ? error.message : String(error); };
     var initialized = false;
@@ -80,6 +87,54 @@
             : "已恢复目录标签：" + label + "（需重新授权）"
           : "尚未授权（首次导出时选择）"
       );
+    }
+
+    function applyCloseAfterPrintUi(enabled) {
+      var closeButton = one("#closeAfterPrintToggle");
+      var closeState = closeButton && closeButton.querySelector ? closeButton.querySelector(".toggle-state") : null;
+      if (closeButton) {
+        closeButton.classList.toggle("active", Boolean(enabled));
+      }
+      if (closeState) {
+        closeState.textContent = enabled ? "开" : "关";
+      }
+    }
+
+    function refreshQuickPrintPreference() {
+      var preference = quickPrintPreferenceStore && quickPrintPreferenceStore.load
+        ? quickPrintPreferenceStore.load()
+        : { mode: "off", initialEnabled: false, closeAfterPrint: false };
+      setInputValue("#quickPrintStartMode", preference.mode || "off");
+      applyCloseAfterPrintUi(preference.closeAfterPrint);
+      return preference;
+    }
+
+    function changeQuickPrintPreference() {
+      var select = one("#quickPrintStartMode");
+      var result;
+      if (!select || !quickPrintPreferenceStore || !quickPrintPreferenceStore.setMode) {
+        return;
+      }
+      result = quickPrintPreferenceStore.setMode(select.value);
+      setInputValue("#quickPrintStartMode", result.mode);
+      onQuickPrintPreferenceChanged(Boolean(result.initialEnabled), result.mode);
+      onStatus(
+        "快速打印启动方式已设为：" +
+        ({ off: "默认关闭", on: "默认打开", remember: "记住上次" }[result.mode] || "默认关闭")
+      );
+    }
+
+    function toggleCloseAfterPrint() {
+      var preference;
+      var result;
+      if (!quickPrintPreferenceStore || !quickPrintPreferenceStore.setCloseAfterPrint) {
+        return;
+      }
+      preference = quickPrintPreferenceStore.load ? quickPrintPreferenceStore.load() : { closeAfterPrint: false };
+      result = quickPrintPreferenceStore.setCloseAfterPrint(!preference.closeAfterPrint);
+      applyCloseAfterPrintUi(result.closeAfterPrint);
+      onCloseAfterPrintChanged(Boolean(result.closeAfterPrint));
+      onStatus("打印成功后关闭拼版已" + (result.closeAfterPrint ? "开启" : "关闭"));
     }
 
     function refreshRegisteredCameras() {
@@ -283,6 +338,7 @@
 
     async function refresh() {
       refreshNasAuthorization();
+      refreshQuickPrintPreference();
       refreshRegisteredCameras();
       await refreshCurrentCamera();
     }
@@ -301,6 +357,10 @@
       bindClick("#clearNasFolder", clearNasFolder);
       bindClick("#registerCurrentCamera", registerCurrentCamera);
       bindClick("#clearShopCameras", clearShopCameras);
+      bindClick("#closeAfterPrintToggle", toggleCloseAfterPrint);
+      if (one("#quickPrintStartMode")) {
+        one("#quickPrintStartMode").addEventListener("change", changeQuickPrintPreference);
+      }
       return refresh();
     }
 

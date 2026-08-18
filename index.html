@@ -105,6 +105,19 @@
             <button class="section-title settings-card-toggle" type="button" aria-expanded="false"><span><span class="section-caret" data-icon="caret-down"></span>输出与 NAS</span></button>
             <div class="settings-card-body">
               <div class="field-stack">
+                <label class="field-row" for="quickPrintStartMode">
+                  <span>快速打印启动</span>
+                  <select id="quickPrintStartMode">
+                    <option value="off">默认关闭</option>
+                    <option value="on">默认打开</option>
+                    <option value="remember">记住上次</option>
+                  </select>
+                </label>
+                <div class="settings-note">仅保存在当前电脑，不随设置备份迁移。</div>
+                <button class="toggle-btn switch-btn" id="closeAfterPrintToggle" type="button" data-icon="printer">
+                  <span class="toggle-name">打印成功后关闭拼版</span><span class="toggle-state">关</span>
+                </button>
+                <div class="settings-note">仅在打印机确认成功后关闭，并且不保存拼版文档；打印失败时文档会保留。</div>
                 <label class="field-row" for="nasFolderStatus">
                   <span>授权目录</span>
                   <input id="nasFolderStatus" type="text" value="尚未授权（首次导出时选择）" readonly />
@@ -179,7 +192,9 @@
     <script src="src/core/settingsProfile.js"></script>
     <script src="src/core/settingsBackupService.js"></script>
     <script src="src/core/settingsStore.js"></script>
+    <script src="src/core/quickPrintPreferenceStore.js"></script>
     <script src="src/core/sourceEligibilityService.js"></script>
+    <script src="src/core/photoVariantService.js"></script>
     <script src="src/core/cropStrategyStore.js"></script>
     <script src="src/core/smartCropPlanner.js"></script>
     <script src="src/core/debugSettingsStore.js"></script>

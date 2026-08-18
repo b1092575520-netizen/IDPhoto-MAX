@@ -58,6 +58,19 @@
     };
   }
 
+  function getStableSourceIdFromXmp(raw) {
+    var source = String(raw || "");
+    var imageUniqueId = readXmpValue(source, ["exif:ImageUniqueID", "photoshop:ImageUniqueID"]);
+    var originalDocumentId = readXmpValue(source, ["xmpMM:OriginalDocumentID"]);
+    if (imageUniqueId) {
+      return "image-unique-id:" + imageUniqueId;
+    }
+    if (originalDocumentId) {
+      return "original-document-id:" + originalDocumentId;
+    }
+    return "";
+  }
+
   function loadRegisteredCameras() {
     var parsed;
     try {
@@ -197,6 +210,7 @@
 
   window.IDPhotoSourceEligibilityService = {
     parseXmp: parseXmp,
+    getStableSourceIdFromXmp: getStableSourceIdFromXmp,
     normalizeSerial: normalizeSerial,
     loadRegisteredCameras: loadRegisteredCameras,
     registerCamera: registerCamera,

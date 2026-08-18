@@ -82,6 +82,20 @@
       }
       try {
         if (
+          documentToReactivate &&
+          (processResult.document === documentToReactivate ||
+            (processResult.document.id !== undefined &&
+              processResult.document.id !== null &&
+              processResult.document.id === documentToReactivate.id))
+        ) {
+          step("cleanup", "skipped stale processed document reference", { reason: reason || "" });
+          processResult.document = null;
+          if (typeof documentToReactivate.activate === "function") {
+            await documentToReactivate.activate();
+          }
+          return;
+        }
+        if (
           processResult.compositeTemporaryLayer &&
           documentService.cleanupTempSourceLayer &&
           processResult.compositeLayer
@@ -109,6 +123,34 @@
         step("cleanup", "closed incomplete layout document", { reason: reason || "" });
       } catch (error) {
         reportError("cleanup-target", error);
+      }
+    }
+
+    async function closePrintedTargetDocument(targetDocument) {
+      var documentService = window.IDPhotoDocumentService;
+      if (!targetDocument || !documentService || !documentService.closeWithoutSaving) {
+        return {
+          ok: false,
+          closed: false,
+          message: "打印已完成，但拼版文档无法自动关闭"
+        };
+      }
+      try {
+        await documentService.closeWithoutSaving(targetDocument);
+        step("cleanup", "closed printed layout document without saving");
+        return {
+          ok: true,
+          closed: true,
+          message: "打印成功，拼版文档已不保存关闭"
+        };
+      } catch (error) {
+        reportError("cleanup-printed-target", error);
+        return {
+          ok: false,
+          closed: false,
+          error: errorToText(error),
+          message: "打印已完成，但拼版文档自动关闭失败：" + errorToText(error)
+        };
       }
     }
 
@@ -237,6 +279,7 @@
       var layoutResult;
       var printResult;
       var exportResult;
+      var closeAfterPrintResult;
 
       if (!template) {
         throw new Error("模板注册表中未找到：" + templateName);
@@ -317,6 +360,19 @@
         await closeProcessedDocument(processResult, "execute finished", targetDocument);
       }
 
+      closeAfterPrintResult = {
+        ok: true,
+        skipped: true,
+        closed: false,
+        message: "未启用打印成功后自动关闭"
+      };
+      if (runOptions.closeAfterPrint && printResult && printResult.printed === true) {
+        closeAfterPrintResult = await closePrintedTargetDocument(targetDocument);
+        if (closeAfterPrintResult.closed) {
+          targetDocument = null;
+        }
+      }
+
       return {
         ok: true,
         templateName: templateName,
@@ -326,6 +382,7 @@
         infoResult: layoutResult.infoResult,
         printResult: printResult,
         exportResult: exportResult,
+        closeAfterPrintResult: closeAfterPrintResult,
         message: layoutResult.message
       };
     }
@@ -347,6 +404,7 @@
           tryExportSingle: false,
           skipExport: false,
           quickPrint: false,
+          closeAfterPrint: false,
           skipPrint: false,
           debugMode: false,
           rowGap: 10,
@@ -388,6 +446,12 @@
         }),
         printedResults: successResults.filter(function (entry) {
           return entry.result && entry.result.printResult && entry.result.printResult.printed === true;
+        }),
+        closedAfterPrintResults: successResults.filter(function (entry) {
+          return entry.result && entry.result.closeAfterPrintResult && entry.result.closeAfterPrintResult.closed === true;
+        }),
+        closeAfterPrintFailures: successResults.filter(function (entry) {
+          return entry.result && entry.result.closeAfterPrintResult && entry.result.closeAfterPrintResult.ok === false;
         }),
         duplicateExports: successResults.filter(function (entry) {
           return entry.result && entry.result.exportResult && entry.result.exportResult.duplicateSource === true;

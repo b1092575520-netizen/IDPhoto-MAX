@@ -40,10 +40,17 @@
     };
   }
 
-  function makeJpgFileName(templateName, sourceName, widthPx, heightPx) {
+  function makeJpgFileName(templateName, sourceName, widthPx, heightPx, variant) {
     var folders = getDateFolders();
     var sizePart = Number(widthPx) > 0 && Number(heightPx) > 0 ? "_" + Math.round(widthPx) + "x" + Math.round(heightPx) : "";
-    return folders.day + "_" + sanitizeFilePart(templateName) + sizePart + "_" + sanitizeFilePart(stripExtension(sourceName)) + ".jpg";
+    var identityMarker = variant && /^(?:u2|s2[io][a-f0-9]{2,156}|v2[a-f0-9]{129})$/i.test(String(variant.identityMarker || ""))
+      ? String(variant.identityMarker).toLowerCase()
+      : "";
+    var background = variant && /^(red|blue|white|unknown)$/.test(String(variant.backgroundColor || ""))
+      ? String(variant.backgroundColor)
+      : "";
+    var variantPart = background ? (identityMarker ? "_id-" + identityMarker : "") + "_bg-" + background : "";
+    return folders.day + "_" + sanitizeFilePart(templateName) + sizePart + variantPart + "_" + sanitizeFilePart(stripExtension(sourceName)) + ".jpg";
   }
 
   function makeJpgSourceKey(sourceName) {

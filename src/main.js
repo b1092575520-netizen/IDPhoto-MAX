@@ -12,6 +12,7 @@
     exportJpg: true,
     nasArchive: true,
     quickPrint: false,
+    closeAfterPrint: false,
     activeDocumentInfo: null,
     isRunning: false,
     activePhotoshopOperation: null,
@@ -366,13 +367,16 @@
 
   function readTemplateClickModifiers(event, fallback) {
     var hasModifierState = event && typeof event.getModifierState === "function";
-    fallback = fallback || {};
-    return {
-      ctrlKey: Boolean(fallback.ctrlKey || (event && event.ctrlKey) || (hasModifierState && event.getModifierState("Control")) || state.modifierKeys.ctrlKey),
-      shiftKey: Boolean(fallback.shiftKey || (event && event.shiftKey) || (hasModifierState && event.getModifierState("Shift")) || state.modifierKeys.shiftKey),
-      metaKey: Boolean(fallback.metaKey || (event && event.metaKey) || (hasModifierState && event.getModifierState("Meta")) || state.modifierKeys.metaKey),
+    var current = {
+      ctrlKey: Boolean((event && event.ctrlKey) || (hasModifierState && event.getModifierState("Control")) || state.modifierKeys.ctrlKey),
+      shiftKey: Boolean((event && event.shiftKey) || (hasModifierState && event.getModifierState("Shift")) || state.modifierKeys.shiftKey),
+      metaKey: Boolean((event && event.metaKey) || (hasModifierState && event.getModifierState("Meta")) || state.modifierKeys.metaKey),
       detail: event && event.detail ? event.detail : 1
     };
+    if (window.IDPhotoTemplateSelectionService && window.IDPhotoTemplateSelectionService.mergeModifiers) {
+      return window.IDPhotoTemplateSelectionService.mergeModifiers(fallback, current);
+    }
+    return current;
   }
 
   function toggleTemplateId(templateId, selectedIds) {
@@ -545,6 +549,9 @@
     }
 
     if (key === "quickPrint") {
+      if (window.IDPhotoQuickPrintPreferenceStore && window.IDPhotoQuickPrintPreferenceStore.recordLastEnabled) {
+        window.IDPhotoQuickPrintPreferenceStore.recordLastEnabled(state.quickPrint);
+      }
       runButtonLabel = one("#runButton .btn-label");
       if (runButtonLabel) {
         runButtonLabel.textContent = state.quickPrint ? "开始排版并打印" : "开始排版";
@@ -552,6 +559,43 @@
     }
 
     setStatus((message ? message + "｜" : "") + optionLabels[key] + " 已" + (state[key] ? "开" : "关"));
+  }
+
+  function syncQuickPrintControls() {
+    var button = one('.toggle-btn[data-key="quickPrint"]');
+    var stateText = button ? one(".toggle-state", button) : null;
+    var runButtonLabel = one("#runButton .btn-label");
+    if (button) {
+      button.classList.toggle("active", state.quickPrint);
+    }
+    if (stateText) {
+      stateText.textContent = state.quickPrint ? "开" : "关";
+    }
+    if (runButtonLabel) {
+      runButtonLabel.textContent = state.quickPrint ? "开始排版并打印" : "开始排版";
+    }
+  }
+
+  function applyQuickPrintPreference(enabled, mode) {
+    state.quickPrint = Boolean(enabled);
+    syncQuickPrintControls();
+    setStatus(
+      "快速打印启动方式：" +
+      ({ off: "默认关闭", on: "默认打开", remember: "记住上次" }[mode] || "默认关闭")
+    );
+  }
+
+  function applyCloseAfterPrintPreference(enabled) {
+    state.closeAfterPrint = Boolean(enabled);
+  }
+
+  function loadQuickPrintPreference() {
+    var preference = window.IDPhotoQuickPrintPreferenceStore && window.IDPhotoQuickPrintPreferenceStore.load
+      ? window.IDPhotoQuickPrintPreferenceStore.load()
+      : { mode: "off", initialEnabled: false, closeAfterPrint: false };
+    state.quickPrint = Boolean(preference.initialEnabled);
+    state.closeAfterPrint = Boolean(preference.closeAfterPrint);
+    return preference;
   }
 
   function getCurrentBaseTemplate() {
@@ -762,6 +806,8 @@
     var exportFailures;
     var printFailures;
     var printedResults;
+    var closedAfterPrintResults;
+    var closeAfterPrintFailures;
     var duplicateExports;
     var replacedExports;
     var completionMessage;
@@ -811,6 +857,7 @@
         tryExportSingle: Boolean(options && options.tryExportSingle),
         skipExport: Boolean(options && options.skipExport),
         quickPrint: state.quickPrint,
+        closeAfterPrint: state.closeAfterPrint,
         skipPrint: Boolean(options && options.skipPrint),
         debugMode: options && typeof options.debugMode === "boolean" ? options.debugMode : isDebugModeEnabled(),
         rowGap: state.rowGap,
@@ -832,6 +879,8 @@
     exportFailures = runResult.exportFailures;
     printFailures = runResult.printFailures;
     printedResults = runResult.printedResults;
+    closedAfterPrintResults = runResult.closedAfterPrintResults;
+    closeAfterPrintFailures = runResult.closeAfterPrintFailures;
     duplicateExports = runResult.duplicateExports;
     replacedExports = runResult.replacedExports;
 
@@ -876,6 +925,16 @@
     }
     if (printedResults.length) {
       completionMessage += "；DS-RX1 已打印 " + printedResults.length + " 张";
+    }
+    if (closedAfterPrintResults.length) {
+      completionMessage += "；已不保存关闭拼版 " + closedAfterPrintResults.length + " 个";
+    }
+    if (closeAfterPrintFailures.length) {
+      completionMessage +=
+        "；打印后自动关闭失败：" +
+        closeAfterPrintFailures.map(function (item) {
+          return getTemplateShortName(item.templateName);
+        }).join("、");
     }
     if (printFailures.length) {
       completionMessage +=
@@ -1044,6 +1103,9 @@
         sourceEligibilityService: window.IDPhotoSourceEligibilityService,
         settingsBackupService: window.IDPhotoSettingsBackupService,
         templateOverrideService: window.IDPhotoTemplateOverrideService,
+        quickPrintPreferenceStore: window.IDPhotoQuickPrintPreferenceStore,
+        onQuickPrintPreferenceChanged: applyQuickPrintPreference,
+        onCloseAfterPrintChanged: applyCloseAfterPrintPreference,
         onSettingsRestored: function () {
           setDebugPanelVisible(isDebugModeEnabled());
           refreshDebugPanel();
@@ -1060,6 +1122,7 @@
   }
 
   function init() {
+    loadQuickPrintPreference();
     initSettings();
     syncTemplateButtons();
     bindTabs();
@@ -1068,6 +1131,7 @@
     bindModifierTracking();
     bindMainActions();
     bindShortcuts();
+    syncQuickPrintControls();
     setStatus("");
   }
 

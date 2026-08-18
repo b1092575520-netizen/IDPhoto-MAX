@@ -35,6 +35,17 @@
     return Boolean(previousAt) && Number.isFinite(elapsed) && elapsed >= 0 && elapsed < 700;
   }
 
+  function mergeModifiers(previous, current) {
+    previous = previous || {};
+    current = current || {};
+    return {
+      ctrlKey: Boolean(previous.ctrlKey || current.ctrlKey),
+      shiftKey: Boolean(previous.shiftKey || current.shiftKey),
+      metaKey: Boolean(previous.metaKey || current.metaKey),
+      detail: current.detail || previous.detail || 1
+    };
+  }
+
   function clear() {
     return [];
   }
@@ -43,6 +54,7 @@
     toggle: toggle,
     forDoubleClick: forDoubleClick,
     isRepeatedDoubleActivation: isRepeatedDoubleActivation,
+    mergeModifiers: mergeModifiers,
     clear: clear
   };
 })();

@@ -691,7 +691,8 @@ button {
   margin-bottom: 3px;
 }
 
-.field-row input {
+.field-row input,
+.field-row select {
   display: block;
   width: 100%;
   height: 28px;
@@ -712,12 +713,14 @@ button {
   opacity: 1;
 }
 
-.field-row input:hover {
+.field-row input:hover,
+.field-row select:hover {
   border-color: #4b5c6d;
   background: #192430;
 }
 
-.field-row input:focus {
+.field-row input:focus,
+.field-row select:focus {
   border-color: var(--focus);
   background: #182433;
   box-shadow: 0 0 0 2px rgba(99, 165, 255, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.05);

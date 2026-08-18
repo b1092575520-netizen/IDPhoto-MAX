@@ -244,11 +244,85 @@
     return getEncodedExportSize(fileName) || getLegacyExportSize(fileName);
   }
 
-  async function findSourceGroupExports(folder, sourceName, aspectGroup) {
+  function getVariantFromFileName(fileName) {
+    var name = String(fileName || "");
+    var modern = name.match(/_id-((?:u2)|(?:s2[io][a-f0-9]{2,156})|(?:v2[a-f0-9]{129}))_bg-(red|blue|white|unknown)_/i);
+    var legacy = name.match(/_p([a-f0-9]{16})_bg-(red|blue|white|unknown)_/i);
+    var backgroundOnly = name.match(/_bg-(red|blue|white|unknown)_/i);
+    var parsed;
+    if (modern && window.IDPhotoVariantService && typeof window.IDPhotoVariantService.parseIdentityMarker === "function") {
+      parsed = window.IDPhotoVariantService.parseIdentityMarker(modern[1]);
+      if (parsed) {
+        parsed.identityMarker = modern[1].toLowerCase();
+        parsed.backgroundColor = modern[2].toLowerCase();
+        return parsed;
+      }
+    }
+    if (legacy) {
+      return {
+        legacyWeakFingerprint: legacy[1].toLowerCase(),
+        backgroundColor: legacy[2].toLowerCase()
+      };
+    }
+    return backgroundOnly ? { backgroundColor: backgroundOnly[1].toLowerCase() } : null;
+  }
+
+  function belongsToBackgroundGroup(existingVariant, currentVariant) {
+    if (!currentVariant) {
+      return !existingVariant;
+    }
+    if (currentVariant.backgroundColor === "unknown") {
+      return !existingVariant || existingVariant.backgroundColor === "unknown";
+    }
+    return Boolean(existingVariant && existingVariant.backgroundColor === currentVariant.backgroundColor);
+  }
+
+  function makeUnknownVariant(sourceName, stableSourceId) {
+    var service = window.IDPhotoVariantService;
+    if (!service || typeof service.makeSourceFingerprint !== "function") {
+      return null;
+    }
+    var variant = {
+      personFingerprint: service.makeSourceFingerprint(sourceName),
+      backgroundColor: "unknown",
+      stableSourceId: String(stableSourceId || "")
+    };
+    variant.identityMarker = typeof service.serializeIdentity === "function" ? service.serializeIdentity(variant) : "";
+    variant.stableSourceMarker = /^s2/.test(variant.identityMarker) ? variant.identityMarker : "";
+    variant.unverifiableStrongSourceId = variant.identityMarker === "u2";
+    return variant;
+  }
+
+  function normalizeVariant(variant, sourceName, stableSourceId) {
+    var service = window.IDPhotoVariantService;
+    if (
+      variant &&
+      /^[a-f0-9]{16}$/i.test(String(variant.personFingerprint || "")) &&
+      /^(red|blue|white|unknown)$/.test(String(variant.backgroundColor || ""))
+    ) {
+      variant = {
+        personFingerprint: String(variant.personFingerprint).toLowerCase(),
+        backgroundColor: String(variant.backgroundColor),
+        visualSignature: variant.visualSignature || null,
+        stableSourceId: String(stableSourceId || "")
+      };
+      variant.identityMarker = service && typeof service.serializeIdentity === "function" ? service.serializeIdentity(variant) : "";
+      variant.stableSourceMarker = /^s2/.test(variant.identityMarker) ? variant.identityMarker : "";
+      variant.unverifiableStrongSourceId = variant.identityMarker === "u2";
+      return variant;
+    }
+    return makeUnknownVariant(sourceName, stableSourceId);
+  }
+
+  async function findSourceGroupExports(folder, sourceName, aspectGroup, variant) {
     var sourceKey;
     var pattern;
     var entries;
     var size;
+    var existingVariant;
+    var sourceMatches;
+    var identityResult;
+    var highConfidenceMatch;
     var matches = [];
     var index;
 
@@ -266,16 +340,40 @@
     pattern = new RegExp("_" + escapeRegExp(sourceKey) + "(?:_\\d+)?\\.jpg$", "i");
     entries = await folder.getEntries();
     for (index = 0; index < entries.length; index += 1) {
-      if (entries[index] && entries[index].name && pattern.test(entries[index].name)) {
-        size = getExistingExportSize(entries[index].name);
-        if (size && getAspectGroup(size.widthPx, size.heightPx) === aspectGroup) {
-          matches.push({
-            file: entries[index],
-            widthPx: size.widthPx,
-            heightPx: size.heightPx,
-            area: getPixelArea(size.widthPx, size.heightPx)
-          });
-        }
+      if (!(entries[index] && entries[index].name)) {
+        continue;
+      }
+      existingVariant = getVariantFromFileName(entries[index].name);
+      sourceMatches = pattern.test(entries[index].name);
+      identityResult = null;
+      if (
+        variant && existingVariant &&
+        window.IDPhotoVariantService && typeof window.IDPhotoVariantService.compareIdentity === "function"
+      ) {
+        identityResult = window.IDPhotoVariantService.compareIdentity(variant, existingVariant);
+      }
+      highConfidenceMatch = Boolean(identityResult && (identityResult.kind === "stable-source" || identityResult.kind === "visual-high"));
+      if (
+        sourceMatches && identityResult &&
+        (identityResult.reason === "conflicting-strong-source-id" || identityResult.reason === "unverifiable-strong-source-id")
+      ) {
+        continue;
+      }
+      if (!sourceMatches && !highConfidenceMatch) {
+        continue;
+      }
+      size = getExistingExportSize(entries[index].name);
+      if (
+        size &&
+        getAspectGroup(size.widthPx, size.heightPx) === aspectGroup &&
+        belongsToBackgroundGroup(existingVariant, variant)
+      ) {
+        matches.push({
+          file: entries[index],
+          widthPx: size.widthPx,
+          heightPx: size.heightPx,
+          area: getPixelArea(size.widthPx, size.heightPx)
+        });
       }
     }
     return matches;
@@ -385,6 +483,7 @@
     var replacedSmaller = false;
     var removedCount = 0;
     var eligibility;
+    var variant = null;
 
     if (!processedDocument) {
       throw new Error("没有可导出的处理后单张照片");
@@ -410,11 +509,24 @@
       throw new Error("pathService 未加载，无法生成 JPG 文件名");
     }
 
+    if (window.IDPhotoVariantService && typeof window.IDPhotoVariantService.analyzeDocument === "function") {
+      try {
+        variant = normalizeVariant(
+          await window.IDPhotoVariantService.analyzeDocument(processedDocument),
+          docInfo.name,
+          docInfo.stableSourceId
+        );
+      } catch (analysisError) {
+        console.warn("[export] photo variant analysis failed; using unknown safe dedupe", analysisError);
+        variant = makeUnknownVariant(docInfo.name, docInfo.stableSourceId);
+      }
+    }
+
     rootResult = await getOutputRootFolder(nasArchive);
     dateFolder = await getDatedOutputFolder(rootResult.folder);
     aspectGroup = getAspectGroup(template.widthPx, template.heightPx);
     currentArea = getPixelArea(template.widthPx, template.heightPx);
-    existingExports = await findSourceGroupExports(dateFolder, docInfo.name, aspectGroup);
+    existingExports = await findSourceGroupExports(dateFolder, docInfo.name, aspectGroup, variant);
     largestExisting = getLargestExport(existingExports);
     if (largestExisting && largestExisting.area >= currentArea) {
       removedCount = await deleteCandidateFiles(existingExports, largestExisting.file);
@@ -432,7 +544,7 @@
       };
     }
     replacedSmaller = Boolean(largestExisting);
-    fileName = window.IDPhotoPathService.makeJpgFileName(template.name, docInfo.name, template.widthPx, template.heightPx);
+    fileName = window.IDPhotoPathService.makeJpgFileName(template.name, docInfo.name, template.widthPx, template.heightPx, variant);
     fileResult = await createAvailableFile(dateFolder, fileName);
     file = fileResult.file;
     fileName = fileResult.fileName;
@@ -454,6 +566,8 @@
       ok: true,
       fileName: fileName,
       aspectGroup: aspectGroup,
+      backgroundColor: variant ? variant.backgroundColor : "unknown",
+      personFingerprint: variant ? variant.personFingerprint : "",
       replacedSmaller: replacedSmaller,
       removedCount: removedCount,
       mode: rootResult.mode,
