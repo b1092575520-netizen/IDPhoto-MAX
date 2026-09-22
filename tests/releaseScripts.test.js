@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
+const { spawnSync } = require("node:child_process");
 
 const root = path.join(__dirname, "..");
 
@@ -45,7 +46,8 @@ test("the installer deploys into Photoshop's logged UXP External discovery folde
   assert.match(script, /legacyTarget/);
   assert.match(script, /\[switch\]\$DryRun/);
   assert.match(script, /Adobe UXP Developer Tool/);
-  assert.match(script, /unsigned local development install/);
+  assert.match(script, /existing Adobe registration path was preserved/);
+  assert.doesNotMatch(script, /Resolve-DuplicatePluginInstallations/);
   assert.match(script, /IDPhotoMAX\.PrintJob/);
   assert.match(script, /\.idprint/);
   assert.match(script, /print-dsrx1\.ps1/);
@@ -65,4 +67,55 @@ test("the Windows EXE builder embeds the verified package and emits a SHA256 fil
   assert.match(launcher, /--dry-run/);
   assert.match(launcher, /-DryRun/);
   assert.match(launcher, /Directory\.Delete\(tempRoot, true\)/);
+});
+
+test("installer preserves the registered versioned path and rejects missing or unsafe registration", () => {
+  const tempBase = path.resolve(root, ".tmp");
+  fs.mkdirSync(tempBase, { recursive: true });
+  const fixture = fs.mkdtempSync(path.join(tempBase, "installer-duplicates-"));
+  const scriptFile = path.join(fixture, "check.ps1");
+  fs.writeFileSync(scriptFile, `
+$ErrorActionPreference = 'Stop'
+$tokens = $null; $errors = $null
+$ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $env:IDPHOTO_REPO 'scripts/install-plugin.ps1'),[ref]$tokens,[ref]$errors)
+if ($errors.Count) { throw $errors }
+$fn = $ast.Find({param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Get-RegisteredPluginTarget'}, $true)
+if (-not $fn) { throw 'Registered path resolver missing' }
+Invoke-Expression $fn.Extent.Text
+$systemRoot = Join-Path $env:IDPHOTO_FIXTURE 'Plugins'
+$discovery = Join-Path $systemRoot 'External'
+$canonical = Join-Path $discovery 'target.plugin'
+$expected = Join-Path $discovery 'target.plugin_0.5.2'
+$reg = Join-Path $env:IDPHOTO_FIXTURE 'PS.json'
+New-Item -ItemType Directory -Path $canonical -Force | Out-Null
+Set-Content (Join-Path $canonical 'sentinel.txt') 'unregistered copy'
+$path = '$systemPlugins' + [IO.Path]::DirectorySeparatorChar + 'External' + [IO.Path]::DirectorySeparatorChar + 'target.plugin_0.5.2'
+$valid = @{pluginId='target.plugin';path=$path;status='enabled';versionString='0.5.2'}
+@{plugins=@($valid, @{pluginId='other.plugin';path='unrelated'})} | ConvertTo-Json | Set-Content $reg
+$before = Get-Content $reg -Raw
+$actual = Get-RegisteredPluginTarget $reg $systemRoot 'target.plugin'
+if ($actual -ne $expected) { throw 'Did not select the Adobe-registered directory' }
+if (Test-Path $expected) { throw 'Read-only resolution created a folder' }
+if ((Get-Content $reg -Raw) -ne $before) { throw 'Registration was modified' }
+if (-not (Test-Path (Join-Path $canonical 'sentinel.txt'))) { throw 'Unregistered folder changed' }
+foreach ($bad in @(@{plugins=@()}, @{plugins=@($valid,$valid)}, @{plugins=@(@{pluginId='target.plugin';path=($path + '/../../outside')})}, @{plugins=@(@{pluginId='target.plugin';path='C:/outside'})})) {
+  $bad | ConvertTo-Json -Depth 5 | Set-Content $reg
+  $rejected = $false
+  try { Get-RegisteredPluginTarget $reg $systemRoot 'target.plugin' | Out-Null } catch { $rejected = $true }
+  if (-not $rejected) { throw 'Unsafe or ambiguous registration was accepted' }
+}
+$rejected = $false
+try { Get-RegisteredPluginTarget ($reg + '.absent') $systemRoot 'target.plugin' | Out-Null } catch { $rejected = $true }
+if (-not $rejected) { throw 'Missing registration was accepted' }
+
+`);
+  try {
+    const result = spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptFile], {
+      encoding: "utf8", env: { ...process.env, IDPHOTO_REPO: root, IDPHOTO_FIXTURE: fixture }
+    });
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+  } finally {
+    if (!path.resolve(fixture).startsWith(tempBase + path.sep)) throw Error("Unsafe test cleanup path");
+    fs.rmSync(fixture, { recursive: true, force: true });
+  }
 });

@@ -52,7 +52,7 @@ try {
   $changelog = Get-Content -Raw -Encoding UTF8 (Join-Path $ProjectRoot "CHANGELOG.md")
   $progress = Get-Content -Raw -Encoding UTF8 (Join-Path $ProjectRoot "DEV_PROGRESS.md")
   Assert-ReleaseCondition ($readme -match [regex]::Escape("v$($manifest.version)")) "README version does not match manifest"
-  Assert-ReleaseCondition ($changelog -match "(?m)^## $([regex]::Escape($manifest.version))$") "CHANGELOG version does not match manifest"
+  Assert-ReleaseCondition ($changelog -match "(?m)^## $([regex]::Escape($manifest.version))\r?$") "CHANGELOG version does not match manifest"
   Assert-ReleaseCondition ($progress -match [regex]::Escape("v$($manifest.version)")) "DEV_PROGRESS version does not match manifest"
 
   Write-Host "[4/6] Checking release UI surface"

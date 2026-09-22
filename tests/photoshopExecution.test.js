@@ -77,3 +77,31 @@ test("executeAsModal owns the command label and unsupported-runtime error", asyn
   const unsupported = loadExecution({ action: {}, core: {} });
   await assert.rejects(() => unsupported.executeAsModal(async () => {}, "测试命令"), /executeAsModal/);
 });
+
+test("Photoshop error descriptors reject the operation even when the promise resolves", async () => {
+  for (const result of [-25920, -128]) {
+    const execution = loadExecution({ action: { async batchPlay() {
+      return [{ _obj: "set" }, { _obj: "error", result, message: "host command failed" }];
+    } } });
+    await assert.rejects(execution.batchPlay([{ _obj: "set" }, { _obj: "crop" }]), error => {
+      assert.equal(error.number, result);
+      assert.equal(error.commandIndex, 1);
+      assert.match(error.message, /host command failed/);
+      return true;
+    });
+  }
+});
+
+test("document activation uses the real app.activeDocument API without an activate method", async () => {
+  const original = { id: 1 };
+  const target = { id: 2 };
+  const app = { activeDocument: original };
+  const execution = loadExecution({ app });
+  await execution.activateDocument(target);
+  assert.equal(app.activeDocument, target);
+});
+
+test("modal cancellation remains detectable when the host throws an untyped error", async () => {
+  const execution = loadExecution({ core: { async executeAsModal(callback) { return callback({ isCancelled: true }); } } });
+  await assert.rejects(execution.executeAsModal(async () => { throw new Error("cancelled by host"); }), error => execution.isCancellation(error));
+});

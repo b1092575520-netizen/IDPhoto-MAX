@@ -113,7 +113,9 @@
   function save(profile) {
     var normalized = normalizeProfile(profile);
     try {
-      write(PROFILE_KEY, JSON.stringify(normalized));
+      if (!write(PROFILE_KEY, JSON.stringify(normalized))) {
+        throw new Error("本地存储不可用");
+      }
     } catch (error) {
       throw new Error("设置档案保存失败：" + error.message);
     }
@@ -125,9 +127,13 @@
     var parsed;
     if (raw) {
       parsed = parseJson(raw, null);
-      if (parsed) {
-        return normalizeProfile(parsed);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("设置档案损坏，请从有效备份恢复");
       }
+      if (parsed.schemaVersion !== SCHEMA_VERSION) {
+        throw new Error("设置档案版本不兼容，已保留原数据");
+      }
+      return normalizeProfile(parsed);
     }
     return save(migrateLegacy());
   }
@@ -164,8 +170,8 @@
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
       throw new Error("设置备份格式无效：缺少设置对象");
     }
-    if (Number(parsed.schemaVersion || 0) > SCHEMA_VERSION) {
-      throw new Error("设置备份版本高于当前插件，无法恢复");
+    if (parsed.schemaVersion !== SCHEMA_VERSION) {
+      throw new Error("设置备份版本无效或不兼容，无法恢复");
     }
     return save(parsed);
   }

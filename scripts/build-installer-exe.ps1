@@ -25,6 +25,24 @@ $sourcePath = Join-Path $ProjectRoot "scripts\installer\IDPhotoMaxInstaller.cs"
 $compiler = Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("IDPhotoMAX-Build-" + [guid]::NewGuid().ToString("N"))
 
+function Get-ReleaseSha256 {
+  param([string]$Path)
+  if (Get-Command Get-FileHash -ErrorAction SilentlyContinue) {
+    return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash
+  }
+  $sha256 = [System.Security.Cryptography.SHA256]::Create()
+  try {
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+      return ([BitConverter]::ToString($sha256.ComputeHash($stream))).Replace('-', '')
+    } finally {
+      $stream.Dispose()
+    }
+  } finally {
+    $sha256.Dispose()
+  }
+}
+
 if (-not (Test-Path -LiteralPath $compiler)) {
   throw "64-bit .NET Framework C# compiler was not found: $compiler"
 }
@@ -63,13 +81,13 @@ try {
     throw "Installer EXE compilation failed"
   }
 
-  $hash = Get-FileHash -Algorithm SHA256 -LiteralPath $exePath
+  $hash = Get-ReleaseSha256 -Path $exePath
   Set-Content -LiteralPath $hashPath -Encoding ASCII -Value (
-    "{0}  {1}" -f $hash.Hash.ToLowerInvariant(), (Split-Path -Leaf $exePath)
+    "{0}  {1}" -f $hash.ToLowerInvariant(), (Split-Path -Leaf $exePath)
   )
 
   Write-Host "Installer created: $exePath"
-  Write-Host "SHA256: $($hash.Hash.ToLowerInvariant())"
+  Write-Host "SHA256: $($hash.ToLowerInvariant())"
 } finally {
   $tempFull = [System.IO.Path]::GetFullPath($tempRoot)
   $systemTempFull = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath()).TrimEnd('\') + '\'

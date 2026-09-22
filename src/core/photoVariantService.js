@@ -435,10 +435,19 @@
   }
 
   function analyzeSample(sample) {
+    var width = Number(sample && sample.width);
+    var height = Number(sample && sample.height);
+    var components = Number(sample && sample.components);
+    if (!(Number.isInteger(width) && width > 0 && Number.isInteger(height) && height > 0 &&
+        (components === 3 || components === 4) && sample.data && sample.data.length >= width * height * components)) {
+      throw new Error("像素样本不完整，无法确认照片身份");
+    }
+    var structure = makeBlockValues(sample, 4, 4, readGray, { left: 0.32, right: 0.68, top: 0.22, bottom: 0.68 });
+    var hasStructure = Math.max.apply(null, structure) - Math.min.apply(null, structure) >= 8;
     return {
       backgroundColor: classifyBackground(sample),
       personFingerprint: makePersonFingerprint(sample),
-      visualSignature: makeVisualSignature(sample)
+      visualSignature: hasStructure ? makeVisualSignature(sample) : null
     };
   }
 

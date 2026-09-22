@@ -28,7 +28,7 @@
       return { ok: false, cancelled: true, message: "已取消设置备份" };
     }
     await file.write(getProfile().exportJson(), {
-      format: storage.formats && storage.formats.utf8 ? storage.formats.utf8 : "utf8"
+      format: storage.formats ? storage.formats.utf8 : undefined
     });
     return {
       ok: true,
@@ -48,7 +48,7 @@
       return { ok: false, cancelled: true, message: "已取消恢复设置" };
     }
     raw = await file.read({
-      format: storage.formats && storage.formats.utf8 ? storage.formats.utf8 : "utf8"
+      format: storage.formats ? storage.formats.utf8 : undefined
     });
     profile = getProfile().importJson(raw);
     return {

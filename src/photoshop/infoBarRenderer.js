@@ -47,35 +47,8 @@
     return documentRef && (documentRef.id || documentRef._id || documentRef.documentID || null);
   }
 
-  function isSameDocument(left, right) {
-    var leftId;
-    var rightId;
-    if (!left || !right) {
-      return false;
-    }
-    if (left === right) {
-      return true;
-    }
-    leftId = getDocumentId(left);
-    rightId = getDocumentId(right);
-    return leftId !== null && rightId !== null && String(leftId) === String(rightId);
-  }
-
   async function activateDocument(documentRef) {
-    var photoshop;
-    var activeDocument;
-    if (!documentRef || typeof documentRef.activate !== "function") {
-      return;
-    }
-    try {
-      photoshop = getPhotoshopModule();
-      activeDocument = photoshop.app && photoshop.app.activeDocument;
-    } catch (error) {
-      activeDocument = null;
-    }
-    if (!isSameDocument(activeDocument, documentRef)) {
-      await documentRef.activate();
-    }
+    await window.IDPhotoPhotoshopExecution.activateDocument(documentRef);
   }
 
   function readBoundValue(value) {
@@ -302,6 +275,7 @@
         return;
       }
     } catch (domError) {
+      window.IDPhotoPhotoshopExecution.throwIfCancelled(domError);
       console.warn("[infoBarRenderer] layer.resize failed, falling back to batchPlay", {
         label: label,
         error: domError
@@ -355,6 +329,7 @@
         return;
       }
     } catch (domError) {
+      window.IDPhotoPhotoshopExecution.throwIfCancelled(domError);
       console.warn("[infoBarRenderer] layer.resize exact failed, falling back to batchPlay", {
         label: label,
         error: domError
@@ -661,6 +636,7 @@
           knownLayerIds
         );
       } catch (fontError) {
+        window.IDPhotoPhotoshopExecution.throwIfCancelled(fontError);
         if (fontError && fontError.code === "NEW_LAYER_RESOLUTION_FAILED") {
           throw fontError;
         }
@@ -1070,7 +1046,17 @@
           height: column && column.height ? column.height : config.height,
           debugFixedPosition: Boolean(config.debugFixedPosition || column)
         });
-        return makeConfiguredItem(key, text, itemOptions, infoBar, options);
+        itemOptions = makeConfiguredItem(key, text, itemOptions, infoBar, options);
+        if (column && (column.width || column.height)) {
+          itemOptions.debugTargetBounds = {
+            x: itemOptions.x,
+            y: itemOptions.y,
+            width: Math.round(column.width || 0),
+            height: Math.round(column.height || 0),
+            fontSize: itemOptions.fontSize
+          };
+        }
+        return itemOptions;
       })
       .filter(function (item) {
         return String(item.text || "").trim().length > 0;

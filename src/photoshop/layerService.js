@@ -106,35 +106,8 @@
     return documentRef && (documentRef.id || documentRef._id || documentRef.documentID || null);
   }
 
-  function isSameDocument(left, right) {
-    var leftId;
-    var rightId;
-    if (!left || !right) {
-      return false;
-    }
-    if (left === right) {
-      return true;
-    }
-    leftId = getDocumentId(left);
-    rightId = getDocumentId(right);
-    return leftId !== null && rightId !== null && String(leftId) === String(rightId);
-  }
-
   async function activateDocument(documentRef) {
-    var photoshop;
-    var activeDocument;
-    if (!documentRef || typeof documentRef.activate !== "function") {
-      return;
-    }
-    try {
-      photoshop = getPhotoshopModule();
-      activeDocument = photoshop.app && photoshop.app.activeDocument;
-    } catch (error) {
-      activeDocument = null;
-    }
-    if (!isSameDocument(activeDocument, documentRef)) {
-      await documentRef.activate();
-    }
+    await window.IDPhotoPhotoshopExecution.activateDocument(documentRef);
   }
 
   function getActiveLayer(documentRef) {
@@ -370,6 +343,7 @@
         throw new Error("DOM translate 返回后图层未到目标位置");
       }
     } catch (error) {
+      window.IDPhotoPhotoshopExecution.throwIfCancelled(error);
       domError = error;
       method = "batchPlay";
       console.warn("[layerService] layer.translate failed or missed target, falling back to batchPlay move", error);
@@ -377,6 +351,7 @@
       try {
         await moveLayerByBatchPlay(layer, Math.round(x - bounds.left), Math.round(y - bounds.top));
       } catch (error) {
+        window.IDPhotoPhotoshopExecution.throwIfCancelled(error);
         batchError = error;
       }
     }
@@ -441,6 +416,7 @@
         await layer.rotate(degrees);
         return;
       } catch (error) {
+        window.IDPhotoPhotoshopExecution.throwIfCancelled(error);
         console.warn("[layerService] layer.rotate failed, falling back to batchPlay transform", error);
       }
     }

@@ -108,7 +108,7 @@
     delete overrides[templateId];
     result = saveOverrides(overrides);
     result.templateId = templateId;
-    result.message = "已重置当前模板调试参数";
+    if (result.ok) result.message = "已重置当前模板调试参数";
     return result;
   }
 

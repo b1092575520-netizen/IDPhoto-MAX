@@ -23,12 +23,33 @@ $bridgeSource = Join-Path $PackageRoot "bridge\print-dsrx1.ps1"
 $bridgeRoot = Join-Path $env:ProgramData "IDPhotoMAX"
 $bridgeTarget = Join-Path $bridgeRoot "print-dsrx1.ps1"
 $uxpPluginsRoot = Join-Path ${env:CommonProgramFiles} "Adobe\UXP\Plugins\External"
-$uxpTarget = Join-Path $uxpPluginsRoot $manifest.id
+$uxpRegistration = Join-Path ${env:CommonProgramFiles} 'Adobe\UXP\PluginsInfo\v1\PS.json'
 
 function Test-IsAdministrator {
   $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
   $principal = New-Object Security.Principal.WindowsPrincipal($identity)
   return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Get-RegisteredPluginTarget {
+  param([string]$RegistrationPath, [string]$SystemPluginsRoot, [string]$PluginId)
+  if (-not (Test-Path -LiteralPath $RegistrationPath -PathType Leaf)) {
+    throw 'Adobe plugin registration was not found. Install the CCX through Adobe before using this updater.'
+  }
+  $registration = Get-Content -LiteralPath $RegistrationPath -Raw -Encoding UTF8 | ConvertFrom-Json
+  $matches = @($registration.plugins | Where-Object { $_.pluginId -eq $PluginId })
+  if ($matches.Count -ne 1) { throw 'Expected one Adobe registration for this plugin; no installation folders were changed.' }
+  $registeredPath = [string]$matches[0].path
+  if ($registeredPath -notmatch '^\$systemPlugins[\\/]+External[\\/]+') {
+    throw 'Unsupported registered plugin location; refusing to invent a replacement path.'
+  }
+  $externalRoot = [IO.Path]::GetFullPath((Join-Path $SystemPluginsRoot 'External')).TrimEnd('\') + '\'
+  $target = [IO.Path]::GetFullPath($registeredPath.Replace('$systemPlugins', $SystemPluginsRoot))
+  if (-not $target.StartsWith($externalRoot, [StringComparison]::OrdinalIgnoreCase) -or
+      [IO.Path]::GetDirectoryName($target).TrimEnd('\') -ne $externalRoot.TrimEnd('\')) {
+    throw 'Registered plugin path escapes the expected Adobe External folder.'
+  }
+  return $target
 }
 
 function Find-CompatiblePhotoshopHosts {
@@ -59,6 +80,8 @@ function Show-DeveloperToolFallback {
     Write-Host "Adobe UXP Developer Tool was not found. Install it, then load manifest.json."
   }
 }
+
+$uxpTarget = Get-RegisteredPluginTarget -RegistrationPath $uxpRegistration -SystemPluginsRoot (Split-Path $uxpPluginsRoot -Parent) -PluginId $manifest.id
 
 $hosts = Find-CompatiblePhotoshopHosts
 if (-not $hosts.Count) {
@@ -141,6 +164,7 @@ if ($DryRun) {
   Write-Host "UXP plugin deployed to: $uxpTarget"
 }
 
+
 foreach ($photoshopHost in $hosts) {
   $legacyRoot = Join-Path $photoshopHost.FullName "Plug-ins"
   $legacyTarget = Join-Path $legacyRoot $manifest.id
@@ -162,11 +186,6 @@ if ($DryRun) {
   exit 0
 }
 
-$developerSettingsPath = Join-Path ${env:CommonProgramFiles} "Adobe\UXP\Developer\settings.json"
-$developerSettingsDirectory = Split-Path -Parent $developerSettingsPath
-New-Item -ItemType Directory -Path $developerSettingsDirectory -Force | Out-Null
-Set-Content -LiteralPath $developerSettingsPath -Encoding ASCII -Value '{"developer":true}'
-
 Write-Host "IDPhoto MAX v$($manifest.version) was deployed."
 Write-Host "Quit Photoshop completely, reopen it, then open IDPhoto MAX from the Plugins menu."
-Write-Host "This is an unsigned local development install, not an Adobe-signed CCX."
+Write-Host "The existing Adobe registration path was preserved. This updater does not register new plugins."

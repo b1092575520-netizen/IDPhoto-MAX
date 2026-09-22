@@ -30,6 +30,39 @@ function loadCropService(photoshop, documentService, contentAwareService, subjec
   return context.window.IDPhotoCropService;
 }
 
+test("a duplicate that aliases the original is never flattened, resized or closed", async () => {
+  for (const sameObject of [true, false]) {
+    const calls = [];
+    const original = { id: 1, async duplicate() { return sameObject ? original : { id: 1 }; } };
+    const service = loadCropService({ core: { async executeAsModal(fn) { return await fn(); } } }, {
+      async prepareCompositeSourceLayer() { calls.push("flatten"); return {}; },
+      async closeWithoutSaving() { calls.push("close"); }
+    });
+    await assert.rejects(service.prepareSinglePhoto(original, { name: "original.jpg", widthPx: 600, heightPx: 800 },
+      { name: "1寸", widthPx: 600, heightPx: 800 }, { ok: true }), /原片/);
+    assert.deepEqual(calls, []);
+  }
+});
+
+test("cancelling crop closes only the temporary document without a fallback crop", async () => {
+  const closed = [];
+  const cancellation = Object.assign(new Error("cancelled"), { number: -128 });
+  let fallbackCalls = 0;
+  const processed = { id: 2, async activate() {}, async crop() { throw cancellation; } };
+  const original = { id: 1, async duplicate() { return processed; } };
+  const service = loadCropService({
+    core: { async executeAsModal(fn) { return fn(); } },
+    action: { async batchPlay() { fallbackCalls++; return []; } }
+  }, {
+    async prepareCompositeSourceLayer() { return {}; },
+    async closeWithoutSaving(doc) { closed.push(doc.id); }
+  });
+  await assert.rejects(service.prepareSinglePhoto(original, { name: "original", widthPx: 1200, heightPx: 1600 },
+    { name: "photo", widthPx: 600, heightPx: 800 }, { ok: false }, { strategy: "crop" }), error => error.number === -128);
+  assert.deepEqual(closed, [2]);
+  assert.equal(fallbackCalls, 0);
+});
+
 test("prepareSinglePhoto sends a rectangle object to the Photoshop DOM crop", async () => {
   let cropBounds = null;
   let batchPlayCount = 0;

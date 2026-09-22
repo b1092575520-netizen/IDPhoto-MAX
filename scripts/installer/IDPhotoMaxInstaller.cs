@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Reflection;
+using System.Text;
 using System.Windows.Forms;
 
 [assembly: AssemblyTitle("IDPhoto MAX Setup")]
@@ -65,22 +66,34 @@ internal static class IDPhotoMaxInstaller
             ProcessStartInfo startInfo = new ProcessStartInfo("powershell.exe", arguments);
             startInfo.UseShellExecute = false;
             startInfo.CreateNoWindow = true;
+            startInfo.RedirectStandardOutput = true;
+            startInfo.RedirectStandardError = true;
             startInfo.WorkingDirectory = packageRoot;
 
-            using (Process process = Process.Start(startInfo))
+            using (Process process = new Process())
             {
-                if (process == null)
+                StringBuilder details = new StringBuilder();
+                process.StartInfo = startInfo;
+                DataReceivedEventHandler collect = delegate(object sender, DataReceivedEventArgs line)
+                {
+                    if (line.Data != null) { lock (details) { details.AppendLine(line.Data); } }
+                };
+                process.OutputDataReceived += collect;
+                process.ErrorDataReceived += collect;
+                if (!process.Start())
                 {
                     throw new InvalidOperationException("PowerShell could not be started.");
                 }
 
+                process.BeginOutputReadLine();
+                process.BeginErrorReadLine();
                 process.WaitForExit();
                 if (process.ExitCode != 0)
                 {
                     if (!dryRun)
                     {
                         MessageBox.Show(
-                            "Installation stopped. Please confirm Photoshop 2024 or newer and the DS-RX1 driver are installed.",
+                            "Installation stopped:\n" + details.ToString(),
                             "IDPhoto MAX Setup",
                             MessageBoxButtons.OK,
                             MessageBoxIcon.Error);

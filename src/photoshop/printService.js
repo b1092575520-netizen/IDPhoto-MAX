@@ -52,9 +52,6 @@
   }
 
   async function exportLayoutJpeg(documentRef, file) {
-    if (typeof documentRef.activate === "function") {
-      await documentRef.activate();
-    }
     await getExecution().executeAsModal(async function () {
       if (!documentRef.saveAs || typeof documentRef.saveAs.jpg !== "function") {
         throw new Error("当前 Photoshop DOM 不支持导出打印临时 JPG");
@@ -72,10 +69,11 @@
   function invalidResult(message) {
     return {
       ok: false,
-      printed: false,
-      blocked: true,
+      printed: null,
+      blocked: false,
+      outcomeUnknown: true,
       reason: "bridge-invalid-result",
-      message: "快速打印已阻止：" + message
+      message: "打印结果无法确认：" + message + "；请先检查 DS-RX1 队列和出纸情况，勿直接重复打印"
     };
   }
 
@@ -95,6 +93,9 @@
   function normalizeBridgeResult(result, jobId) {
     if (!result || result.schemaVersion !== JOB_SCHEMA_VERSION || result.jobId !== jobId) {
       return invalidResult("Windows 打印桥返回了无效结果");
+    }
+    if (result.outcomeUnknown === true) {
+      return invalidResult(result.message || "打印桥未确认是否已提交");
     }
     if (result.ok === true) {
       if (
@@ -138,15 +139,15 @@
         try {
           parsed = JSON.parse(await resultFile.read());
         } catch (error) {
-          return {
-            result: invalidResult("Windows 打印桥结果不是有效 JSON"),
-            resultFile: resultFile
-          };
+          parsed = null;
         }
-        return {
-          result: normalizeBridgeResult(parsed, jobId),
-          resultFile: resultFile
-        };
+        if (parsed) {
+          var normalized = normalizeBridgeResult(parsed, jobId);
+          if (parsed.schemaVersion === JOB_SCHEMA_VERSION && parsed.jobId === jobId) {
+            normalized.archiveIndexResult = parsed.archiveIndexResult;
+          }
+          return { result: normalized, resultFile: resultFile };
+        }
       }
       if (Date.now() >= deadline) {
         break;
@@ -157,10 +158,11 @@
     return {
       result: {
         ok: false,
-        printed: false,
-        blocked: true,
+        printed: null,
+        blocked: false,
+        outcomeUnknown: true,
         reason: "bridge-timeout",
-        message: "快速打印已阻止：等待 Windows 打印桥返回结果超时，未自动重试"
+        message: "等待打印结果超时，可能已进入 DS-RX1 队列；请先检查队列和出纸情况，勿直接重复打印"
       },
       resultFile: null
     };
@@ -188,6 +190,8 @@
     var bridgeResponse;
     var timeoutMs;
     var pollIntervalMs;
+    var launchAttempted = false;
+    var completed = false;
 
     options = options || {};
     if (!documentRef) {
@@ -220,13 +224,16 @@
           paperName: EXPECTED_PAPER_NAME,
           copies: 1,
           expectedWidthPx: EXPECTED_WIDTH_PX,
-          expectedHeightPx: EXPECTED_HEIGHT_PX
+          expectedHeightPx: EXPECTED_HEIGHT_PX,
+          archiveIndex: options.archiveIndex || undefined
         },
         uxp.storage.formats
       );
 
+      launchAttempted = true;
       launchMessage = await uxp.shell.openPath(jobFile.nativePath);
       if (typeof launchMessage === "string" && launchMessage.trim()) {
+        completed = true;
         return {
           ok: false,
           printed: false,
@@ -242,23 +249,82 @@
         : DEFAULT_POLL_INTERVAL_MS;
       bridgeResponse = await waitForBridgeResult(jobFolder, resultName, jobId, timeoutMs, pollIntervalMs);
       if (bridgeResponse.result.ok) {
+        completed = true;
         await safeDelete(bridgeResponse.resultFile);
-        await safeDelete(jobFile);
-        await safeDelete(imageFile);
       }
       return bridgeResponse.result;
     } catch (error) {
       return {
         ok: false,
-        printed: false,
-        blocked: true,
+        printed: launchAttempted ? null : false,
+        blocked: !launchAttempted,
+        outcomeUnknown: launchAttempted,
         reason: "bridge-error",
-        message: "快速打印失败：" + (error && error.message ? error.message : String(error))
+        cancelled: Boolean(error && (error.cancelled === true || error.number === -128 || error.code === -128)),
+        message: "快速打印失败：" + (error && error.message ? error.message : String(error)) +
+          (launchAttempted ? "；请先检查 DS-RX1 队列和出纸情况，勿直接重复打印" : "")
       };
+    } finally {
+      if (!launchAttempted || completed) {
+        await safeDelete(jobFile);
+        await safeDelete(imageFile);
+      }
+    }
+  }
+
+  // Reuse the installed Windows bridge; this operation never exports or prints a photo.
+  async function archiveIndexOperation(file, operation, options) {
+    options = options || {};
+    var validName = file && (operation === "commit-archive-index"
+      ? /^\.idphoto-jpg-index\.json\.[a-z0-9]+-[a-z0-9.]+\.tmp$/.test(file.name)
+      : file.name === ".idphoto-jpg-index.json");
+    if (!validName || !file.nativePath) {
+      throw new Error("无效的存档索引路径");
+    }
+    var uxp = getUxp();
+    var folder = await getOrCreateJobFolder(uxp.storage.localFileSystem);
+    var jobId = makeJobId();
+    var jobFile = await folder.createFile("hide-" + jobId + ".idprint", { overwrite: false });
+    var resultName = "hide-" + jobId + ".result.json";
+    var resultFile;
+    var completed = false;
+    var launched = false;
+    try {
+      await writeJson(jobFile, {
+        schemaVersion: JOB_SCHEMA_VERSION, jobId: jobId,
+        operation: operation, indexPath: file.nativePath
+      }, uxp.storage.formats);
+      launched = true;
+      var launchError = await uxp.shell.openPath(jobFile.nativePath);
+      if (launchError) throw new Error(String(launchError));
+      var deadline = Date.now() + (options.timeoutMs || 5000);
+      do {
+        try { resultFile = await folder.getEntry(resultName); } catch (missing) { resultFile = null; }
+        if (resultFile) {
+          var result = JSON.parse(await resultFile.read());
+          if (result.schemaVersion !== JOB_SCHEMA_VERSION || result.jobId !== jobId) {
+            throw new Error("隐藏索引的回执不匹配");
+          }
+          completed = true;
+          if (result.ok !== true || result.hidden !== true || result.printed !== false || result.operation !== operation) {
+            throw new Error("Windows 未确认索引已隐藏" + (result.message ? "：" + result.message : ""));
+          }
+          return;
+        }
+        await wait(100);
+      } while (Date.now() < deadline);
+      throw new Error("等待隐藏索引超时");
+    } finally {
+      if (!launched || completed) {
+        await safeDelete(jobFile);
+        await safeDelete(resultFile);
+      }
     }
   }
 
   window.IDPhotoPrintService = {
+    hideArchiveIndex: function (file, options) { return archiveIndexOperation(file, "hide-archive-index", options); },
+    commitArchiveIndex: function (file, options) { return archiveIndexOperation(file, "commit-archive-index", options); },
     EXPECTED_PRINTER_NAME: EXPECTED_PRINTER_NAME,
     EXPECTED_PAPER_NAME: EXPECTED_PAPER_NAME,
     JOB_SCHEMA_VERSION: JOB_SCHEMA_VERSION,

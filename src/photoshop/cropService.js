@@ -8,9 +8,7 @@
   }
 
   async function activateDocument(documentRef) {
-    if (documentRef && typeof documentRef.activate === "function") {
-      await documentRef.activate();
-    }
+    await window.IDPhotoPhotoshopExecution.activateDocument(documentRef);
   }
 
   async function duplicateDocument(sourceDocument, name) {
@@ -40,6 +38,7 @@
         });
         return "dom";
       } catch (error) {
+        window.IDPhotoPhotoshopExecution.throwIfCancelled(error);
         domError = error;
         console.warn("[crop] document.crop failed, falling back to batchPlay", error);
       }
@@ -62,6 +61,7 @@
         }
       ]);
     } catch (batchError) {
+      window.IDPhotoPhotoshopExecution.throwIfCancelled(batchError);
       throw domError || batchError;
     }
     return "batchPlay";
@@ -75,6 +75,7 @@
         await documentRef.resizeImage(widthPx, heightPx, TARGET_PPI);
         return "dom";
       } catch (error) {
+        window.IDPhotoPhotoshopExecution.throwIfCancelled(error);
         domError = error;
         console.warn("[crop] document.resizeImage failed, falling back to batchPlay", error);
       }
@@ -93,6 +94,7 @@
         }
       ]);
     } catch (batchError) {
+      window.IDPhotoPhotoshopExecution.throwIfCancelled(batchError);
       throw domError || batchError;
     }
     return "batchPlay";
@@ -110,6 +112,7 @@
         await documentRef.rotateCanvas(degrees);
         return "dom";
       } catch (error) {
+        window.IDPhotoPhotoshopExecution.throwIfCancelled(error);
         domError = error;
         console.warn("[crop] document.rotateCanvas failed, falling back to batchPlay", error);
       }
@@ -125,6 +128,7 @@
         }
       ]);
     } catch (batchError) {
+      window.IDPhotoPhotoshopExecution.throwIfCancelled(batchError);
       throw domError || batchError;
     }
     return "batchPlay";
@@ -191,6 +195,7 @@
           cropBounds: bounds
         };
       } catch (contentAwareError) {
+        window.IDPhotoPhotoshopExecution.throwIfCancelled(contentAwareError);
         warnings.push("内容识别填充扩图失败：" + (contentAwareError.message || contentAwareError));
         if (contentAwareError.fallbackBounds) {
           bounds = contentAwareError.fallbackBounds;
@@ -235,6 +240,11 @@
       await window.IDPhotoPhotoshopExecution.executeAsModal(
         async function () {
           processedDocument = await duplicateDocument(sourceDocument, processedName);
+          if (processedDocument === sourceDocument || (processedDocument && processedDocument.id != null &&
+              sourceDocument && processedDocument.id === sourceDocument.id)) {
+            processedDocument = null;
+            throw new Error("复制结果指向原片，已停止处理以保护原片");
+          }
           await activateDocument(processedDocument);
           rotationMode = await rotateDocumentWithDomOrBatchPlay(processedDocument, rotationDegrees);
           if (!window.IDPhotoDocumentService || !window.IDPhotoDocumentService.prepareCompositeSourceLayer) {

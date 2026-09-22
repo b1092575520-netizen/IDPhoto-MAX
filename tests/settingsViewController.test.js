@@ -178,7 +178,7 @@ test("init reads the active Canon camera and binds settings actions only once", 
   assert.match(root.elements.currentCameraStatus.value, /Canon EOS R6 Mark III/);
   assert.match(root.elements.currentCameraStatus.value, /0589/);
   assert.equal(root.elements.registerCurrentCamera.disabled, false);
-  assert.equal(root.elements.registerCurrentCamera.textContent, "设为本店相机并启用保存");
+  assert.equal(root.elements.registerCurrentCamera.textContent, "设为本店相机");
   assert.equal(root.elements.registerCurrentCamera.listeners.get("click").length, 1);
 
   root.elements.registerCurrentCamera.click();

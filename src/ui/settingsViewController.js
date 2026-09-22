@@ -22,6 +22,7 @@
     var formatError = typeof options.formatError === "function" ? options.formatError : function (error) { return error && error.message ? error.message : String(error); };
     var initialized = false;
     var currentSourceMetadata = null;
+    var currentSourceDocumentName = "";
 
     function one(selector) {
       return root.querySelector(selector);
@@ -166,10 +167,19 @@
           return;
         }
         eligibility = sourceEligibilityService && sourceEligibilityService.checkSource
-          ? sourceEligibilityService.checkSource(currentSourceMetadata)
+          ? sourceEligibilityService.checkSource(currentSourceMetadata, currentSourceDocumentName)
           : null;
-        registerButton.disabled = Boolean(eligibility && eligibility.eligible);
-        registerButton.textContent = registerButton.disabled ? "已登记，可自动保存" : "设为本店相机并启用保存";
+        var registered = Boolean(eligibility && eligibility.eligible);
+        if (sourceEligibilityService && sourceEligibilityService.loadRegisteredCameras) {
+          registered = sourceEligibilityService.loadRegisteredCameras().some(function (camera) {
+            return String(camera.serialNumber).replace(/\s+/g, "").toUpperCase() ===
+              String(currentSourceMetadata.serialNumber).replace(/\s+/g, "").toUpperCase();
+          });
+        }
+        registerButton.disabled = registered;
+        registerButton.textContent = registered
+          ? (eligibility && eligibility.eligible ? "已登记，可自动保存" : "相机已登记，当前照片不存档")
+          : "设为本店相机";
       }
     }
 
@@ -181,6 +191,7 @@
       }
       try {
         info = await documentService.getActiveDocumentInfo();
+        currentSourceDocumentName = info && info.name ? info.name : "";
         updateCurrentCameraUi(info && info.sourceMetadata ? info.sourceMetadata : null);
         return currentSourceMetadata;
       } catch (error) {

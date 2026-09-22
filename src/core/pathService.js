@@ -40,17 +40,54 @@
     };
   }
 
+  function hash32(value, seed) {
+    var hash = seed >>> 0;
+    var text = String(value || "");
+    var index;
+    for (index = 0; index < text.length; index += 1) {
+      hash ^= text.charCodeAt(index);
+      hash = Math.imul(hash, 16777619) >>> 0;
+    }
+    return hash >>> 0;
+  }
+
+  function makeJpgVariantToken(variant, sourceName) {
+    var identity = variant && (
+      variant.identityMarker ||
+      variant.stableSourceId ||
+      variant.personFingerprint
+    );
+    if (variant && variant.unverifiableStrongSourceId) {
+      identity = "unverifiable:" + stripExtension(sourceName);
+    }
+    var value = identity || "source:" + stripExtension(sourceName);
+    var token = hash32(value, 2166136261).toString(36).toUpperCase();
+    return ("000000" + token).slice(-6);
+  }
+
+  function getTemplateFilePart(templateName) {
+    var value = String(templateName || "未命名").trim();
+    return sanitizeFilePart(value.split(/\s+/)[0] || "未命名");
+  }
+
+  function getBackgroundFilePart(backgroundColor) {
+    return {
+      red: "红",
+      blue: "蓝",
+      white: "白",
+      unknown: "未知"
+    }[String(backgroundColor || "unknown")] || "未知";
+  }
+
   function makeJpgFileName(templateName, sourceName, widthPx, heightPx, variant) {
-    var folders = getDateFolders();
-    var sizePart = Number(widthPx) > 0 && Number(heightPx) > 0 ? "_" + Math.round(widthPx) + "x" + Math.round(heightPx) : "";
-    var identityMarker = variant && /^(?:u2|s2[io][a-f0-9]{2,156}|v2[a-f0-9]{129})$/i.test(String(variant.identityMarker || ""))
-      ? String(variant.identityMarker).toLowerCase()
-      : "";
+    var sizePart = Number(widthPx) > 0 && Number(heightPx) > 0
+      ? Math.round(widthPx) + "x" + Math.round(heightPx)
+      : "未指定尺寸";
     var background = variant && /^(red|blue|white|unknown)$/.test(String(variant.backgroundColor || ""))
       ? String(variant.backgroundColor)
-      : "";
-    var variantPart = background ? (identityMarker ? "_id-" + identityMarker : "") + "_bg-" + background : "";
-    return folders.day + "_" + sanitizeFilePart(templateName) + sizePart + variantPart + "_" + sanitizeFilePart(stripExtension(sourceName)) + ".jpg";
+      : "unknown";
+    return getTemplateFilePart(templateName) + "_" + sizePart + "_" + getBackgroundFilePart(background) + "_" +
+      makeJpgVariantToken(variant, sourceName) + ".jpg";
   }
 
   function makeJpgSourceKey(sourceName) {
@@ -62,6 +99,8 @@
     stripExtension: stripExtension,
     getDateFolders: getDateFolders,
     makeJpgFileName: makeJpgFileName,
-    makeJpgSourceKey: makeJpgSourceKey
+    makeJpgSourceKey: makeJpgSourceKey,
+    makeJpgVariantToken: makeJpgVariantToken,
+    getBackgroundFilePart: getBackgroundFilePart
   };
 })();

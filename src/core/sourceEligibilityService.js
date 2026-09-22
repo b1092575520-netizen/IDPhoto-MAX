@@ -41,8 +41,46 @@
     return String(value || "").replace(/\s+/g, "").toUpperCase();
   }
 
+  function normalizeDateKey(value) {
+    var text = String(value || "").trim();
+    var match = text.match(/^(\d{4})([-:])(\d{2})\2(\d{2})(?:[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)?$/);
+    var date;
+    if (!match) {
+      return "";
+    }
+    date = new Date(Number(match[1]), Number(match[3]) - 1, Number(match[4]));
+    if (date.getFullYear() !== Number(match[1]) || date.getMonth() !== Number(match[3]) - 1 || date.getDate() !== Number(match[4])) {
+      return "";
+    }
+    return match[1] + "-" + match[3] + "-" + match[4];
+  }
+
+  function getTodayDateKey() {
+    var now = new Date();
+    var month = now.getMonth() + 1;
+    var day = now.getDate();
+    return now.getFullYear() + "-" + (month < 10 ? "0" : "") + month + "-" + (day < 10 ? "0" : "") + day;
+  }
+
+  function isHistoricalCaptureDate(value) {
+    var dateKey = normalizeDateKey(value);
+    return Boolean(dateKey && dateKey !== getTodayDateKey());
+  }
+
+  function isPluginExportName(documentName) {
+    var name = String(documentName || "").trim();
+    return /^(?:20\d{2}-\d{2}-\d{2}_|证件照排版_|.+_\d{3,5}x\d{3,5}_(?:红|蓝|白|未知)_[a-z0-9]{6}(?=[_.\s]|$))/i.test(name);
+  }
+
+  function isHistoricalSource(metadata, documentName) {
+    return Boolean(metadata && (metadata.historical === true || isHistoricalCaptureDate(metadata.captureDate))) ||
+      isPluginExportName(documentName);
+  }
+
   function parseXmp(raw) {
     var source = String(raw || "");
+    // Digitizing/editing an old photo today does not make it a new capture.
+    var captureDate = readXmpValue(source, ["exif:DateTimeOriginal"]);
     return {
       make: readXmpValue(source, ["tiff:Make", "exif:Make"]),
       model: readXmpValue(source, ["tiff:Model", "exif:Model"]),
@@ -54,6 +92,8 @@
           "aux:CameraSerialNumber"
         ])
       ),
+      captureDate: captureDate,
+      historical: isHistoricalCaptureDate(captureDate),
       hasXmp: Boolean(source.trim())
     };
   }
@@ -156,10 +196,18 @@
     return { ok: false, cameras: loadRegisteredCameras(), message: "清除本店相机登记失败" };
   }
 
-  function checkSource(metadata) {
+  function checkSource(metadata, documentName) {
     var serial = normalizeSerial(metadata && metadata.serialNumber);
     var cameras = loadRegisteredCameras();
     var matched;
+
+    if (isHistoricalSource(metadata, documentName)) {
+      return {
+        eligible: false,
+        reason: "historical-source",
+        message: "历史照片：仅排版，不显示信息条且不保存"
+      };
+    }
 
     if (!serial) {
       return {
@@ -185,6 +233,13 @@
         message: "外来相片：仅排版，不保存"
       };
     }
+    if (!normalizeDateKey(metadata && metadata.captureDate)) {
+      return {
+        eligible: false,
+        reason: "unverified-capture-date",
+        message: "无法确认当天拍摄日期：仅排版，不显示信息条且不保存"
+      };
+    }
     return {
       eligible: true,
       reason: "registered-camera",
@@ -193,8 +248,8 @@
     };
   }
 
-  function getInfoBarDecision(metadata) {
-    var eligibility = checkSource(metadata);
+  function getInfoBarDecision(metadata, documentName) {
+    var eligibility = checkSource(metadata, documentName);
     return {
       showInfoBar: Boolean(eligibility.eligible),
       leaveBlank: !eligibility.eligible,
@@ -211,6 +266,8 @@
   window.IDPhotoSourceEligibilityService = {
     parseXmp: parseXmp,
     getStableSourceIdFromXmp: getStableSourceIdFromXmp,
+    isHistoricalCaptureDate: isHistoricalCaptureDate,
+    isHistoricalSource: isHistoricalSource,
     normalizeSerial: normalizeSerial,
     loadRegisteredCameras: loadRegisteredCameras,
     registerCamera: registerCamera,

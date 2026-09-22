@@ -35,6 +35,8 @@ function loadWorkflow(options = {}) {
       },
       IDPhotoCropService: {
         async prepareSinglePhoto(_sourceDocument, _docInfo, template) {
+          if (options.cropError) throw options.cropError;
+          if (options.returnOriginal) return { document: { id: _sourceDocument.id } };
           const document = { name: "processed-" + (++cropIndex) };
           processedDocuments.push(document);
           calls.push("crop:" + template.id);
@@ -76,8 +78,9 @@ function loadWorkflow(options = {}) {
         }
       },
       IDPhotoSourceEligibilityService: {
-        getInfoBarDecision() {
-          return { leaveBlank: false };
+        getInfoBarDecision(_metadata, documentName) {
+          calls.push("eligibility:" + (documentName || ""));
+          return options.leaveInfoBarBlank ? { leaveBlank: true, reason: "historical-source" } : { leaveBlank: false };
         }
       },
       IDPhotoSettingsStore: {
@@ -96,22 +99,33 @@ function loadWorkflow(options = {}) {
       IDPhotoExportService: {
         async exportSingleJpg(_processed, exportOptions) {
           calls.push("export:" + exportOptions.template.id);
+          if (options.inspectExport) options.inspectExport(exportOptions);
           if (options.failExport) {
             throw new Error("export failed");
+          }
+          if (options.combinedIndex) {
+            try {
+              await exportOptions.archiveIndexExecutor({ nativePath: "C:\\Archive\\.idphoto-jpg-index.json.stage-1.tmp" }, options.combinedIndex);
+            } catch (error) {
+              return { ok: true, indexUnavailable: true, message: error.message };
+            }
           }
           return { ok: true, message: "exported" };
         }
       },
       IDPhotoPrintService: {
-        async printOneCopy(_targetDocument) {
+        async printOneCopy(_targetDocument, printOptions) {
           calls.push("print");
+          if (options.inspectPrint) options.inspectPrint(printOptions);
+          if (options.cancelPrint) return { ok: false, cancelled: true };
           if (options.throwPrint) {
             throw new Error("printer offline");
           }
           if (options.failPrint) {
             return { ok: false, blocked: true, message: "wrong printer" };
           }
-          return { ok: true, printed: true, printerName: "DS-RX1", message: "printed" };
+          return { ok: true, printed: true, printerName: "DS-RX1", message: "printed",
+            archiveIndexResult: options.combinedIndex ? { ok: true, hidden: true, operation: options.combinedIndex } : undefined };
         }
       },
       IDPhotoDocumentService: {
@@ -126,6 +140,7 @@ function loadWorkflow(options = {}) {
   };
 
   vm.createContext(context);
+  if (options.analyzeDocument) context.window.IDPhotoVariantService = { analyzeDocument: options.analyzeDocument };
   vm.runInContext(fs.readFileSync(workflowPath, "utf8"), context, { filename: workflowPath });
   return {
     workflow: context.window.IDPhotoLayoutWorkflow.create(),
@@ -214,6 +229,69 @@ test("visual acceptance never calls JPG or NAS export", async () => {
   assert.match(result.successResults[0].result.exportResult.message, /不写入 JPG 或 NAS/);
 });
 
+test("cancellation stops later templates before they can export or print", async () => {
+  const loaded = loadWorkflow({ cropError: Object.assign(new Error("cancelled"), { number: -128 }) });
+  const result = await loaded.workflow.run({ templateNames: ["模板一", "模板二"], sourceDocument: { id: 1 }, docInfo: { id: 1 }, exportJpg: true, quickPrint: true });
+  assert.equal(result.cancelled, true);
+  assert.equal(result.failures.length, 1);
+  assert.equal(loaded.calls.some(call => /two|export:|print/.test(call)), false);
+});
+
+test("workflow rejects a processed document wrapper sharing the original ID without cleanup", async () => {
+  const loaded = loadWorkflow({ returnOriginal: true });
+  const result = await loaded.workflow.run({ templateNames: ["模板一"], sourceDocument: { id: 1 }, docInfo: { id: 1 } });
+  assert.equal(result.failures.length, 1);
+  assert.equal(loaded.calls.some(call => /close:|canvas:/.test(call)), false);
+});
+
+test("all templates share one original analysis taken before the first crop", async () => {
+  const original = { id: 123, name: "source" };
+  const identity = { backgroundColor: "red", personFingerprint: "0123456789abcdef" };
+  let analyses = 0;
+  let exports = 0;
+  const loaded = loadWorkflow({
+    async analyzeDocument(document) {
+      analyses++;
+      assert.equal(document, original);
+      assert.equal(loaded.calls.filter(call => call.startsWith("crop:")).length, 0);
+      return identity;
+    },
+    inspectExport(options) {
+      exports++;
+      assert.equal(options.docInfo.sourceVariant, identity);
+    }
+  });
+  const docInfo = { id: 123, name: "source.jpg" };
+  await loaded.workflow.run({ sourceDocument: original, docInfo, templateNames: ["模板一", "模板二"], exportJpg: true });
+  assert.equal(analyses, 1);
+  assert.equal(exports, 2);
+  assert.equal(docInfo.sourceVariant, undefined, "do not retain stale analysis in UI state");
+});
+
+test("a source-document mismatch stops before crop, export and print", async () => {
+  const loaded = loadWorkflow();
+  await assert.rejects(loaded.workflow.run({ sourceDocument: { id: 2 }, docInfo: { id: 1 }, templateNames: ["模板一"], exportJpg: true, quickPrint: true }), /活动文档/);
+  assert.equal(loaded.calls.length, 0);
+});
+
+test("historical source leaves every information bar blank while preserving layout", async () => {
+  const loaded = loadWorkflow({ leaveInfoBarBlank: true });
+  const result = await loaded.workflow.run({
+    templateNames: ["模板一"],
+    sourceDocument: { name: "source" },
+    docInfo: { name: "2026-08-25_1寸_638x898_红_A7K3M9.jpg", widthPx: 1200, heightPx: 1600, sourceMetadata: { historical: true } },
+    cropStrategy: "auto",
+    exportJpg: true,
+    nasArchive: true
+  });
+
+  assert.deepEqual(Array.from(result.successes), ["模板一"]);
+  assert.ok(loaded.calls.includes("eligibility:2026-08-25_1寸_638x898_红_A7K3M9.jpg"));
+  assert.ok(!loaded.calls.includes("info:one"));
+  assert.equal(result.successResults[0].result.infoResult.createdCount, 0);
+  assert.equal(result.successResults[0].result.infoResult.sourceNotOwned, true);
+});
+
 test("quick print submits each successful layout once and keeps the final document open", async () => {
   const loaded = loadWorkflow();
   const result = await loaded.workflow.run({
@@ -264,4 +342,35 @@ test("a DS-RX1 driver error is isolated from layout and JPG export", async () =>
   assert.ok(loaded.calls.includes("export:one"));
   assert.ok(loaded.calls.includes("close:processed-1"));
   assert.ok(!loaded.calls.includes("close:target-1"));
+});
+
+test("archive commit and duplicate hide piggyback on exactly one print request per layout", async () => {
+  for (const operation of ["commit-archive-index", "hide-archive-index"]) {
+    const loaded = loadWorkflow({ combinedIndex: operation, inspectPrint(options) {
+      assert.equal(options.archiveIndex.operation, operation);
+      assert.match(options.archiveIndex.indexPath, /Archive/);
+    } });
+    const result = await loaded.workflow.run({ templateNames: ["模板一", "模板二"], sourceDocument: { name: "source" }, docInfo: { name: "source.jpg" }, quickPrint: true, exportJpg: true });
+    assert.equal(loaded.calls.filter(call => call === "print").length, 2);
+    assert.equal(result.printedResults.length, 2);
+    assert.equal(result.successResults.some(entry => entry.result.exportResult.indexUnavailable), false);
+  }
+});
+
+test("a failed combined launch never falls back to a second permission request", async () => {
+  const loaded = loadWorkflow({ combinedIndex: "commit-archive-index", failPrint: true });
+  const result = await loaded.workflow.run({ templateNames: ["模板一"], sourceDocument: { name: "source" }, docInfo: { name: "source.jpg" }, quickPrint: true, exportJpg: true });
+  assert.equal(loaded.calls.filter(call => call === "print").length, 1);
+  assert.equal(result.successResults[0].result.exportResult.indexUnavailable, true);
+  assert.equal(result.printedResults.length, 0);
+});
+
+test("cancelling combined print stops later templates and cleans only the processed copy", async () => {
+  const loaded = loadWorkflow({ combinedIndex: "commit-archive-index", cancelPrint: true });
+  const result = await loaded.workflow.run({ templateNames: ["模板一", "模板二"], sourceDocument: { name: "source" }, docInfo: { name: "source.jpg" }, quickPrint: true, exportJpg: true });
+  assert.equal(result.cancelled, true);
+  assert.equal(loaded.calls.filter(call => call === "print").length, 1);
+  assert.equal(loaded.calls.includes("crop:two"), false);
+  assert.equal(loaded.calls.filter(call => call === "close:processed-1").length, 1);
+  assert.equal(loaded.calls.includes("close:target-1"), false);
 });

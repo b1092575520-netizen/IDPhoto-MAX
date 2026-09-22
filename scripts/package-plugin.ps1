@@ -17,6 +17,24 @@ if (-not $OutputDirectory) {
 }
 $OutputDirectory = [System.IO.Path]::GetFullPath($OutputDirectory)
 
+function Get-ReleaseSha256 {
+  param([string]$Path)
+  if (Get-Command Get-FileHash -ErrorAction SilentlyContinue) {
+    return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash
+  }
+  $sha256 = [System.Security.Cryptography.SHA256]::Create()
+  try {
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+      return ([BitConverter]::ToString($sha256.ComputeHash($stream))).Replace('-', '')
+    } finally {
+      $stream.Dispose()
+    }
+  } finally {
+    $sha256.Dispose()
+  }
+}
+
 & (Join-Path $PSScriptRoot "verify-release.ps1") -ProjectRoot $ProjectRoot
 if ($LASTEXITCODE -ne 0) {
   throw "Release verification failed"
@@ -55,8 +73,8 @@ Copy-Item -LiteralPath (Join-Path $ProjectRoot "scripts\install-plugin.ps1") -De
 Copy-Item -LiteralPath (Join-Path $ProjectRoot "scripts\install-plugin.cmd") -Destination $stageRoot -Force
 
 Compress-Archive -Path (Join-Path $stageRoot "*") -DestinationPath $zipPath -CompressionLevel Optimal
-$hash = Get-FileHash -Algorithm SHA256 -LiteralPath $zipPath
-Set-Content -LiteralPath $hashPath -Encoding ASCII -Value ("{0}  {1}" -f $hash.Hash.ToLowerInvariant(), (Split-Path -Leaf $zipPath))
+$hash = Get-ReleaseSha256 -Path $zipPath
+Set-Content -LiteralPath $hashPath -Encoding ASCII -Value ("{0}  {1}" -f $hash.ToLowerInvariant(), (Split-Path -Leaf $zipPath))
 
 Write-Host "Release package created: $zipPath"
-Write-Host "SHA256: $($hash.Hash.ToLowerInvariant())"
+Write-Host "SHA256: $($hash.ToLowerInvariant())"

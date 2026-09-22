@@ -269,9 +269,9 @@ const referenceTextLayouts = {
     { name: "phone", x: 3003, y: 347, size: 53.3, orientation: "vertical" }
   ],
   wedding: [
-    { name: "shopName", x: 411, y: 1764, size: 6.6, orientation: "horizontal" },
-    { name: "date", x: 411, y: 1843, size: 5.4, orientation: "horizontal" },
-    { name: "phone", x: 411, y: 1915, size: 6.5, orientation: "horizontal" }
+    { name: "shopName", x: 618, y: 1933, size: 13, orientation: "horizontal" },
+    { name: "date", x: 618, y: 2048, size: 12, orientation: "horizontal" },
+    { name: "phone", x: 618, y: 2165, size: 10, orientation: "horizontal" }
   ]
 };
 
@@ -283,7 +283,7 @@ const referenceInfoBarBounds = {
   brazil: { x: 2916, y: 0, width: 284, height: 2400 },
   argentina: { x: 0, y: 1945, width: 3600, height: 455 },
   graduation: { x: 2943, y: 0, width: 273, height: 2400 },
-  wedding: { x: 0, y: 1739, width: 3592, height: 273 }
+  wedding: { x: 0, y: 1795, width: 3592, height: 555 }
 };
 
 for (const [templateId, expectedLayout] of Object.entries(referenceTextLayouts)) {

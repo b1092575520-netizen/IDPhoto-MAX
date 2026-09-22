@@ -44,6 +44,7 @@ test("closeWithoutSaving closes through the shared document interface", async ()
     }
   };
   const service = loadDocumentService({
+    constants: { SaveOptions: { DONOTSAVECHANGES: "discard" } },
     action: {
       async batchPlay() {
         throw new Error("batchPlay should not be needed");
@@ -61,7 +62,7 @@ test("closeWithoutSaving closes through the shared document interface", async ()
 
   assert.equal(result.closed, true);
   assert.equal(modalCalls, 1);
-  assert.deepEqual(calls, ["activate", "close:no"]);
+  assert.deepEqual(calls, ["activate", "close:discard"]);
 });
 
 test("active document info does not query Photoshop when no document is open", async () => {
@@ -146,4 +147,44 @@ test("active document info includes parsed source-camera XMP metadata", async ()
     serialNumber: "0123456789",
     hasXmp: true
   });
+});
+
+test("metadata read is pinned to the original document even if the active tab changes", async () => {
+  const original = { id: 7, title: "old.JPG", width: 1000, height: 1400, resolution: 300 };
+  const app = { documents: [original], activeDocument: original };
+  const service = loadDocumentService({
+    app,
+    action: { async batchPlay(commands) {
+      app.activeDocument = { id: 8, title: "new.JPG" };
+      assert.equal(commands[0]._target[1]._id, 7);
+      return [{ XMPMetadataAsUTF8: "old-camera-metadata" }];
+    } }
+  }, { parseXmp(raw) { return { raw }; } });
+  const result = await service.getActiveDocumentInfo();
+  assert.equal(result.id, 7);
+  assert.equal(result.sourceMetadata.raw, "old-camera-metadata");
+});
+
+test("close fallback targets its document ID even when another document becomes active", async () => {
+  const document = { id: 7 };
+  const app = { activeDocument: { id: 8 } };
+  const service = loadDocumentService({
+    app,
+    core: { async executeAsModal(fn) { return fn(); } },
+    action: { async batchPlay(commands) {
+      app.activeDocument = { id: 8 };
+      assert.equal(commands[0]._obj, "close");
+      assert.equal(commands[0]._target[0]._id, 7);
+      return [{}];
+    } }
+  });
+  assert.equal((await service.closeWithoutSaving(document)).closed, true);
+});
+
+test("native closeWithoutSaving uses the original object without a generic close command", async () => {
+  let closed = false;
+  const document = { id: 7, closeWithoutSaving() { closed = true; } };
+  const service = loadDocumentService({ core: { async executeAsModal(fn) { return fn(); } } });
+  assert.equal((await service.closeWithoutSaving(document)).closed, true);
+  assert.equal(closed, true);
 });

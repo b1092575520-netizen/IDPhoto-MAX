@@ -43,12 +43,14 @@
       try {
         return await app.documents.add(options);
       } catch (error) {
+        window.IDPhotoPhotoshopExecution.throwIfCancelled(error);
         firstError = error;
         console.error("[canvas] app.documents.add failed with full options", error);
         console.log("[canvas] retrying app.documents.add with minimal options", minimalOptions);
         try {
           return await app.documents.add(minimalOptions);
         } catch (minimalError) {
+          window.IDPhotoPhotoshopExecution.throwIfCancelled(minimalError);
           console.error("[canvas] app.documents.add failed with minimal options", minimalError);
           if (!app.createDocument) {
             throw minimalError || firstError;
@@ -61,6 +63,7 @@
       try {
         return await app.createDocument(options);
       } catch (createError) {
+        window.IDPhotoPhotoshopExecution.throwIfCancelled(createError);
         firstError = firstError || createError;
         console.error("[canvas] app.createDocument failed with full options", createError);
         console.log("[canvas] retrying app.createDocument with minimal options", minimalOptions);

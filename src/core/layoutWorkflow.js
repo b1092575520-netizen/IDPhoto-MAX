@@ -8,6 +8,15 @@
     return error && error.message ? error.message : String(error || "未知错误");
   }
 
+  function sameDocument(left, right) {
+    return Boolean(left && right && (left === right ||
+      (left.id != null && right.id != null && String(left.id) === String(right.id))));
+  }
+
+  function isCancellation(error) {
+    return Boolean(error && (error.cancelled === true || error.number === -128 || error.code === -128));
+  }
+
   function requireMethod(moduleName, methodName) {
     var moduleRef = window[moduleName];
     if (!moduleRef || typeof moduleRef[methodName] !== "function") {
@@ -132,7 +141,7 @@
         return {
           ok: false,
           closed: false,
-          message: "打印已完成，但拼版文档无法自动关闭"
+          message: "打印任务已提交，但拼版文档无法自动关闭"
         };
       }
       try {
@@ -141,7 +150,7 @@
         return {
           ok: true,
           closed: true,
-          message: "打印成功，拼版文档已不保存关闭"
+          message: "打印任务已提交，拼版文档已不保存关闭"
         };
       } catch (error) {
         reportError("cleanup-printed-target", error);
@@ -149,7 +158,7 @@
           ok: false,
           closed: false,
           error: errorToText(error),
-          message: "打印已完成，但拼版文档自动关闭失败：" + errorToText(error)
+          message: "打印任务已提交，但拼版文档自动关闭失败：" + errorToText(error)
         };
       }
     }
@@ -169,7 +178,8 @@
         typeof window.IDPhotoSourceEligibilityService.getInfoBarDecision === "function"
       ) {
         decision = window.IDPhotoSourceEligibilityService.getInfoBarDecision(
-          docInfo && docInfo.sourceMetadata ? docInfo.sourceMetadata : null
+          docInfo && docInfo.sourceMetadata ? docInfo.sourceMetadata : null,
+          docInfo && docInfo.name ? docInfo.name : ""
         );
         if (decision.leaveBlank) {
           return {
@@ -255,11 +265,12 @@
       return await requireMethod("IDPhotoExportService", "exportSingleJpg")(processedDocument, {
         template: template,
         docInfo: docInfo,
-        nasArchive: Boolean(runOptions.nasArchive)
+        nasArchive: Boolean(runOptions.nasArchive),
+        archiveIndexExecutor: runOptions.archiveIndexExecutor
       });
     }
 
-    async function printLayout(targetDocument, runOptions) {
+    async function printLayout(targetDocument, runOptions, archiveIndex) {
       if (runOptions.skipPrint || !runOptions.quickPrint) {
         return {
           ok: true,
@@ -267,7 +278,7 @@
           message: runOptions.skipPrint ? "当前入口禁止快速打印" : "快速打印已关闭"
         };
       }
-      return await requireMethod("IDPhotoPrintService", "printOneCopy")(targetDocument);
+      return await requireMethod("IDPhotoPrintService", "printOneCopy")(targetDocument, { archiveIndex: archiveIndex });
     }
 
     async function runOne(templateName, sourceDocument, docInfo, runOptions, index, total) {
@@ -306,6 +317,9 @@
         ratioResult,
         { strategy: runOptions.cropStrategy }
       );
+      if (!processResult || !processResult.document || sameDocument(processResult.document, sourceDocument)) {
+        throw new Error("处理后单张不是独立文档，已停止以保护原片");
+      }
 
       try {
         step("canvas", "creating 3600x2400 600ppi document");
@@ -315,7 +329,7 @@
         if (!targetDocument) {
           throw new Error("创建画布后未返回新文档对象");
         }
-        if (targetDocument === sourceDocument) {
+        if (sameDocument(targetDocument, sourceDocument) || sameDocument(targetDocument, processResult.document)) {
           throw new Error("创建画布返回了原片文档，已停止执行以避免覆盖原片");
         }
       } catch (canvasError) {
@@ -332,30 +346,48 @@
         throw layoutError;
       }
 
-      try {
-        status("步骤8：DS-RX1 快速打印检查");
-        printResult = await printLayout(targetDocument, runOptions);
-        step("print", "done", printResult);
-      } catch (printError) {
-        reportError("print", printError);
-        printResult = {
-          ok: false,
-          error: errorToText(printError),
-          message: "快速打印失败：" + errorToText(printError)
+      var printAttempted = false;
+      async function submitPrint(archiveIndex) {
+        printAttempted = true;
+        try {
+          printResult = await printLayout(targetDocument, runOptions, archiveIndex);
+        } catch (printError) {
+          reportError("print", printError);
+          printResult = { ok: false, cancelled: isCancellation(printError), error: errorToText(printError),
+            message: "快速打印失败：" + errorToText(printError) };
+        }
+      }
+      var exportOptions = Object.assign({}, runOptions);
+      if (runOptions.quickPrint && !runOptions.skipPrint) {
+        // Save the photo first, then commit its index and print through one shell launch.
+        exportOptions.archiveIndexExecutor = async function (file, operation) {
+          if (printAttempted) throw new Error("本次打印已提交，拒绝重复启动");
+          await submitPrint({ operation: operation, indexPath: file.nativePath });
+          var receipt = printResult && printResult.archiveIndexResult;
+          if (!receipt || receipt.ok !== true || receipt.hidden !== true || receipt.operation !== operation) {
+            throw new Error(receipt && receipt.message ? receipt.message :
+              "打印桥未确认索引已保存并隐藏" + (printResult && printResult.message ? "：" + printResult.message : ""));
+          }
         };
       }
-
       try {
-        status("步骤9：单张 JPG 导出检查");
-        exportResult = await exportSingleJpg(processResult.document, template, docInfo, runOptions);
-        step("export", "done", exportResult);
-      } catch (exportError) {
-        reportError("export", exportError);
-        exportResult = {
-          ok: false,
-          error: errorToText(exportError),
-          message: "导出 JPG 失败：" + errorToText(exportError)
-        };
+        try {
+          status("步骤8：单张 JPG 导出检查");
+          exportResult = await exportSingleJpg(processResult.document, template, docInfo, exportOptions);
+          step("export", "done", exportResult);
+        } catch (exportError) {
+          reportError("export", exportError);
+          if (isCancellation(exportError)) throw exportError;
+          exportResult = { ok: false, error: errorToText(exportError), message: "导出 JPG 失败：" + errorToText(exportError) };
+        }
+        status("步骤9：DS-RX1 快速打印检查");
+        if (!printAttempted) await submitPrint();
+        if (printResult && printResult.cancelled) {
+          var printCancellation = new Error("用户已取消打印准备");
+          printCancellation.cancelled = true;
+          throw printCancellation;
+        }
+        step("print", "done", printResult);
       } finally {
         await closeProcessedDocument(processResult, "execute finished", targetDocument);
       }
@@ -394,6 +426,7 @@
       var successResults = [];
       var index;
       var singleResult;
+      var cancelled = false;
 
       runOptions = Object.assign(
         {
@@ -414,6 +447,22 @@
       );
       templateNames = runOptions.templateNames.slice();
 
+      if (runOptions.sourceDocument && runOptions.docInfo && runOptions.docInfo.id != null &&
+          runOptions.sourceDocument.id !== runOptions.docInfo.id) {
+        throw new Error("读取原片后活动文档已改变，请重新执行排版");
+      }
+      // Freeze one identity before any template crops/resizes the original.
+      runOptions.docInfo = Object.assign({}, runOptions.docInfo, { sourceVariant: null });
+      if (!runOptions.skipExport && (runOptions.exportJpg || runOptions.tryExportSingle) &&
+          window.IDPhotoVariantService && window.IDPhotoVariantService.analyzeDocument) {
+        try {
+          runOptions.docInfo.sourceVariant = await window.IDPhotoVariantService.analyzeDocument(runOptions.sourceDocument);
+        } catch (analysisError) {
+          reportError("source-analysis", analysisError);
+          if (isCancellation(analysisError)) throw analysisError;
+        }
+      }
+
       for (index = 0; index < templateNames.length; index += 1) {
         try {
           status("开始执行：" + templateNames[index] + " · 已完成：" + successes.length + "/" + templateNames.length);
@@ -430,11 +479,16 @@
         } catch (error) {
           failures.push({ templateName: templateNames[index], error: error });
           reportError("execute " + templateNames[index], error);
+          if (isCancellation(error)) {
+            cancelled = true;
+            break;
+          }
         }
       }
 
       return {
         ok: failures.length === 0,
+        cancelled: cancelled,
         successes: successes,
         failures: failures,
         successResults: successResults,

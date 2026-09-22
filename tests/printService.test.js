@@ -80,6 +80,10 @@ function loadService(options = {}) {
           copies: 1,
           message: "printed"
         })));
+        if (options.partialResult) {
+          let reads = 0;
+          resultFile.read = async () => ++reads === 1 ? "{partial" : resultFile.data;
+        }
       }
       return "";
     }
@@ -199,9 +203,76 @@ test("quick print times out without retrying or claiming a print", async () => {
   const result = await loaded.service.printOneCopy(loaded.documentRef, { timeoutMs: 0 });
 
   assert.equal(result.ok, false);
-  assert.equal(result.printed, false);
+  assert.equal(result.printed, null);
+  assert.equal(result.outcomeUnknown, true);
+  assert.equal(result.blocked, false);
+  assert.match(result.message, /队列/);
   assert.equal(result.reason, "bridge-timeout");
   assert.equal(loaded.openedPaths.length, 1);
+});
+
+test("hiding archive index uses an attribute-only job and requires a matching no-print receipt", async () => {
+  const loaded = loadService({ bridgeResult: { operation: "hide-archive-index", ok: true, hidden: true, printed: false } });
+  await loaded.service.hideArchiveIndex({ name: ".idphoto-jpg-index.json", nativePath: "C:\\Photos\\.idphoto-jpg-index.json" });
+  assert.equal(loaded.getWrittenJob().operation, "hide-archive-index");
+  assert.equal(loaded.getWrittenJob().printerName, undefined);
+  assert.equal(loaded.savedJpegs.length, 0);
+  assert.equal(loaded.root.entries.get("print-jobs").entries.size, 0);
+  const wrongReceipt = loadService();
+  await assert.rejects(wrongReceipt.service.hideArchiveIndex({ name: ".idphoto-jpg-index.json", nativePath: "C:\\Photos\\.idphoto-jpg-index.json" }), /未确认/);
+  await assert.rejects(loaded.service.hideArchiveIndex({ name: "photo.jpg", nativePath: "C:\\Photos\\photo.jpg" }), /无效/);
+  const commit = loadService({ bridgeResult: { operation: "commit-archive-index", ok: true, hidden: true, printed: false } });
+  await commit.service.commitArchiveIndex({ name: ".idphoto-jpg-index.json.stage-1.tmp", nativePath: "C:\\Photos\\.idphoto-jpg-index.json.stage-1.tmp" });
+  assert.equal(commit.getWrittenJob().operation, "commit-archive-index");
+  assert.equal(commit.savedJpegs.length, 0);
+});
+
+test("one shell launch carries both print and archive, retaining separate results even if printing fails", async () => {
+  const archiveIndex = { operation: "commit-archive-index", indexPath: "C:\\Archive\\.idphoto-jpg-index.json.stage-1.tmp" };
+  for (const printOk of [true, false]) {
+    const loaded = loadService({ bridgeResult: {
+      ok: printOk, printed: printOk, printerName: "DS-RX1", paperName: "(6x4)", copies: 1,
+      archiveIndexResult: { ok: true, hidden: true, operation: "commit-archive-index" }
+    } });
+    const result = await loaded.service.printOneCopy(loaded.documentRef, { archiveIndex });
+    assert.deepEqual(loaded.getWrittenJob().archiveIndex, archiveIndex);
+    assert.equal(loaded.openedPaths.length, 1);
+    assert.equal(result.archiveIndexResult.ok, true);
+    assert.equal(result.printed, printOk);
+  }
+});
+
+test("failure before bridge launch cleans the unsubmitted image and job", async () => {
+  const loaded = loadService();
+  loaded.documentRef.saveAs.jpg = async () => { throw new Error("disk full"); };
+  const result = await loaded.service.printOneCopy(loaded.documentRef);
+  assert.equal(result.ok, false);
+  assert.equal(loaded.openedPaths.length, 0);
+  assert.equal(loaded.root.entries.get("print-jobs").entries.size, 0);
+});
+
+test("an in-progress result file is read again without launching another print", async () => {
+  const loaded = loadService({ partialResult: true });
+  const result = await loaded.service.printOneCopy(loaded.documentRef);
+  assert.equal(result.printed, true);
+  assert.equal(loaded.openedPaths.length, 1);
+});
+
+test("failure after submission is reported as unknown, preserving evidence", async () => {
+  const loaded = loadService({ bridgeResult: { ok: false, printed: null, outcomeUnknown: true, message: "spooler failed" } });
+  const result = await loaded.service.printOneCopy(loaded.documentRef);
+  assert.equal(result.printed, null);
+  assert.equal(result.outcomeUnknown, true);
+  assert.ok(loaded.root.entries.get("print-jobs").entries.size > 0);
+});
+
+test("cancelling print image export is preserved as cancellation and leaves no job", async () => {
+  const loaded = loadService();
+  loaded.documentRef.saveAs.jpg = async () => { throw Object.assign(new Error("cancelled"), { number: -128 }); };
+  const result = await loaded.service.printOneCopy(loaded.documentRef);
+  assert.equal(result.cancelled, true);
+  assert.equal(loaded.openedPaths.length, 0);
+  assert.equal(loaded.root.entries.get("print-jobs").entries.size, 0);
 });
 
 test("quick print rejects a missing layout document before creating a job", async () => {

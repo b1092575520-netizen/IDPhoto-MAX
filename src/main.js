@@ -1,6 +1,20 @@
 (function () {
   "use strict";
 
+  // Record the discovered installation, since Adobe may find multiple folders with the same plugin id.
+  (async function logRuntimeIdentity() {
+    try {
+      if (typeof require !== "function") return;
+      var fs = require("uxp").storage.localFileSystem;
+      if (!fs || typeof fs.getPluginFolder !== "function") return;
+      var folder = await fs.getPluginFolder();
+      var manifest = JSON.parse(await (await folder.getEntry("manifest.json")).read());
+      console.log("[runtime] IDPhoto MAX " + manifest.version + " path=" + folder.nativePath);
+    } catch (error) {
+      console.warn("[runtime] Could not read plugin installation identity", error);
+    }
+  })();
+
   var state = {
     selectedTemplate: null,
     selectedTemplates: [],
@@ -728,6 +742,10 @@
     var savedTextLayerCount = override.__savedTextLayerCount || 0;
     delete override.__savedTextLayerCount;
     result = window.IDPhotoDebugSettingsStore.saveOverride(template.id, override);
+    if (!result || !result.ok) {
+      setStatus(result && result.message ? result.message : "调试参数保存失败");
+      return;
+    }
     if (window.IDPhotoTemplateOverrideService && window.IDPhotoTemplateOverrideService.applyRuntimeOverride) {
       window.IDPhotoTemplateOverrideService.applyRuntimeOverride(template.id, override);
     }
@@ -923,8 +941,19 @@
     if (replacedExports.length) {
       completionMessage += "；同组 JPG 已升级为更高像素 " + replacedExports.length + " 次";
     }
+    var archiveNotices = [];
+    successResults.forEach(function (entry) {
+      var result = entry.result && entry.result.exportResult;
+      if (result && (result.sourceNotOwned || result.identityUnverified || result.cleanupIncomplete || result.indexUnavailable || result.indexVisibilityWarning || result.indexSyncWarning)) {
+        var notice = result.cleanupIncomplete ? "较小 JPG 清理失败，请检查目录权限" : result.message;
+        if (archiveNotices.indexOf(notice) < 0) archiveNotices.push(notice);
+      }
+    });
+    if (archiveNotices.length && successResults.length > 1) {
+      completionMessage += "；" + archiveNotices.join("；");
+    }
     if (printedResults.length) {
-      completionMessage += "；DS-RX1 已打印 " + printedResults.length + " 张";
+      completionMessage += "；DS-RX1 已提交打印 " + printedResults.length + " 张";
     }
     if (closedAfterPrintResults.length) {
       completionMessage += "；已不保存关闭拼版 " + closedAfterPrintResults.length + " 个";
@@ -938,7 +967,7 @@
     }
     if (printFailures.length) {
       completionMessage +=
-        "；DS-RX1 快印未执行：" +
+        "；DS-RX1 快印未确认成功：" +
         printFailures.map(function (item) {
           return getTemplateShortName(item.templateName);
         }).join("、") +
@@ -947,6 +976,7 @@
           : "");
     }
     state.lastClickedTemplateId = null;
+    if (runResult.cancelled) completionMessage += "；用户已取消，后续模板未执行";
     state.lastTemplateRangeAnchor = null;
     applySelectedTemplateIds(window.IDPhotoTemplateSelectionService.clear(), null, null, true);
     setStatus(completionMessage);
@@ -1056,7 +1086,7 @@
       debugModeToggle.addEventListener("click", function () {
         var enabled = !isDebugModeEnabled();
         var result = window.IDPhotoDebugSettingsStore ? window.IDPhotoDebugSettingsStore.setEnabled(enabled) : null;
-        setDebugPanelVisible(enabled);
+        setDebugPanelVisible(result && result.ok ? enabled : isDebugModeEnabled());
         refreshDebugPanel();
         setStatus(result ? result.message : "开发者调试模式：" + (enabled ? "开" : "关"));
       });

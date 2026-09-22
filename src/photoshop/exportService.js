@@ -3,7 +3,10 @@
 
   var NAS_TOKEN_KEY = "idphoto-max-nas-folder-token";
   var NAS_LABEL_KEY = "idphoto-max-nas-folder-label";
+  var JPG_INDEX_NAME = ".idphoto-jpg-index.json";
+  var MAX_ASPECT_RATIO_FACTOR = 1.05;
   var selectedNasFolder = null;
+  var exportQueue = Promise.resolve();
 
   function getLocalFileSystem() {
     var uxp;
@@ -45,6 +48,114 @@
     } catch (error) {
       console.warn("[export] failed to clear NAS authorization state", error);
     }
+  }
+
+  async function readSharedJpgIdentityIndex(folder) {
+    var file;
+    var parsed;
+    var entries = await folder.getEntries();
+    file = entries.find(function (entry) { return entry.name === JPG_INDEX_NAME; });
+    if (!file) return {};
+    try {
+      parsed = JSON.parse(await file.read({ format: require("uxp").storage.formats.utf8 }));
+      if (parsed && parsed.version === 1 && parsed.entries && typeof parsed.entries === "object" && !Array.isArray(parsed.entries)) {
+        return parsed.entries;
+      }
+    } catch (error) {
+      throw new Error("存档身份索引无法读取：" + error.message);
+    }
+    throw new Error("存档身份索引格式无效");
+  }
+
+  // Private durable records do not require launching the print bridge. The full path
+  // is checked on reads so even a cache filename hash collision cannot join customers.
+  async function getPrivateIndex(folder) {
+    var directory = String(folder.nativePath || "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+    if (!directory) throw new Error("无法确认存档目录的完整路径");
+    var hash = 2166136261;
+    for (var i = 0; i < directory.length; i++) hash = Math.imul(hash ^ directory.charCodeAt(i), 16777619) >>> 0;
+    var root = await getLocalFileSystem().getDataFolder();
+    var cache;
+    try { cache = await root.getEntry("archive-index-cache"); }
+    catch (missing) { cache = await root.createFolder("archive-index-cache"); }
+    return { folder: cache, name: hash.toString(16) + ".json", directory: directory };
+  }
+
+  async function readPrivateIndex(location) {
+    var entries = await location.folder.getEntries();
+    var file = entries.find(function (entry) { return entry.name === location.name; });
+    if (!file) return null;
+    var value = JSON.parse(await file.read({ format: require("uxp").storage.formats.utf8 }));
+    if (!value || value.version !== 1 || value.directory !== location.directory || !value.entries ||
+        typeof value.entries !== "object" || Array.isArray(value.entries)) throw new Error("内部去重记录无效或目录不匹配");
+    return value.entries;
+  }
+
+  async function readJpgIdentityIndex(folder) {
+    var local = await readPrivateIndex(await getPrivateIndex(folder));
+    var shared;
+    try { shared = await readSharedJpgIdentityIndex(folder); }
+    catch (error) { if (!local) throw error; shared = {}; }
+    return Object.assign({}, shared, local || {});
+  }
+
+  async function writePrivateIndex(folder, index) {
+    var location = await getPrivateIndex(folder);
+    // Refuse to overwrite a record for a different archive directory.
+    await readPrivateIndex(location);
+    var pendingName = location.name + "." + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2) + ".tmp";
+    var file = await location.folder.createFile(pendingName, { overwrite: false });
+    try {
+      await file.write(JSON.stringify({ version: 1, directory: location.directory, entries: index }), { format: require("uxp").storage.formats.utf8 });
+      await file.moveTo(location.folder, { newName: location.name, overwrite: true });
+    } finally {
+      try { await (await location.folder.getEntry(pendingName)).delete(); } catch (missing) { /* committed or absent */ }
+    }
+  }
+
+  async function writeJpgIdentityIndex(folder, index, indexExecutor) {
+    var pendingName = JPG_INDEX_NAME + "." + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2) + ".tmp";
+    var file = await folder.createFile(pendingName, { overwrite: false });
+    try {
+      await file.write(JSON.stringify({ version: 1, entries: index }), { format: require("uxp").storage.formats.utf8 });
+      // UXP cannot overwrite a Hidden file on Windows. The native bridge commits and hides it atomically.
+      if (indexExecutor) await indexExecutor(file, "commit-archive-index");
+      else await window.IDPhotoPrintService.commitArchiveIndex(file);
+    } finally {
+      // Address only our staging name; the File object may now refer to the committed index.
+      try { await (await folder.getEntry(pendingName)).delete(); } catch (cleanupError) { /* absent after move */ }
+    }
+  }
+
+  function getIndexedVariant(fileName, index) {
+    var entry = index && index[String(fileName || "")];
+    var parsed;
+    if (!entry || !window.IDPhotoVariantService || typeof window.IDPhotoVariantService.parseIdentityMarker !== "function") {
+      return null;
+    }
+    parsed = window.IDPhotoVariantService.parseIdentityMarker(entry.identityMarker);
+    if (!parsed) {
+      return null;
+    }
+    parsed.identityMarker = String(entry.identityMarker).toLowerCase();
+    parsed.backgroundColor = /^(red|blue|white|unknown)$/.test(entry.backgroundColor)
+      ? entry.backgroundColor
+      : "unknown";
+    return parsed;
+  }
+
+  async function withHiddenIndex(result, folder, indexExecutor) {
+    try {
+      var file = await folder.getEntry(JPG_INDEX_NAME);
+      if (indexExecutor) await indexExecutor(file, "hide-archive-index");
+      else await window.IDPhotoPrintService.hideArchiveIndex(file);
+    } catch (error) {
+      // Visibility is auxiliary: never roll back a photo or a committed identity index.
+      result.indexVisibilityWarning = true;
+      result.message += " · 索引自动隐藏失败：" + (error && error.message ? error.message : String(error));
+      console.warn("[export] archive index could not be hidden", error);
+    }
+    return result;
   }
 
   function describeFolder(folder) {
@@ -187,10 +298,6 @@
     }
   }
 
-  function escapeRegExp(value) {
-    return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  }
-
   function getAspectGroup(widthPx, heightPx) {
     widthPx = Number(widthPx);
     heightPx = Number(heightPx);
@@ -202,6 +309,13 @@
 
   function getPixelArea(widthPx, heightPx) {
     return Math.round(Number(widthPx) * Number(heightPx));
+  }
+
+  function hasSimilarAspect(leftWidth, leftHeight, rightWidth, rightHeight) {
+    var left = Number(leftWidth) / Number(leftHeight);
+    var right = Number(rightWidth) / Number(rightHeight);
+    return Number.isFinite(left) && Number.isFinite(right) && left > 0 && right > 0 &&
+      Math.max(left, right) / Math.min(left, right) <= MAX_ASPECT_RATIO_FACTOR + 1e-12;
   }
 
   function getEncodedExportSize(fileName) {
@@ -244,11 +358,12 @@
     return getEncodedExportSize(fileName) || getLegacyExportSize(fileName);
   }
 
-  function getVariantFromFileName(fileName) {
+  function getVariantFromFileName(fileName, identityIndex) {
     var name = String(fileName || "");
     var modern = name.match(/_id-((?:u2)|(?:s2[io][a-f0-9]{2,156})|(?:v2[a-f0-9]{129}))_bg-(red|blue|white|unknown)_/i);
     var legacy = name.match(/_p([a-f0-9]{16})_bg-(red|blue|white|unknown)_/i);
     var backgroundOnly = name.match(/_bg-(red|blue|white|unknown)_/i);
+    var short = name.match(/_(红|蓝|白|未知)_([a-z0-9]{6})(?:_\d+)?\.jpg$/i);
     var parsed;
     if (modern && window.IDPhotoVariantService && typeof window.IDPhotoVariantService.parseIdentityMarker === "function") {
       parsed = window.IDPhotoVariantService.parseIdentityMarker(modern[1]);
@@ -264,12 +379,23 @@
         backgroundColor: legacy[2].toLowerCase()
       };
     }
+    if (short) {
+      parsed = getIndexedVariant(name, identityIndex) || {
+        shortToken: short[2].toUpperCase(),
+        backgroundColor: { "红": "red", "蓝": "blue", "白": "white", "未知": "unknown" }[short[1]] || "unknown"
+      };
+      parsed.shortToken = short[2].toUpperCase();
+      if (!parsed.backgroundColor) {
+        parsed.backgroundColor = { "红": "red", "蓝": "blue", "白": "white", "未知": "unknown" }[short[1]] || "unknown";
+      }
+      return parsed;
+    }
     return backgroundOnly ? { backgroundColor: backgroundOnly[1].toLowerCase() } : null;
   }
 
   function belongsToBackgroundGroup(existingVariant, currentVariant) {
     if (!currentVariant) {
-      return !existingVariant;
+      return !existingVariant || existingVariant.backgroundColor === "unknown";
     }
     if (currentVariant.backgroundColor === "unknown") {
       return !existingVariant || existingVariant.backgroundColor === "unknown";
@@ -314,13 +440,10 @@
     return makeUnknownVariant(sourceName, stableSourceId);
   }
 
-  async function findSourceGroupExports(folder, sourceName, aspectGroup, variant) {
-    var sourceKey;
-    var pattern;
+  async function findSourceGroupExports(folder, template, variant, identityIndex) {
     var entries;
     var size;
     var existingVariant;
-    var sourceMatches;
     var identityResult;
     var highConfidenceMatch;
     var matches = [];
@@ -329,22 +452,12 @@
     if (!folder || typeof folder.getEntries !== "function") {
       return matches;
     }
-    if (!window.IDPhotoPathService || !window.IDPhotoPathService.makeJpgSourceKey) {
-      return matches;
-    }
-
-    sourceKey = window.IDPhotoPathService.makeJpgSourceKey(sourceName);
-    if (!sourceKey) {
-      return matches;
-    }
-    pattern = new RegExp("_" + escapeRegExp(sourceKey) + "(?:_\\d+)?\\.jpg$", "i");
     entries = await folder.getEntries();
     for (index = 0; index < entries.length; index += 1) {
-      if (!(entries[index] && entries[index].name)) {
+      if (!(entries[index] && entries[index].isFile && /\.jpg$/i.test(entries[index].name))) {
         continue;
       }
-      existingVariant = getVariantFromFileName(entries[index].name);
-      sourceMatches = pattern.test(entries[index].name);
+      existingVariant = getVariantFromFileName(entries[index].name, identityIndex);
       identityResult = null;
       if (
         variant && existingVariant &&
@@ -353,19 +466,14 @@
         identityResult = window.IDPhotoVariantService.compareIdentity(variant, existingVariant);
       }
       highConfidenceMatch = Boolean(identityResult && (identityResult.kind === "stable-source" || identityResult.kind === "visual-high"));
-      if (
-        sourceMatches && identityResult &&
-        (identityResult.reason === "conflicting-strong-source-id" || identityResult.reason === "unverifiable-strong-source-id")
-      ) {
-        continue;
-      }
-      if (!sourceMatches && !highConfidenceMatch) {
+      // A source filename or six-character hash is not evidence for deletion.
+      if (!highConfidenceMatch) {
         continue;
       }
       size = getExistingExportSize(entries[index].name);
       if (
         size &&
-        getAspectGroup(size.widthPx, size.heightPx) === aspectGroup &&
+        hasSimilarAspect(size.widthPx, size.heightPx, template.widthPx, template.heightPx) &&
         belongsToBackgroundGroup(existingVariant, variant)
       ) {
         matches.push({
@@ -467,7 +575,7 @@
     );
   }
 
-  async function exportSingleJpg(processedDocument, options) {
+  async function exportSingleJpgDirect(processedDocument, options) {
     var template = options.template;
     var docInfo = options.docInfo || {};
     var nasArchive = Boolean(options.nasArchive);
@@ -484,6 +592,9 @@
     var removedCount = 0;
     var eligibility;
     var variant = null;
+    var identityIndex;
+    var indexError = null;
+    var indexSyncError = null;
 
     if (!processedDocument) {
       throw new Error("没有可导出的处理后单张照片");
@@ -492,8 +603,11 @@
       throw new Error("当前模板缺少有效的单张像素尺寸");
     }
 
-    if (window.IDPhotoSourceEligibilityService && window.IDPhotoSourceEligibilityService.checkSource) {
-      eligibility = window.IDPhotoSourceEligibilityService.checkSource(docInfo.sourceMetadata || null);
+    if (!window.IDPhotoSourceEligibilityService || typeof window.IDPhotoSourceEligibilityService.checkSource !== "function") {
+      throw new Error("本店拍摄资格检查未加载，已停止自动保存");
+    }
+    {
+      eligibility = window.IDPhotoSourceEligibilityService.checkSource(docInfo.sourceMetadata || null, docInfo.name || "");
       if (!eligibility.eligible) {
         return {
           ok: true,
@@ -512,25 +626,44 @@
     if (window.IDPhotoVariantService && typeof window.IDPhotoVariantService.analyzeDocument === "function") {
       try {
         variant = normalizeVariant(
-          await window.IDPhotoVariantService.analyzeDocument(processedDocument),
+          Object.prototype.hasOwnProperty.call(docInfo, "sourceVariant")
+            ? docInfo.sourceVariant
+            : await window.IDPhotoVariantService.analyzeDocument(processedDocument),
           docInfo.name,
           docInfo.stableSourceId
         );
       } catch (analysisError) {
-        console.warn("[export] photo variant analysis failed; using unknown safe dedupe", analysisError);
-        variant = makeUnknownVariant(docInfo.name, docInfo.stableSourceId);
+        window.IDPhotoPhotoshopExecution.throwIfCancelled(analysisError);
+        console.warn("[export] photo variant analysis failed; skipping archive", analysisError);
       }
+    }
+
+    if (!variant || variant.backgroundColor === "unknown" || !variant.identityMarker || variant.unverifiableStrongSourceId) {
+      return {
+        ok: true, skipped: true, identityUnverified: true,
+        message: "原片身份或底色无法确认：已跳过存档，排版与冲印不受影响"
+      };
     }
 
     rootResult = await getOutputRootFolder(nasArchive);
     dateFolder = await getDatedOutputFolder(rootResult.folder);
+    try {
+      identityIndex = await readJpgIdentityIndex(dateFolder);
+    } catch (readError) {
+      indexError = readError;
+      identityIndex = {};
+    }
     aspectGroup = getAspectGroup(template.widthPx, template.heightPx);
     currentArea = getPixelArea(template.widthPx, template.heightPx);
-    existingExports = await findSourceGroupExports(dateFolder, docInfo.name, aspectGroup, variant);
+    existingExports = indexError ? [] : await findSourceGroupExports(dateFolder, template, variant, identityIndex);
     largestExisting = getLargestExport(existingExports);
     if (largestExisting && largestExisting.area >= currentArea) {
+      // Similarity is not transitive: only remove photos close to the actual keeper.
+      existingExports = existingExports.filter(function (entry) {
+        return hasSimilarAspect(entry.widthPx, entry.heightPx, largestExisting.widthPx, largestExisting.heightPx);
+      });
       removedCount = await deleteCandidateFiles(existingExports, largestExisting.file);
-      return {
+      return await withHiddenIndex({
         ok: true,
         skipped: true,
         duplicateSource: true,
@@ -538,10 +671,12 @@
         keptLargest: true,
         fileName: largestExisting.file.name,
         removedCount: removedCount,
+        cleanupIncomplete: removedCount < existingExports.length - 1,
         mode: rootResult.mode,
         picked: rootResult.picked,
-        message: "同一原片近似比例已保留最大 JPG，跳过重复导出：" + largestExisting.file.name
-      };
+        message: "同一原片同底色近似比例已保留最大 JPG，跳过重复导出：" + largestExisting.file.name +
+          (removedCount < existingExports.length - 1 ? " · 较小 JPG 清理失败，请检查目录权限" : "")
+      }, dateFolder, options.archiveIndexExecutor);
     }
     replacedSmaller = Boolean(largestExisting);
     fileName = window.IDPhotoPathService.makeJpgFileName(template.name, docInfo.name, template.widthPx, template.heightPx, variant);
@@ -558,6 +693,32 @@
       }
       throw saveError;
     }
+    // A completed photo is primary data. Auxiliary index failures must never delete it.
+    if (!indexError) {
+      identityIndex[fileName] = { identityMarker: variant.identityMarker, backgroundColor: variant.backgroundColor };
+      try {
+        await writePrivateIndex(dateFolder, identityIndex);
+      } catch (writeError) {
+        indexError = writeError;
+      }
+      if (!indexError) {
+        try { await writeJpgIdentityIndex(dateFolder, identityIndex, options.archiveIndexExecutor); }
+        catch (syncError) { indexSyncError = syncError; console.warn("[export] private index saved; shared index sync failed", syncError); }
+      }
+    }
+    if (indexError) {
+      console.warn("[export] JPG saved; identity index unavailable", indexError);
+      return {
+        ok: true,
+        fileName: fileName,
+        indexUnavailable: true,
+        replacedSmaller: false,
+        removedCount: 0,
+        mode: rootResult.mode,
+        picked: rootResult.picked,
+        message: "单张 JPG 已保存：" + fileName + " · 去重索引失败，已保留照片并暂停清理：" + indexError.message
+      };
+    }
     if (replacedSmaller) {
       removedCount = await deleteCandidateFiles(existingExports, null);
     }
@@ -568,17 +729,26 @@
       aspectGroup: aspectGroup,
       backgroundColor: variant ? variant.backgroundColor : "unknown",
       personFingerprint: variant ? variant.personFingerprint : "",
+      indexSyncWarning: Boolean(indexSyncError),
       replacedSmaller: replacedSmaller,
       removedCount: removedCount,
+      cleanupIncomplete: removedCount < existingExports.length,
       mode: rootResult.mode,
       picked: rootResult.picked,
       message:
         "单张 JPG 已导出：" +
         fileName +
-        (replacedSmaller ? " · 已替换同组较小 JPG" : "") +
+        (replacedSmaller ? (removedCount < existingExports.length ? " · 较小 JPG 清理失败，请检查目录权限" : " · 已替换同组较小 JPG") : "") +
         (nasArchive ? " · NAS 日期归档" : " · 插件数据目录测试输出") +
-        (rootResult.picked ? " · 已选择输出根目录" : "")
+        (rootResult.picked ? " · 已选择输出根目录" : "") +
+        (indexSyncError ? " · 本机去重记录已保存，目录索引同步失败：" + (indexSyncError.message || String(indexSyncError)) : "")
     };
+  }
+
+  function exportSingleJpg(processedDocument, options) {
+    var result = exportQueue.then(function () { return exportSingleJpgDirect(processedDocument, options); });
+    exportQueue = result.catch(function () {});
+    return result;
   }
 
   window.IDPhotoExportService = {

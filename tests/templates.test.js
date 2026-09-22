@@ -59,7 +59,7 @@ test("approved debug adjustments are built into the default info-bar templates",
     brazil: { info: [2916, 0, 284, 2400], avatar: [2950, 56, 210, 263], textKeys: ["shopNameDate", "phone"] },
     "us-visa-51": { info: [0, 1268, 3590, 369], avatar: [34, 1312, 280, 280], textKeys: ["shopName", "date", "phone"] },
     graduation: { info: [2943, 0, 273, 2400], avatar: [2978, 53, 205, 281], textKeys: ["shopNameDate", "phone"] },
-    wedding: { info: [0, 1739, 3592, 273], avatar: [24, 1759, 342, 225], textKeys: ["shopName", "date", "phone"] },
+    wedding: { info: [0, 1795, 3592, 555], avatar: [0, 1872, 577, 382], textKeys: [] },
     "small-two-inch": { info: [3239, 0, 361, 2400], avatar: [3293, 48, 214, 312], textKeys: ["shopNameDate", "phone"] },
     "hongkong-taiwan": { info: [0, 1950, 3592, 450], avatar: [24, 2017, 235, 313], textKeys: ["shopName", "date", "phone"] },
     argentina: { info: [0, 1945, 3600, 455], avatar: [70, 2016, 342, 342], textKeys: ["shopName", "date", "phone", "tip"] }
@@ -79,5 +79,22 @@ test("approved debug adjustments are built into the default info-bar templates",
       templateId
     );
     assert.deepEqual(Object.keys(template.infoBar.textLayers || {}).filter((key) => value.textKeys.includes(key)), value.textKeys, templateId);
+  });
+});
+
+test("wedding information-bar coordinates have one canonical configured source", () => {
+  const modules = loadTemplateModules();
+  const template = modules.IDPhotoTemplates.getTemplateById("wedding");
+
+  assert.equal(template.infoBar.textLayers, undefined);
+  assert.deepEqual(JSON.parse(JSON.stringify(template.infoBar.texts.columns)), {
+    shopName: { x: 618, y: 1933 },
+    date: { x: 618, y: 2048 },
+    phone: { x: 618, y: 2165 }
+  });
+  assert.deepEqual(JSON.parse(JSON.stringify(template.infoBar.texts.fontSizes)), {
+    shopName: 13,
+    date: 12,
+    phone: 10
   });
 });

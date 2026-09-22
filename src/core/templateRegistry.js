@@ -544,27 +544,20 @@
       heightCm: 3.5,
       referenceFile: "3.5x5.3.jpg",
       layoutMode: "template-special-bottom-info",
-      infoBar: info("bottom", 0, 1739, 3592, 273, infoStyle({
-        avatar: thumbnailAvatar(24, 1759, 342, 225, { scaleMode: "fixedFit" }),
-        textLayers: {
-          shopName: { x: 411, y: 1764, width: 401, height: 56, fontSize: 6.6 },
-          date: { x: 411, y: 1843, width: 278, height: 46, fontSize: 5.4 },
-          phone: { x: 411, y: 1915, width: 762, height: 55, fontSize: 6.5 }
-        },
-        texts: horizontalText(619, 1985, {
+      infoBar: info("bottom", 0, 1795, 3592, 555, infoStyle({
+        avatar: thumbnailAvatar(0, 1872, 577, 382, { scaleMode: "fixedFit" }),
+        texts: horizontalText(618, 1933, {
           useAvatarGap: false,
-          width: 2891,
+          width: 2894,
           minFontSize: 10,
           maxFontSize: 13,
           lineGap: 0,
-          rightPadding: 80,
-          bottomPadding: 34,
           keys: ["shopName", "date", "phone"],
           fontSizes: { shopName: 13, date: 12, phone: 10 },
           columns: {
-            shopName: { x: 619, y: 1985 },
-            date: { x: 618, y: 2100 },
-            phone: { x: 618, y: 2217 }
+            shopName: { x: 618, y: 1933 },
+            date: { x: 618, y: 2048 },
+            phone: { x: 618, y: 2165 }
           },
           omitTip: true
         })

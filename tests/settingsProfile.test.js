@@ -28,7 +28,7 @@ function loadProfile(initialValues = {}) {
   };
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(profilePath, "utf8"), context, { filename: profilePath });
-  return { profile: context.window.IDPhotoSettingsProfile, values };
+  return { profile: context.window.IDPhotoSettingsProfile, values, context };
 }
 
 function plain(value) {
@@ -82,4 +82,18 @@ test("a backup round-trip restores the profile and rejects malformed input", () 
   assert.equal(restored.shop.shopName, "备份店名");
   assert.equal(restored.cropStrategy, "crop");
   assert.throws(() => loaded.profile.importJson("{bad json"), /设置备份/);
+});
+
+test("unavailable storage cannot report a successful settings save", () => {
+  const loaded = loadProfile();
+  loaded.context.window.localStorage = null;
+  assert.throws(() => loaded.profile.save(loaded.profile.defaults()), /保存失败/);
+});
+
+test("corrupt or future settings are not silently overwritten by defaults or migration", () => {
+  for (const raw of ["{broken", JSON.stringify({ schemaVersion: 99, shop: { shopName: "future" } })]) {
+    const loaded = loadProfile({ "idphoto-max-profile-v1": raw });
+    assert.throws(() => loaded.profile.update("shop", { shopName: "new" }), /设置/);
+    assert.equal(loaded.values.get("idphoto-max-profile-v1"), raw);
+  }
 });

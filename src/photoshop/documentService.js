@@ -48,9 +48,7 @@
   }
 
   async function activateDocument(documentRef) {
-    if (documentRef && typeof documentRef.activate === "function") {
-      await documentRef.activate();
-    }
+    await window.IDPhotoPhotoshopExecution.activateDocument(documentRef);
   }
 
   function getLayerId(layer) {
@@ -79,13 +77,13 @@
     return await window.IDPhotoPhotoshopExecution.batchPlay(commands);
   }
 
-  async function getActiveDocumentXmp() {
+  async function getActiveDocumentXmp(documentId) {
     var result = await batchPlay([
       {
         _obj: "get",
         _target: [
           { _property: "XMPMetadataAsUTF8" },
-          { _ref: "document", _enum: "ordinal", _value: "targetEnum" }
+          documentId ? { _ref: "document", _id: documentId } : { _ref: "document", _enum: "ordinal", _value: "targetEnum" }
         ],
         _options: { dialogOptions: "dontDisplay" }
       }
@@ -99,7 +97,7 @@
       return info;
     }
     try {
-      raw = await getActiveDocumentXmp();
+      raw = info.id ? await getActiveDocumentXmp(info.id) : "";
     } catch (error) {
       raw = "";
     }
@@ -117,24 +115,29 @@
       return false;
     }
 
+    if (typeof documentRef.closeWithoutSaving === "function") {
+      await documentRef.closeWithoutSaving();
+      return true;
+    }
     await activateDocument(documentRef);
-    if (typeof documentRef.close === "function") {
+    var constants = getPhotoshopModule().constants;
+    if (typeof documentRef.close === "function" && constants && constants.SaveOptions) {
       try {
-        await documentRef.close("no");
+        await documentRef.close(constants.SaveOptions.DONOTSAVECHANGES);
         return true;
-      } catch (closeStringError) {
-        try {
-          await documentRef.close({ save: false });
-          return true;
-        } catch (closeObjectError) {
-          console.warn("[document] document.close failed, falling back to batchPlay", closeStringError, closeObjectError);
-        }
+      } catch (closeError) {
+        window.IDPhotoPhotoshopExecution.throwIfCancelled(closeError);
+        console.warn("[document] document.close failed, falling back to explicit document ID", closeError);
       }
     }
 
+    if (!(Number(documentRef.id) > 0)) {
+      throw new Error("缺少有效文档编号，已停止关闭以免误关其他文档");
+    }
     await batchPlay([
       {
         _obj: "close",
+        _target: [{ _ref: "document", _id: documentRef.id }],
         saving: { _enum: "yesNo", _value: "no" },
         _options: { dialogOptions: "dontDisplay" }
       }
@@ -238,6 +241,7 @@
         temporaryLayer: false
       };
     } catch (error) {
+      window.IDPhotoPhotoshopExecution.throwIfCancelled(error);
       flattenError = error;
       console.warn("[document] flatten visible failed, falling back to stamped visible layer", error);
     }
@@ -251,6 +255,7 @@
         temporaryLayer: true
       };
     } catch (stampError) {
+      window.IDPhotoPhotoshopExecution.throwIfCancelled(stampError);
       throw new Error(
         "生成完整可见画面拼版源失败：" +
           (stampError.message || stampError) +
