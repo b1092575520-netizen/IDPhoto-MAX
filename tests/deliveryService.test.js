@@ -25,7 +25,10 @@ function harness(options = {}) {
   }
   const root = new Entry('local');
   const pixels = new Uint8Array([255,216,3,4,5,6,255,217]).buffer;
-  function doc(width,height) { const d={id:++sequence,width,height,saveAs:{jpg:async file=>file.write(pixels)},crop:async()=>{},duplicate:async()=>doc(width,height)}; return d; }
+  function doc(width,height) { const d={id:++sequence,width,height,saveAs:{jpg:async(file,opts)=>{
+    if(!options.multi)return file.write(pixels);
+    const data=new Uint8Array(500+opts.quality*100);data.set([255,216,255,192,0,11,8,d.height>>8,d.height&255,d.width>>8,d.width&255,1,1,17,0,255,218]);data[data.length-2]=255;data[data.length-1]=217;await file.write(data.buffer);
+  }},crop:async()=>{},resizeImage:async(w,h)=>{d.width=w;d.height=h;},duplicate:async()=>doc(d.width,d.height)}; return d; }
   const photo=doc(3000,4000), original=doc(3000,4000);
   const app={documents:[],open:async()=>photo,get activeDocument(){return active},set activeDocument(d){active=d}};
   app.documents.add=async({width,height,name})=>{const d=doc(width,height);d.name=name;canvases.push(d);app.documents.push(d);return d;};
@@ -42,7 +45,7 @@ function harness(options = {}) {
   };
   class Clock extends Date { static now(){clock+=1500;return clock;} }
   const context=vm.createContext({window,console,Date:Clock,setTimeout:fn=>{fn();},require:name=>{assert.equal(name,'uxp');return {storage:{localFileSystem:filesystem,formats:{binary:'binary',utf8:'utf8'}}};}});
-  for(const file of ['core/deliveryProtocol','photoshop/deliveryService'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../src',file+'.js'),'utf8'),context);
+  for(const file of ['core/deliveryProtocol','core/deliverySpecifications','photoshop/deliveryService'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../src',file+'.js'),'utf8'),context);
   return {options,service:window.IDPhotoDeliveryService,original,photo,files,closed,renders,canvases,info:{id:original.id,name:'test',widthPx:3000,heightPx:4000,sourceMetadata:{}}};
 }
 test('electronic delivery binds original pixels, completion and code; info failure stays independent and records string errors',async()=>{
@@ -96,4 +99,26 @@ test('management during rendering refuses export when the new confirmation has a
  const h=harness(),task=await h.service.electronic(h.original,h.info,{});h.options.changedDuringRender=true;
  await assert.rejects(h.service.regenerate(task.folder),/状态变化/);
  await assert.rejects(task.folder.getEntry('supplements.json'));assert.equal(h.closed.includes(h.original.id),false);
+});
+
+
+test('multi export uses independent real-dimension encodes and v2 durable unconfirmed draft',async()=>{
+ const h=harness({multi:true}),task=await h.service.multi(h.original,h.info,{},[{filename:'高清蓝底.jpg',purpose:'明确用途',background:'蓝底'},{filename:'报名名称.jpg',width:300,height:400,maxBytes:1400,minQuality:8}]);
+ const request=JSON.parse(await(await task.folder.getEntry('request.json')).read());
+ assert.equal(request.version,2);assert.equal(request.files.length,2);assert.equal(request.files[1].filename,'报名名称.jpg');assert.equal(request.files[1].width,300);assert.equal(request.files[1].height,400);assert.equal(request.files[1].sizeBytes,1400);assert.equal(request.files[1].encodedQuality,9);
+ assert.equal(task.status.processing,'draft');assert.equal(h.original.width,3000);assert.equal(h.original.height,4000);assert.equal(h.closed.includes(h.original.id),false);assert.equal(h.renders.length,0);
+ await task.folder.getEntry('source-preserved.jpg');await assert.rejects(task.folder.getEntry('code-request.json'));
+ assert.ok(JSON.parse(await(await task.folder.getEntry('complete.json')).read()).processingComplete);
+ const output=await h.service.regenerate(task.folder);assert.match(output,/info-/);
+});
+
+test('multi rejects impossible bytes, upscaling, changed ratio and duplicate paths without publishing',async()=>{
+ for(const spec of [{filename:'a.jpg',width:6000,height:8000},{filename:'a.jpg',width:300,height:300}]){const h=harness({multi:true});await assert.rejects(h.service.multi(h.original,h.info,{},[spec]));assert.equal(h.closed.includes(h.original.id),false);}
+ const h=harness({multi:true});await assert.rejects(h.service.multi(h.original,h.info,{},[{filename:'a.jpg',maxBytes:100,minQuality:10}]),/无法生成/);const task=h.service.latest();await assert.rejects(task.folder.getEntry('request.json'));await assert.rejects(task.folder.getEntry('complete.json'));await task.folder.getEntry('source-preserved.jpg');assert.equal(task.status.processing,'failed');
+});
+
+test('multi explicit target binds only this request and never sticks to the following customer',async()=>{
+ const h=harness({multi:true}),target={version:1,deliveryId:'a'.repeat(64),contextKey:'b'.repeat(64),groupVersion:3,code:'T2EST4',title:'明确同行'};
+ const task=await h.service.multi(h.original,h.info,{},[{filename:'new.jpg'}],target),request=JSON.parse(await(await task.folder.getEntry('request.json')).read());assert.equal(request.newMember,true);assert.equal(request.targetDeliveryId,target.deliveryId);
+ const next=await h.service.multi(h.original,h.info,{},[{filename:'next.jpg'}]);assert.equal(JSON.parse(await(await next.folder.getEntry('request.json')).read()).targetDeliveryId,undefined);
 });

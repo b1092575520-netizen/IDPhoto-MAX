@@ -55,7 +55,20 @@
             <button class="run-button" id="runButton" type="button" data-icon="rocket"><span class="btn-label">开始排版</span></button>
             <button class="run-button" id="deliverLayoutButton" type="button"><span class="btn-label">排版并交付 · 沿用打印开关</span></button>
             <button class="panel-btn green-btn wide-btn" id="electronicDeliveryButton" type="button"><span class="btn-label">仅电子交付 · 当前照片</span></button>
-            <div class="settings-note">电子交付会生成当前照片的高清副本；仅电子不再裁切、不打印。多规格请分别确认后人工导入。</div>
+            <button class="panel-btn green-btn wide-btn" id="multiDeliveryButton" type="button">多规格草稿 / 同行共领</button>
+            <div class="settings-note">仅电子不打印。多规格先生成独立 JPG，再在后台核对并完成；不同底色请先完成处理，再明确补交对应版本。</div>
+            <div id="multiDeliveryPanel" class="delivery-draft-panel" style="display: none;">
+              <div class="settings-note">不放大、不自动裁切；比例不同请先裁切。最大 8 MiB / 2000 万像素。大小单位 KB=1024 字节，品质只在指定范围内调整。</div>
+              <p id="deliveryTargetText">独立交付 · 不加入上一位顾客</p>
+              <img id="deliveryTargetPreview" class="delivery-target-preview" alt="本次共同交付目标照片" />
+              <button class="panel-btn wide-btn" id="chooseDeliveryTarget" type="button">选择后台导出的共领目标</button>
+              <button class="panel-btn wide-btn" id="clearDeliveryTarget" type="button">清除目标，独立交付</button>
+              <div id="deliverySpecRows"></div>
+              <button class="panel-btn wide-btn" id="addDeliverySpec" type="button">添加一个规格</button>
+              <button class="run-button" id="generateDeliveryDraft" type="button">确认规格，生成待核对草稿</button>
+              <button class="panel-btn wide-btn" id="closeMultiDelivery" type="button">关闭并清除共领目标</button>
+              <p id="multiDeliveryStatus" class="settings-note">用途、底色和报名要求由店员确认，留空即未标注。</p>
+            </div>
           </section>
         </section>
 
@@ -198,6 +211,7 @@
     <script src="src/icons.js"></script>
     <script src="src/core/errorService.js"></script>
     <script src="src/core/deliveryProtocol.js"></script>
+    <script src="src/core/deliverySpecifications.js"></script>
     <script src="src/core/templateRegistry.js"></script>
     <script src="src/core/templateSelectionService.js"></script>
     <script src="src/core/ratioChecker.js"></script>
@@ -226,6 +240,7 @@
     <script src="src/photoshop/exportService.js"></script>
     <script src="src/photoshop/deliveryService.js"></script>
     <script src="src/ui/settingsViewController.js"></script>
+    <script src="src/ui/deliveryDraftView.js"></script>
     <script src="src/core/layoutWorkflow.js"></script>
     <script src="src/main.js"></script>
   </body>

@@ -155,9 +155,21 @@
     finally { if (info) await window.IDPhotoDocumentService.closeWithoutSaving(info.document); if (photo) await window.IDPhotoDocumentService.closeWithoutSaving(photo.document); }
   }
   async function restoreTask(folder) {
-    var saved = JSON.parse(await (await folder.getEntry("context.json")).read({ format: format(false) }));
     var payload = await (await folder.getEntry("request.json")).read({ format: format(false) });
     var request = JSON.parse(payload);
+    if (request.informationOnly && (!/^[a-f0-9]{64}$/.test(request.referenceFileId || "") || !Number.isInteger(request.referenceRevision) || request.referenceRevision < 1)) throw new Error("信息条缺少原文件版本绑定，请在后台重新导出任务。");
+    var contextFile;
+    try { contextFile = await folder.getEntry("context.json"); } catch (_) { /* Explicit backend information-only tasks acquire rendering context on first use. */ }
+    if (!contextFile) {
+      if (request.version !== 2 || request.informationOnly !== true || !/^[a-f0-9]{32}$/.test(request.taskId || "") || !/^[a-f0-9]{32}$/.test(request.outputId || "") || !/^[a-f0-9]{64}$/.test(request.referenceDeliveryId || "") || !/^[a-f0-9]{64}$/.test(request.referenceContextKey || "") || !Array.isArray(request.files) || request.files.length !== 1) throw new Error("原任务上下文缺失，不能推断照片归属。");
+      var referenceBinding = JSON.parse(await (await folder.getEntry("code-binding.json")).read({ format: format(false) }));
+      if (referenceBinding.contextKey !== request.referenceContextKey || referenceBinding.deliveryId !== request.referenceDeliveryId || referenceBinding.manifestFingerprint !== protocol().sha256(payload)) throw new Error("信息条引用与原连接不匹配。");
+      await writeAtomic(folder, "context.json", JSON.stringify({ version: 1, id: request.taskId, outputId: request.outputId, mode: "electronic",
+        docInfo: { id: request.sourceDocumentId, name: request.title }, template: window.IDPhotoTemplates.getTemplateById("one-inch"),
+        settings: window.IDPhotoSettingsStore.load(), dateText: window.IDPhotoDateService.formatDisplayDate() }));
+      contextFile = await folder.getEntry("context.json");
+    }
+    var saved = JSON.parse(await contextFile.read({ format: format(false) }));
     if (saved.version !== 1 || saved.id !== request.taskId || saved.outputId !== request.outputId) throw new Error("原任务上下文不匹配，不能补码。");
     var previousStatus = {};
     try { previousStatus = JSON.parse(await (await folder.getEntry("plugin-status.json")).read({ format: format(false) })); } catch (e) { /* Context and request remain the authority for identity. */ }
@@ -179,8 +191,9 @@
     }
     var task = await restoreTask(folder), code = await confirmCode(task), photo, info;
     if (!code) throw new Error("本次取件码待核对：后台未确认有效码，或交付已取消/撤回；请核对原连接与管理结果。");
-    var file = await folder.getEntry("photo.jpg"), bytes = await file.read({ format: format(true) });
     var request = JSON.parse(await (await folder.getEntry("request.json")).read({ format: format(false) }));
+    if (!Array.isArray(request.files) || !request.files.length || !/^[A-Za-z0-9_-]{1,80}\.jpg$/.test(request.files[0].path)) throw new Error("原任务成片路径无效，拒绝补码。");
+    var file = await folder.getEntry(request.files[0].path), bytes = await file.read({ format: format(true) });
     if (protocol().sha256(bytes) !== request.files[0].sha256) throw new Error("原任务成片已变化，拒绝补码。");
     try {
       await window.IDPhotoPhotoshopExecution.executeAsModal(async function () {
@@ -214,6 +227,54 @@
     } catch (error) { await status(task, { info: "failed", infoError: errorText(error) }); throw error; }
     finally { if (info) await window.IDPhotoDocumentService.closeWithoutSaving(info.document); if (photo) await window.IDPhotoDocumentService.closeWithoutSaving(photo); }
   }
-  window.IDPhotoDeliveryService = { begin: begin, prepare: prepare, complete: complete, electronic: electronic, regenerate: regenerate,
+  async function multi(sourceDocument, docInfo, settings, specifications, chosenTarget) {
+    var rules = window.IDPhotoDeliverySpecifications;
+    var specs = rules.normalize(specifications, { width: pixels(sourceDocument.width), height: pixels(sourceDocument.height) });
+    var target = chosenTarget ? rules.target(chosenTarget) : null;
+    var task = await begin(docInfo, "electronic", window.IDPhotoTemplates.getTemplateById("one-inch"), settings);
+    var execution = window.IDPhotoPhotoshopExecution, copy = null, originalId = sourceDocument.id;
+    try {
+      // Retain a full quality independent copy before attempting constrained encodes.
+      await saveJpeg(task, sourceDocument, "source-preserved.jpg", "原尺寸保留");
+      var files = [];
+      for (var index = 0; index < specs.length; index++) {
+        var spec = specs[index], file = await task.folder.createFile("variant-" + (index + 1) + ".jpg", { overwrite: false }), encoded = null, chosenQuality = 0;
+        try {
+          await execution.executeAsModal(async function () {
+            var before = Array.from(execution.getPhotoshop().app.documents).map(function (d) { return d.id; });
+            await execution.activateDocument(sourceDocument);
+            var duplicate = await sourceDocument.duplicate("交付规格_" + task.id + "_" + index);
+            if (!duplicate || duplicate.id === originalId || before.indexOf(duplicate.id) !== -1) throw new Error("未取得独立规格副本，保留原文档。");
+            copy = duplicate;
+            await execution.activateDocument(copy);
+            if (pixels(copy.width) !== spec.width || pixels(copy.height) !== spec.height) await copy.resizeImage(spec.width, spec.height, Number(sourceDocument.resolution) || 300);
+          }, "创建独立规格照片");
+          for (var quality = 12; quality >= spec.minQuality; quality--) {
+            await execution.executeAsModal(async function () {
+              await execution.activateDocument(copy);
+              await copy.saveAs.jpg(file, { quality: quality }, true);
+            }, "按确认品质范围编码 JPG");
+            var bytes = await file.read({ format: format(true) });
+            if (rules.verify(bytes, spec)) { encoded = bytes; chosenQuality = quality; break; }
+          }
+          if (!encoded) throw new Error(spec.filename + "：在确认像素、大小和最低品质内无法生成；原尺寸副本已保留，未提交本批。");
+          var constraints = { width: spec.width, height: spec.height, maxBytes: spec.maxBytes };
+          if (spec.minBytes) constraints.minBytes = spec.minBytes;
+          files.push({ path: file.name, role: "photo", filename: spec.filename, purpose: spec.purpose, background: spec.background,
+            width: spec.width, height: spec.height, sizeBytes: encoded.byteLength, sha256: protocol().sha256(encoded), constraints: constraints, encodedQuality: chosenQuality });
+        } finally { if (copy) { await window.IDPhotoDocumentService.closeWithoutSaving(copy); copy = null; } }
+      }
+      var request = { version: 2, taskId: task.id, outputId: task.outputId, sourceDocumentId: String(docInfo.id), mode: "electronic",
+        title: String(docInfo.name || "多规格照片").slice(0, 120), eligible: true, testOnly: true, files: files };
+      if (target) { request.targetDeliveryId = target.deliveryId; request.targetContextKey = target.contextKey; request.targetGroupVersion = target.groupVersion; request.newMember = true; }
+      var payload = JSON.stringify(request); task.fingerprint = protocol().sha256(payload);
+      await writeAtomic(task.folder, "request.json", payload);
+      await writeAtomic(task.folder, "complete.json", JSON.stringify({ version: 1, taskId: task.id, manifestFingerprint: task.fingerprint, processingComplete: true, artifacts: [] }));
+      await status(task, { processing: "draft", info: "pending-confirmation", message: "多规格草稿已交接，请在后台核对并点击完成交付；之后可补出同款信息条。", outputDirectory: task.folder.nativePath });
+      return task;
+    } catch (error) { await status(task, { processing: "failed", error: errorText(error), message: "原件与独立副本保留，失败的整批不会交付。" }); throw error; }
+    finally { await execution.activateDocument(sourceDocument); }
+  }
+  window.IDPhotoDeliveryService = { begin: begin, prepare: prepare, complete: complete, electronic: electronic, multi: multi, regenerate: regenerate,
     configure: configure, root: root, status: status, readCode: readCode, latest: function () { return latestTask; } };
 })();

@@ -1105,6 +1105,15 @@
       finally { endPhotoshopOperation("delivery"); }
     });
     var configureDelivery = one("#configureDeliveryRoot");
+    if (window.IDPhotoDeliveryDraftView) window.IDPhotoDeliveryDraftView.create({ currentDocumentId: function () { var doc = getCurrentDocumentObject(); return doc && doc.id; }, generate: async function (specs, target) {
+      if (!beginPhotoshopOperation("delivery")) throw new Error("当前任务尚未完成，请稍候。");
+      try {
+        var info = await readActiveDocumentForStatus("多规格草稿"), sourceDoc = getCurrentDocumentObject();
+        if (!info || !sourceDoc || sourceDoc.id !== info.id) throw new Error("活动照片已改变，请重新核对。");
+        var task = await window.IDPhotoDeliveryService.multi(sourceDoc, info, window.IDPhotoSettingsStore.load(), specs, target);
+        setStatus(task.status.message); return task;
+      } finally { endPhotoshopOperation("delivery"); }
+    } });
     if (configureDelivery) configureDelivery.addEventListener("click", async function () {
       try { var path = await window.IDPhotoDeliveryService.configure(); if (path) setStatus("本机交接目录：" + path + "；请在后台选择同一目录，仅需配置一次"); }
       catch (error) { setStatus(errorToText(error)); }

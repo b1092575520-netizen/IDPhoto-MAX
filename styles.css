@@ -834,3 +834,10 @@ button {
     font-size: 9.3px;
   }
 }
+.delivery-draft-panel { padding: 8px; }
+.delivery-spec-row { padding: 10px 0; border-bottom: 1px solid #626975; }
+.delivery-spec-row label { display: flex; flex-direction: column; margin: 4px 0; }
+.delivery-spec-row input { width: 100%; min-width: 0; padding: 6px; }
+.delivery-spec-grid { display: flex; flex-wrap: wrap; }
+.delivery-spec-grid label { width: 48%; margin-right: 2%; }
+.delivery-target-preview { max-width: 100%; max-height: 130px; object-fit: contain; }
