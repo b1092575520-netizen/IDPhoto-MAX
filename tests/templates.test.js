@@ -51,50 +51,35 @@ test("all reference templates have unique in-bounds slots", () => {
   }
 });
 
-test("approved debug adjustments are built into the default info-bar templates", () => {
-  const modules = loadTemplateModules();
-  const expected = {
-    "standard-two-inch": { info: [3400, 0, 200, 2400], avatar: [3429, 50, 143, 201], textKeys: ["shopNameDate", "phone"] },
-    "visa-two-inch": { info: [0, 2174, 3600, 226], avatar: [25, 2189, 141, 181], textKeys: ["shopNameDate", "phone"] },
-    brazil: { info: [2916, 0, 284, 2400], avatar: [2950, 56, 210, 263], textKeys: ["shopNameDate", "phone"] },
-    "us-visa-51": { info: [0, 1268, 3590, 369], avatar: [34, 1312, 280, 280], textKeys: ["shopName", "date", "phone"] },
-    graduation: { info: [2943, 0, 273, 2400], avatar: [2978, 53, 205, 281], textKeys: ["shopNameDate", "phone"] },
-    wedding: { info: [0, 1795, 3592, 555], avatar: [0, 1872, 577, 382], textKeys: [] },
-    "small-two-inch": { info: [3239, 0, 361, 2400], avatar: [3293, 48, 214, 312], textKeys: ["shopNameDate", "phone"] },
-    "hongkong-taiwan": { info: [0, 1950, 3592, 450], avatar: [24, 2017, 235, 313], textKeys: ["shopName", "date", "phone"] },
-    argentina: { info: [0, 1945, 3600, 455], avatar: [70, 2016, 342, 342], textKeys: ["shopName", "date", "phone", "tip"] }
-  };
-
-  Object.keys(expected).forEach((templateId) => {
-    const template = modules.IDPhotoTemplates.getTemplateById(templateId);
-    const value = expected[templateId];
-    assert.deepEqual(
-      [template.infoBar.x, template.infoBar.y, template.infoBar.width, template.infoBar.height],
-      value.info,
-      templateId
-    );
-    assert.deepEqual(
-      [template.infoBar.avatar.x, template.infoBar.avatar.y, template.infoBar.avatar.width, template.infoBar.avatar.height],
-      value.avatar,
-      templateId
-    );
-    assert.deepEqual(Object.keys(template.infoBar.textLayers || {}).filter((key) => value.textKeys.includes(key)), value.textKeys, templateId);
-  });
+// Stage 5 supersedes the full-length bars. The bounds below are the original
+// unoccupied rectangles, with only the explicitly authorized US fifth slot changed.
+const spaces = {
+  'one-inch':[0,1845,3592,555], 'standard-two-inch':[3400,0,200,2400],
+  'visa-two-inch':[0,2174,3600,226], 'small-two-inch':[3239,0,361,2400],
+  'hongkong-taiwan':[0,1950,3592,450], brazil:[2916,0,284,2400],
+  argentina:[0,1945,3600,455], 'us-visa':[2420,1200,1180,1182],
+  'us-visa-51':[0,1268,3590,369], graduation:[2943,0,273,2400], wedding:[0,1795,3592,555]
+};
+test('all eleven detachable bars fit the bag, old spaces, photos, avatar and code', () => {
+  for (const t of loadTemplateModules().IDPhotoTemplates.getAllTemplates()) {
+    const b=t.infoBar, space=spaces[t.id], [x,y,w,h]=space;
+    assert.ok(b.enabled && b.width>0 && b.height>0,t.id);
+    assert.ok(Math.max(b.width,b.height)*25.4/600<=70,t.id+' long edge');
+    assert.ok(Math.min(b.width,b.height)*25.4/600<=50,t.id+' short edge');
+    assert.ok(b.x>=x && b.y>=y && b.x+b.width<=x+w && b.y+b.height<=y+h,t.id+' empty space');
+    for (const p of t.photoSlots) assert.ok(b.x>=p.x+p.width || b.x+b.width<=p.x || b.y>=p.y+p.height || b.y+b.height<=p.y,t.id+' photo overlap');
+    for(const item of [b.avatar,...b.texts]) assert.ok(item.x>=b.x && item.y>=b.y && item.x+item.width<=b.x+b.width && item.y+item.height<=b.y+b.height,t.id+' clipped content');
+    assert.equal(b.texts.filter(x=>x.key==='pickupCode').length,1);
+    assert.equal(b.textLayers,undefined,'one canonical layout source');
+    assert.match(t.referencePath,/示例图片/);
+  }
 });
-
-test("wedding information-bar coordinates have one canonical configured source", () => {
-  const modules = loadTemplateModules();
-  const template = modules.IDPhotoTemplates.getTemplateById("wedding");
-
-  assert.equal(template.infoBar.textLayers, undefined);
-  assert.deepEqual(JSON.parse(JSON.stringify(template.infoBar.texts.columns)), {
-    shopName: { x: 618, y: 1933 },
-    date: { x: 618, y: 2048 },
-    phone: { x: 618, y: 2165 }
-  });
-  assert.deepEqual(JSON.parse(JSON.stringify(template.infoBar.texts.fontSizes)), {
-    shopName: 13,
-    date: 12,
-    phone: 10
-  });
+test('only US 5x5 loses its lower-right photo; all other slots match the frozen pre-stage5 baseline',()=>{
+  const baseline=JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures','stage5-original-slots.json'),'utf8'));
+  for(const t of loadTemplateModules().IDPhotoTemplates.getAllTemplates()) {
+    const expected=baseline[t.id]; if(t.id==='us-visa') expected.pop();
+    assert.deepEqual(JSON.parse(JSON.stringify(t.photoSlots)),expected,t.id);
+  }
+  const t=loadTemplateModules().IDPhotoTemplates.getTemplateById('us-visa-51');
+  assert.equal(t.widthCm,5.1); assert.equal(t.heightCm,5.1);
 });

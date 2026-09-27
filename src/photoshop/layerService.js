@@ -11,7 +11,9 @@
       shopName: "DEBUG_text_shopName",
       date: "DEBUG_text_date",
       phone: "DEBUG_text_phone",
-      tip: "DEBUG_text_tip"
+      tip: "DEBUG_text_tip",
+      pickupCode: "DEBUG_text_pickupCode",
+      shopContact: "DEBUG_text_shopContact"
     }
   };
 

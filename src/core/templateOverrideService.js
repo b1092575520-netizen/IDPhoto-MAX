@@ -164,6 +164,9 @@
 
   function getEffectiveTemplate(template) {
     var override = template ? getOverride(template.id) : null;
+    // Old debug rectangles describe full-length strips. Keep their saved data,
+    // but do not apply them to the new detachable region or remove its code.
+    if (template && template.infoBar && template.infoBar.layoutVersion === 5 && override && override.layoutVersion !== 5) override = null;
     return override ? applyOverride(template, override) : clone(template);
   }
 

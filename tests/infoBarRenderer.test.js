@@ -102,6 +102,7 @@ function makeRendererHarness(options) {
         const command = commands[0];
         if (command && command._obj === "move" && command._target[0]._id) {
           const layerIndex = targetDocument.layers.findIndex((layer) => layer.id === command._target[0]._id);
+          if (layerIndex === 0) throw new Error('Photoshop: move to front is unavailable for the first layer');
           const [layer] = targetDocument.layers.splice(layerIndex, 1);
           targetDocument.layers.unshift(layer);
           targetDocument.activeLayers = [layer];
@@ -236,112 +237,32 @@ for (const templateName of ["香港台湾 3.0x4.0", "阿根廷 4.0x4.0"]) {
   });
 }
 
-const referenceTextLayouts = {
-  "standard-two-inch": [
-    { name: "shopNameDate", x: 3490, y: 280, size: 83.3, orientation: "vertical" },
-    { name: "phone", x: 3428, y: 281, size: 96, orientation: "vertical" }
-  ],
-  "visa-two-inch": [
-    { name: "shopNameDate", x: 201, y: 2191, size: 11.2, orientation: "horizontal" },
-    { name: "phone", x: 197, y: 2288, size: 8.4, orientation: "horizontal" }
-  ],
-  "small-two-inch": [
-    { name: "shopNameDate", x: 3400, y: 382, size: 108.3, orientation: "vertical" },
-    { name: "phone", x: 3306, y: 386, size: 70, orientation: "vertical" }
-  ],
-  "hongkong-taiwan": [
-    { name: "shopName", x: 289, y: 2037, size: 100, orientation: "horizontal" },
-    { name: "date", x: 289, y: 2151, size: 91.7, orientation: "horizontal" },
-    { name: "phone", x: 289, y: 2244, size: 70, orientation: "horizontal" }
-  ],
-  brazil: [
-    { name: "shopNameDate", x: 3048, y: 339, size: 83.3, orientation: "vertical" },
-    { name: "phone", x: 2965, y: 340, size: 53.3, orientation: "vertical" }
-  ],
-  argentina: [
-    { name: "shopName", x: 469, y: 1986, size: 100, orientation: "horizontal" },
-    { name: "date", x: 468, y: 2090, size: 91.7, orientation: "horizontal" },
-    { name: "phone", x: 469, y: 2188, size: 83.3, orientation: "horizontal" },
-    { name: "tip", x: 469, y: 2279, size: 75, orientation: "horizontal" }
-  ],
-  graduation: [
-    { name: "shopNameDate", x: 3076, y: 346, size: 83.3, orientation: "vertical" },
-    { name: "phone", x: 3003, y: 347, size: 53.3, orientation: "vertical" }
-  ],
-  wedding: [
-    { name: "shopName", x: 618, y: 1933, size: 13, orientation: "horizontal" },
-    { name: "date", x: 618, y: 2048, size: 12, orientation: "horizontal" },
-    { name: "phone", x: 618, y: 2165, size: 10, orientation: "horizontal" }
-  ]
-};
-
-const referenceInfoBarBounds = {
-  "standard-two-inch": { x: 3400, y: 0, width: 200, height: 2400 },
-  "visa-two-inch": { x: 0, y: 2174, width: 3600, height: 226 },
-  "small-two-inch": { x: 3239, y: 0, width: 361, height: 2400 },
-  "hongkong-taiwan": { x: 0, y: 1950, width: 3592, height: 450 },
-  brazil: { x: 2916, y: 0, width: 284, height: 2400 },
-  argentina: { x: 0, y: 1945, width: 3600, height: 455 },
-  graduation: { x: 2943, y: 0, width: 273, height: 2400 },
-  wedding: { x: 0, y: 1795, width: 3592, height: 555 }
-};
-
-for (const [templateId, expectedLayout] of Object.entries(referenceTextLayouts)) {
-  test(`${templateId} matches the approved information-bar text layout`, async () => {
-    const templates = loadTemplates();
-    const template = templates.getTemplateById(templateId);
-    const harness = makeRendererHarness();
-
-    assert.deepEqual(
-      JSON.parse(JSON.stringify({
-        x: template.infoBar.x,
-        y: template.infoBar.y,
-        width: template.infoBar.width,
-        height: template.infoBar.height
-      })),
-      referenceInfoBarBounds[templateId]
-    );
-
-    await harness.renderer.renderInfoBar(
-      harness.targetDocument,
-      template.infoBar,
-      { shopName: "\u798f\u6e05\u5370\u8c61\u7167\u76f8\u9986", shopPhone: "13003825982\uff08\u5fae\u4fe1\u540c\u53f7\uff09", shopTip: "[\u8bf7\u59a5\u5584\u4fdd\u7ba1\u6b64\u5355\u636e]" },
-      { dateText: "2026. 1.", template, sourceDocument: harness.sourceDocument }
-    );
-
-    const actualLayout = harness.textCommands.map((command) => ({
-      name: command.using.name,
-      x: command.using.textClickPoint.horizontal._value,
-      y: command.using.textClickPoint.vertical._value,
-      size: command.using.textStyleRange[0].textStyle.size._value,
-      orientation: command.using.orientation._value
-    }));
-    assert.deepEqual(actualLayout, expectedLayout);
-
-    const combinedCommand = harness.textCommands.find((command) => command.using.name === "shopNameDate");
-    if (combinedCommand) {
-      assert.equal(
-        combinedCommand.using.textKey,
-        "\u798f\u6e05\u5370\u8c61\u7167\u76f8\u9986" + (templateId === "visa-two-inch" ? "  " : "") + "2026. 1."
-      );
+for (const template of loadTemplates().getAllTemplates()) {
+  test(template.id + ' renders only compact bounded text and the matching pickup code', async () => {
+    const harness=makeRendererHarness();
+    await harness.renderer.renderInfoBar(harness.targetDocument,template.infoBar,
+      {shopName:'福清印象照相馆',shopPhone:'电话未填写'},
+      {dateText:'2026.09.27',pickupCode:'A2B3C4',template,sourceDocument:harness.sourceDocument});
+    const text=harness.textCommands.map(c=>c.using.textKey);
+    assert.ok(text.includes('取件码：A2B3C4'));
+    assert.equal(text.length,template.infoBar.texts.length);
+    for(const layer of harness.targetDocument.layers.filter(l=>l.kind==='text')) {
+      const b=layer.bounds,r=template.infoBar;
+      assert.ok(b.left>=r.x && b.top>=r.y && b.right<=r.x+r.width+1 && b.bottom<=r.y+r.height+1,template.id+' overflow');
     }
   });
 }
-
-test("the two user-approved information-bar templates keep their existing sizes", () => {
-  const templates = loadTemplates();
-  const oneInch = templates.getTemplateById("one-inch");
-  const usVisa51 = templates.getTemplateById("us-visa-51");
-
-  assert.deepEqual(
-    Array.from(oneInch.infoBar.texts, (item) => item.fontSize),
-    [13, 12, 11, 10]
-  );
-  assert.deepEqual(Array.from(usVisa51.infoBar.texts.keys), ["shopName", "date", "phone"]);
-  assert.deepEqual(JSON.parse(JSON.stringify(usVisa51.infoBar.texts.fontSizes)), { shopName: 11, date: 10, phone: 9 });
+test('invalid or missing code renders pending; never use an archive marker or invent contact data',async()=>{
+  for(const pickupCode of ['', '123456', 'ABCDEF', 'I2B3C4', 'A2B3C4-stale']) {
+    const template=loadTemplates().getTemplateById('one-inch'),harness=makeRendererHarness();
+    await harness.renderer.renderInfoBar(harness.targetDocument,template.infoBar,{},
+      {pickupCode,template,sourceDocument:harness.sourceDocument});
+    assert.ok(harness.textCommands.some(c=>c.using.textKey==='取件码：待补码'));
+    assert.ok(harness.textCommands.some(c=>c.using.textKey==='电话未填写'));
+  }
 });
 
-test("debug mode gives the combined shop-name/date layer a savable DEBUG name", async () => {
+test("debug mode gives compact code/contact layers savable DEBUG names", async () => {
   const templates = loadTemplates();
   const template = templates.getTemplateById("standard-two-inch");
   const harness = makeRendererHarness();
@@ -355,7 +276,7 @@ test("debug mode gives the combined shop-name/date layer a savable DEBUG name", 
 
   assert.deepEqual(
     harness.textCommands.map((command) => command.using.name),
-    ["DEBUG_text_shopNameDate", "DEBUG_text_phone"]
+    ["DEBUG_text_pickupCode", "DEBUG_text_shopContact"]
   );
 });
 
@@ -364,7 +285,7 @@ test("a saved free-transform target is reapplied to the next text layer", async 
   const template = templates.getTemplateById("standard-two-inch");
   const harness = makeRendererHarness();
   template.infoBar.textLayers = {
-    phone: { x: 3300, y: 280, width: 480, height: 120, fontSize: 6.4 }
+    shopContact: { x: 3300, y: 280, width: 480, height: 120, fontSize: 6.4 }
   };
 
   await harness.renderer.renderInfoBar(
@@ -374,6 +295,6 @@ test("a saved free-transform target is reapplied to the next text layer", async 
     { dateText: "2026. 1.", template, sourceDocument: harness.sourceDocument }
   );
 
-  const phoneLayer = harness.targetDocument.layers.find((layer) => layer.name === "phone");
+  const phoneLayer = harness.targetDocument.layers.find((layer) => layer.name === "shopContact");
   assert.deepEqual(phoneLayer.bounds, { left: 3300, top: 280, right: 3780, bottom: 400 });
 });

@@ -65,7 +65,7 @@ test("updating one profile section preserves every other section", () => {
 
   const result = plain(loaded.profile.load());
   assert.equal(result.shop.shopName, "新店名");
-  assert.equal(result.shop.shopPhone, "13003825982（微信同号）");
+  assert.equal(result.shop.shopPhone, "");
   assert.equal(result.cameras[0].serialNumber, "CAMERA-1");
   assert.equal(result.cropStrategy, "auto");
 });

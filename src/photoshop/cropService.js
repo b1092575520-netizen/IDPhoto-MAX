@@ -223,6 +223,7 @@
     var compositionPlan = planCropComposition(effectiveDocInfo, targetRatio);
     var bounds = compositionPlan.bounds;
     var processedDocument = null;
+    var highResolutionDocument = null;
     var cropped = !(ratioResult && ratioResult.ok);
     var requestedStrategy = normalizeStrategy(options && options.strategy);
     var strategyResult = {
@@ -260,11 +261,23 @@
             cropMode = strategyResult.cropMode;
           }
 
-          resizeMode = await resizeDocumentWithDomOrBatchPlay(processedDocument, template.widthPx, template.heightPx);
+          if (options && options.keepHighResolution) {
+            highResolutionDocument = await duplicateDocument(processedDocument, "电子成片_" + processedName);
+            if (!highResolutionDocument || highResolutionDocument === processedDocument || highResolutionDocument === sourceDocument ||
+                highResolutionDocument.id != null && (highResolutionDocument.id === processedDocument.id || highResolutionDocument.id === sourceDocument.id)) {
+              highResolutionDocument = null;
+              throw new Error("高清副本身份不独立，已停止以保护原片");
+            }
+            await activateDocument(processedDocument);
+          }
+          if (!(options && options.preservePixels)) resizeMode = await resizeDocumentWithDomOrBatchPlay(processedDocument, template.widthPx, template.heightPx);
         },
         "裁切并处理单张证件照"
       );
     } catch (error) {
+      if (highResolutionDocument) {
+        try { await closeDocumentWithoutSaving(highResolutionDocument); } catch (cleanupError) { console.warn("[crop] high resolution cleanup failed", cleanupError); }
+      }
       if (processedDocument) {
         try {
           await closeDocumentWithoutSaving(processedDocument);
@@ -278,6 +291,7 @@
     return {
       ok: true,
       document: processedDocument,
+      highResolutionDocument: highResolutionDocument,
       temporaryDocument: true,
       cropped: cropped,
       cropBounds: bounds,

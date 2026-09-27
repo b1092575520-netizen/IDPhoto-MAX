@@ -13,6 +13,7 @@
       date: "DEBUG_text_date",
       phone: "DEBUG_text_phone",
       tip: "DEBUG_text_tip"
+      ,pickupCode: "DEBUG_text_pickupCode", shopContact: "DEBUG_text_shopContact"
     }
   };
 
@@ -299,11 +300,17 @@
     ]);
   }
 
-  async function moveLayerToFront(layer) {
+  async function moveLayerToFront(layer, targetDocument) {
     var layerId = getLayerId(layer);
 
     if (!layerId) {
       throw new Error("提升信息条图层缺少 layer id");
+    }
+
+    // Photoshop rejects "move to front" when the layer is already first.
+    // Cross-document avatar copies are commonly inserted at this position.
+    if (targetDocument.layers && getLayerId(targetDocument.layers[0]) === layerId) {
+      return;
     }
 
     await batchPlay([
@@ -365,7 +372,17 @@
     var needsScale = false;
 
     if (!saved) {
-      return layerService.getLayerBounds(layer);
+      bounds = layerService.getLayerBounds(layer);
+      // Explicit compact slots are upper bounds, never a request to stretch text.
+      if (item && item.width > 0 && item.height > 0) {
+        var fit = Math.min(1, item.width / Math.max(1, bounds.right - bounds.left), item.height / Math.max(1, bounds.bottom - bounds.top));
+        if (fit < 0.995) {
+          await scaleLayerToPercent(layer, fit * 100, fit * 100, item.key);
+          await layerService.moveLayerTo(layer, targetX, targetY, item.key);
+          return layerService.getLayerBounds(layer);
+        }
+      }
+      return bounds;
     }
 
     bounds = layerService.getLayerBounds(layer);
@@ -534,7 +551,7 @@
     }
 
     avatarLayer.name = isDebugRender(options) ? DEBUG_LAYER_NAMES.avatar : "信息条小头像";
-    await moveLayerToFront(avatarLayer);
+    await moveLayerToFront(avatarLayer, targetDocument);
     size = getLayerSize(avatarLayer);
     scale =
       avatar.fit === "cover" || avatar.fitMode === "cover"
@@ -669,7 +686,12 @@
     var dateText = options && options.dateText ? options.dateText : "";
     var value = "";
 
-    if (key === "shopNameDate") {
+    if (key === "pickupCode") {
+      var code = String(options && options.pickupCode || "");
+      value = "取件码：" + (/^(?=.*[A-Z])(?=.*[2-9])[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/.test(code) ? code : "待补码");
+    } else if (key === "shopContact") {
+      value = buildTextValue("shopName", settings, options) + " " + buildTextValue("phone", settings, options);
+    } else if (key === "shopNameDate") {
       value =
         buildTextValue("shopName", settings, options) +
         (item && typeof item.separator === "string" ? item.separator : " ") +
@@ -679,7 +701,7 @@
     } else if (key === "date") {
       value = dateText;
     } else if (key === "phone") {
-      value = settings.shopPhone || "13003825982（微信同号）";
+      value = settings.shopPhone || "电话未填写";
     } else if (key === "tip") {
       value = settings.shopTip || "[请妥善保管此单据]";
     }

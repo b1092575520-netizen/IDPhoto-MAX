@@ -40,7 +40,7 @@ function loadWorkflow(options = {}) {
           const document = { name: "processed-" + (++cropIndex) };
           processedDocuments.push(document);
           calls.push("crop:" + template.id);
-          return { document, message: "processed" };
+          return { document, message: "processed", highResolutionDocument: options.delivery ? {name:'high-resolution-'+cropIndex} : null };
         }
       },
       IDPhotoCanvasService: {
@@ -140,6 +140,7 @@ function loadWorkflow(options = {}) {
   };
 
   vm.createContext(context);
+  if (options.delivery) context.window.IDPhotoDeliveryService = options.delivery;
   if (options.analyzeDocument) context.window.IDPhotoVariantService = { analyzeDocument: options.analyzeDocument };
   vm.runInContext(fs.readFileSync(workflowPath, "utf8"), context, { filename: workflowPath });
   return {
@@ -150,6 +151,27 @@ function loadWorkflow(options = {}) {
     targetDocuments
   };
 }
+
+test('delivery outage never prevents one valid print and never submits completion without a saved photo',async()=>{
+  for(const errorStage of ['begin','prepare','complete']) {
+    let completed=0;
+    const delivery={begin:async()=>{if(errorStage==='begin')throw Error('offline');return {id:'task',fingerprint:''};},prepare:async task=>{if(errorStage==='prepare')throw Error('offline');task.fingerprint='saved-photo';return '';},complete:async task=>{completed++;assert.equal(task.fingerprint,'saved-photo');throw Error('completion unavailable');}};
+    const loaded=loadWorkflow({delivery});
+    const result=await loaded.workflow.run({templateNames:['模板一'],sourceDocument:{id:101},docInfo:{id:101,name:'original',sourceMetadata:{}},delivery:true,quickPrint:true,skipExport:true});
+    assert.equal(result.ok,true);assert.equal(loaded.calls.filter(c=>c==='print').length,1);
+    assert.equal(completed,errorStage==='complete'?1:0);
+    assert.equal(result.successResults[0].result.deliveryResult.ok,false);
+    if(errorStage!=='begin')assert.ok(loaded.calls.includes('close:high-resolution-1'));
+  }
+});
+
+test('multi-template delivery fails before creating a task; ordinary layout never invokes delivery',async()=>{
+  let begins=0;const loaded=loadWorkflow({delivery:{begin:async()=>{begins++;throw Error('must not run');}}});
+  await assert.rejects(loaded.workflow.run({templateNames:['模板一','模板二'],delivery:true}),/一次选一张/);
+  assert.equal(begins,0);
+  const result=await loaded.workflow.run({templateNames:['模板一'],sourceDocument:{id:101},docInfo:{id:101,sourceMetadata:{}},delivery:false,skipExport:true,skipPrint:true});
+  assert.equal(result.ok,true);assert.equal(begins,0);
+});
 
 test("the layout task owns a successful template transaction and closes its processed photo", async () => {
   const loaded = loadWorkflow();

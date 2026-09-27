@@ -201,6 +201,7 @@
         getSettings(),
         {
           dateText: dateText,
+          pickupCode: runOptions.pickupCode || "",
           template: template,
           sourceDocument: targetDocument,
           sourceLayerName: template.name + "_照片_1",
@@ -291,9 +292,19 @@
       var printResult;
       var exportResult;
       var closeAfterPrintResult;
+      var deliveryTask = null;
+      var deliveryResult = { requested: Boolean(runOptions.delivery), message: "本次未启用电子交付" };
 
       if (!template) {
         throw new Error("模板注册表中未找到：" + templateName);
+      }
+      if (runOptions.delivery) {
+        try {
+          deliveryTask = await requireMethod("IDPhotoDeliveryService", "begin")(docInfo, "print", template, getSettings());
+        } catch (deliveryError) {
+          deliveryResult = { requested: true, ok: false, message: "交付未开始：" + errorToText(deliveryError) };
+          status(deliveryResult.message + "；继续原排版与打印");
+        }
       }
 
       step("ratio", "checking", { document: docInfo, template: template });
@@ -315,10 +326,22 @@
         docInfo,
         template,
         ratioResult,
-        { strategy: runOptions.cropStrategy }
+        { strategy: runOptions.cropStrategy, keepHighResolution: Boolean(deliveryTask) }
       );
       if (!processResult || !processResult.document || sameDocument(processResult.document, sourceDocument)) {
         throw new Error("处理后单张不是独立文档，已停止以保护原片");
+      }
+      runOptions.pickupCode = "";
+      if (deliveryTask) {
+        try {
+          runOptions.pickupCode = await requireMethod("IDPhotoDeliveryService", "prepare")(deliveryTask, processResult.highResolutionDocument);
+          deliveryResult = { requested: true, ok: true, taskId: deliveryTask.id, message: runOptions.pickupCode ? "取件码 " + runOptions.pickupCode + "，照片准备中" : "取码待补；原任务保留，网络恢复不补打" };
+        } catch (deliveryError) {
+          deliveryResult = { requested: true, ok: false, taskId: deliveryTask.id, message: "交付待处理：" + errorToText(deliveryError) };
+        } finally {
+          if (processResult.highResolutionDocument) await window.IDPhotoDocumentService.closeWithoutSaving(processResult.highResolutionDocument);
+          processResult.highResolutionDocument = null;
+        }
       }
 
       try {
@@ -344,6 +367,15 @@
         targetDocument = null;
         await closeProcessedDocument(processResult, "layout failed");
         throw layoutError;
+      }
+      if (deliveryTask && deliveryTask.fingerprint) {
+        try {
+          var deliveryStatus = await requireMethod("IDPhotoDeliveryService", "complete")(deliveryTask, targetDocument, layoutResult.layoutPlan.infoBar);
+          deliveryResult.message += "；" + deliveryStatus.message + (deliveryStatus.info === "failed" ? "；信息条图片待重试" : "；信息条图片已保存");
+        } catch (completionError) {
+          deliveryResult.ok = false;
+          deliveryResult.message += "；处理完成信号未提交：" + errorToText(completionError);
+        }
       }
 
       var printAttempted = false;
@@ -414,6 +446,7 @@
         infoResult: layoutResult.infoResult,
         printResult: printResult,
         exportResult: exportResult,
+        deliveryResult: deliveryResult,
         closeAfterPrintResult: closeAfterPrintResult,
         message: layoutResult.message
       };
@@ -446,6 +479,7 @@
         runOptions || {}
       );
       templateNames = runOptions.templateNames.slice();
+      if (runOptions.delivery && templateNames.length !== 1) throw new Error("阶段 5 自动交付仅支持一次选一张规格；多模板请使用原排版保存，再明确人工导入。未创建交付。");
 
       if (runOptions.sourceDocument && runOptions.docInfo && runOptions.docInfo.id != null &&
           runOptions.sourceDocument.id !== runOptions.docInfo.id) {

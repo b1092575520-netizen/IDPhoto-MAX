@@ -30,6 +30,28 @@ function loadCropService(photoshop, documentService, contentAwareService, subjec
   return context.window.IDPhotoCropService;
 }
 
+test('delivery copy is captured after composite/crop but before print resize; electronic path never resizes', async () => {
+  for (const electronic of [false, true]) {
+    const events=[];
+    const high={id:3,width:2400,height:3200};
+    const processed={id:2,async activate(){},async duplicate(){events.push('high');return high;},async resizeImage(){events.push('resize');}};
+    const original={id:1,async duplicate(){events.push('duplicate');return processed;}};
+    const service=loadCropService({core:{async executeAsModal(fn){return fn();}}},{async prepareCompositeSourceLayer(){events.push('composite');return {};},async closeWithoutSaving(){}});
+    const result=await service.prepareSinglePhoto(original,{name:'source',widthPx:2400,heightPx:3200},{name:'print',widthPx:600,heightPx:800},{ok:true},{keepHighResolution:!electronic,preservePixels:electronic});
+    assert.deepEqual(events,electronic?['duplicate','composite']:['duplicate','composite','high','resize']);
+    assert.equal(result.highResolutionDocument,electronic?null:high);
+  }
+});
+
+test('an aliased high-resolution result never closes or resizes the original',async()=>{
+  const closed=[];let resized=false;
+  const original={id:1,async duplicate(){return processed;}};
+  const processed={id:2,async activate(){},async duplicate(){return original;},async resizeImage(){resized=true;}};
+  const service=loadCropService({core:{async executeAsModal(fn){return fn();}}},{async prepareCompositeSourceLayer(){return {};},async closeWithoutSaving(d){closed.push(d.id);}});
+  await assert.rejects(service.prepareSinglePhoto(original,{name:'source',widthPx:2400,heightPx:3200},{name:'print',widthPx:600,heightPx:800},{ok:true},{keepHighResolution:true}),/高清副本身份/);
+  assert.deepEqual(closed,[2]);assert.equal(resized,false);
+});
+
 test("a duplicate that aliases the original is never flattened, resized or closed", async () => {
   for (const sameObject of [true, false]) {
     const calls = [];

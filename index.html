@@ -53,12 +53,25 @@
               </button>
             </div>
             <button class="run-button" id="runButton" type="button" data-icon="rocket"><span class="btn-label">开始排版</span></button>
+            <button class="run-button" id="deliverLayoutButton" type="button"><span class="btn-label">排版并交付 · 沿用打印开关</span></button>
+            <button class="panel-btn green-btn wide-btn" id="electronicDeliveryButton" type="button"><span class="btn-label">仅电子交付 · 当前照片</span></button>
+            <div class="settings-note">电子交付会生成当前照片的高清副本；仅电子不再裁切、不打印。多规格请分别确认后人工导入。</div>
           </section>
         </section>
 
         <section class="view settings-view" id="settingsView" style="display: none;">
           <button class="settings-back" id="settingsBackButton" type="button">← 返回设置</button>
           <div class="settings-grid">
+          <section class="section-block settings-card">
+            <button class="section-title settings-card-toggle" type="button" aria-expanded="false"><span>电子交付 · 测试环境</span></button>
+            <div class="settings-card-body">
+            <div class="settings-note">本机保留独立副本，NAS 仍按原设置归档。后台需一次选择同一交接目录。普通保存不会交付。</div>
+            <button class="panel-btn dark-btn wide-btn" id="configureDeliveryRoot" type="button">设置本机交接目录</button>
+            <button class="panel-btn dark-btn wide-btn" id="showDeliveryRoot" type="button">查看后台应监听的目录</button>
+            <button class="panel-btn green-btn wide-btn" id="regenerateDeliveryInfo" type="button">为上次交付补码 / 重导信息条</button>
+            <button class="panel-btn wide-btn" id="chooseDeliveryInfo" type="button">选择历史任务目录补码 / 重导</button>
+            </div>
+          </section>
           <section class="section-block settings-card source-card">
             <button class="section-title settings-card-toggle" type="button" aria-expanded="false"><span><span class="section-caret" data-icon="caret-right"></span>照片保存来源</span></button>
             <div class="settings-card-body">
@@ -90,7 +103,7 @@
                 </label>
                 <label class="field-row" for="shopPhone">
                   <span>联系电话</span>
-                  <input id="shopPhone" type="text" value="13003825982（微信同号）" placeholder="请输入联系电话" />
+                  <input id="shopPhone" type="text" value="" placeholder="填写已核实的门店联系电话" />
                 </label>
                 <label class="field-row" for="shopTip">
                   <span>温馨提示语</span>
@@ -184,6 +197,7 @@
 
     <script src="src/icons.js"></script>
     <script src="src/core/errorService.js"></script>
+    <script src="src/core/deliveryProtocol.js"></script>
     <script src="src/core/templateRegistry.js"></script>
     <script src="src/core/templateSelectionService.js"></script>
     <script src="src/core/ratioChecker.js"></script>
@@ -210,6 +224,7 @@
     <script src="src/photoshop/layerService.js"></script>
     <script src="src/photoshop/infoBarRenderer.js"></script>
     <script src="src/photoshop/exportService.js"></script>
+    <script src="src/photoshop/deliveryService.js"></script>
     <script src="src/ui/settingsViewController.js"></script>
     <script src="src/core/layoutWorkflow.js"></script>
     <script src="src/main.js"></script>

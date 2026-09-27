@@ -40,6 +40,17 @@ test("batchPlay applies one consistent non-dialog execution policy", async () =>
   assert.equal(calls[0].options.modalBehavior, "execute");
 });
 
+test('new document resolution never accepts a stale DOM return or ambiguous document ownership',()=>{
+  const old={id:1,name:'customer',width:1653,height:555}, created={id:2,name:'info-task',width:1653,height:555};
+  const app={documents:[old,created]},execution=loadExecution({app});
+  assert.equal(execution.resolveCreatedDocument([1],{name:'info-task',width:1653,height:555}),created);
+  assert.throws(()=>execution.resolveCreatedDocument([1,2],created),/唯一/);
+  app.documents.push({id:3,...{name:'other',width:1,height:1}});
+  assert.throws(()=>execution.resolveCreatedDocument([1],created),/唯一/);
+  app.documents=[old,created];assert.throws(()=>execution.resolveCreatedDocument([1],{name:'info-task',width:200,height:555}),/尺寸/);
+  assert.equal(old.name,'customer');
+});
+
 test("batchPlay lets a Photoshop module request synchronous execution explicitly", async () => {
   let receivedOptions;
   const execution = loadExecution({

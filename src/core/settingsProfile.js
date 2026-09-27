@@ -22,7 +22,7 @@
       schemaVersion: SCHEMA_VERSION,
       shop: {
         shopName: "福清印象照相馆",
-        shopPhone: "13003825982（微信同号）",
+        shopPhone: "",
         shopTip: "[请妥善保管此单据]"
       },
       cropStrategy: "auto",

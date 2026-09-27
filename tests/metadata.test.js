@@ -130,8 +130,8 @@ test("settings use a two-column home and one detail page without retired strips"
   const controller = fs.readFileSync(path.join(root, "src", "ui", "settingsViewController.js"), "utf8");
   const main = fs.readFileSync(path.join(root, "src", "main.js"), "utf8");
 
-  assert.equal((html.match(/class="section-block settings-card/g) || []).length, 5);
-  assert.equal((html.match(/class="[^"]*settings-card-toggle/g) || []).length, 5);
+  assert.equal((html.match(/class="section-block settings-card/g) || []).length, 6);
+  assert.equal((html.match(/class="[^"]*settings-card-toggle/g) || []).length, 6);
   assert.equal((html.match(/settings-card[^\"]* open/g) || []).length, 0);
   assert.match(html, /id="settingsBackButton"/);
   assert.match(html, /class="settings-grid"/);

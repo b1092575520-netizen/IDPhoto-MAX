@@ -5,7 +5,7 @@
   var CM_PER_INCH = 2.54;
   var CANVAS_WIDTH_PX = 3600;
   var CANVAS_HEIGHT_PX = 2400;
-  var REFERENCE_ROOT = "D:\\codex\\_reference\\";
+  var REFERENCE_ROOT = "D:\\software\\IDPhoto-MAX\\示例图片\\";
 
   function cmToPx(cm) {
     return Math.round((cm / CM_PER_INCH) * PPI);
@@ -453,15 +453,14 @@
       widthCm: 5.0,
       heightCm: 5.0,
       referenceFile: "5x5.jpg",
-      layoutMode: "template-no-info",
-      infoBar: info("none"),
+      layoutMode: "template-five-corner-info",
+      infoBar: info("bottom", 2420, 1200, 1180, 1181, infoStyle()),
       photoSlots: [
         slot(0, 0, 0, 0, 0, 1182, 1182),
         slot(1210, 0, 0, 1, 0, 1182, 1183),
         slot(2419, 0, 0, 2, 0, 1181, 1181),
         slot(0, 1200, 1, 0, 0, 1182, 1182),
-        slot(1210, 1200, 1, 1, 0, 1182, 1183),
-        slot(2420, 1200, 1, 2, 0, 1180, 1182)
+        slot(1210, 1200, 1, 1, 0, 1182, 1183)
       ],
       allowRotation: false
     }),
@@ -572,6 +571,65 @@
       allowRotation: true
     })
   ];
+
+  // The colored, fully detachable region (including its inner margins) must fit
+  // flat in the bag. Photo slots and the 600 ppi canvas are never scaled.
+  function compactInfoBar(original) {
+    var bar = cloneObject(original);
+    bar.layoutVersion = 5;
+    var longLimit = Math.floor(70 / 25.4 * PPI);
+    var shortLimit = Math.floor(50 / 25.4 * PPI);
+    var vertical = bar.orientation === "vertical";
+    bar.width = Math.min(bar.width, vertical ? shortLimit : longLimit);
+    bar.height = Math.min(bar.height, vertical ? longLimit : shortLimit);
+    delete bar.textLayers;
+    bar.texts = [];
+    function text(key, x, y, width, height, size, orientation) {
+      bar.texts.push({ key: key, x: bar.x + x, y: bar.y + y, width: width, height: height,
+        fontSize: size, orientation: orientation || "horizontal", debugFixedPosition: true });
+    }
+    if (vertical) {
+      var thumb = Math.min(bar.width - 24, 250);
+      bar.avatar = thumbnailAvatar(bar.x + 12, bar.y + 12, thumb, thumb, { scaleMode: "fixedFit" });
+      var top = thumb + 40;
+      text("pickupCode", bar.width - 102, top, 90, bar.height - top - 18, 10, "vertical");
+      text("shopContact", 12, top, Math.max(50, bar.width - 124), bar.height - top - 18, 6.5, "vertical");
+    } else if (bar.height < 280) {
+      var size = bar.height - 32;
+      bar.avatar = thumbnailAvatar(bar.x + 16, bar.y + 16, Math.round(size * 0.72), size, { scaleMode: "fixedFit" });
+      var left = Math.round(size * 0.72) + 42;
+      text("pickupCode", left, 18, bar.width - left - 16, 102, 12);
+      text("shopContact", left, 132, bar.width - left - 16, 68, 7.5);
+    } else if (bar.height > 800) {
+      bar.avatar = thumbnailAvatar(bar.x + 30, bar.y + 30, 330, 440, { scaleMode: "fixedFit" });
+      text("shopName", 400, 80, bar.width - 425, 100, 11);
+      text("date", 400, 210, bar.width - 425, 80, 9);
+      text("pickupCode", 30, 540, bar.width - 60, 150, 17);
+      text("phone", 30, 750, bar.width - 60, 100, 10);
+    } else {
+      var avatarHeight = bar.height - 40, avatarWidth = Math.round(avatarHeight * 0.68);
+      bar.avatar = thumbnailAvatar(bar.x + 20, bar.y + 20, avatarWidth, avatarHeight, { scaleMode: "fixedFit" });
+      var start = avatarWidth + 48, width = bar.width - start - 20;
+      text("pickupCode", start, 24, width, 112, 13);
+      text("shopName", start, 154, width, 85, 10);
+      text("phone", start, 254, width, 75, 8.5);
+      if (bar.height >= 430) text("date", start, 348, width, 70, 8);
+    }
+    return bar;
+  }
+  var referenceFiles = {
+    "one-inch": "证件照排版_1寸_2026-09-27.jpg", "standard-two-inch": "证件照排版_标准2寸_2026-09-27.jpg",
+    "visa-two-inch": "证件照排版_签证2寸_2026-09-27.jpg", "small-two-inch": "证件照排版_小2寸_2026-09-27.jpg",
+    "hongkong-taiwan": "证件照排版_香港台湾_2026-09-27.jpg", "brazil": "证件照排版_巴西_2026-09-27.jpg",
+    "argentina": "证件照排版_阿根廷_2026-09-27.jpg", "us-visa": "证件照排版_美签5.jpg",
+    "us-visa-51": "证件照排版_美签5.1x5.jpg", "graduation": "证件照排版_毕业证_2026-09-27.jpg",
+    "wedding": "证件照排版_结婚照_2026-09-27.jpg"
+  };
+  templates.forEach(function (template) {
+    template.infoBar = compactInfoBar(template.infoBar);
+    template.referenceFile = referenceFiles[template.id];
+    template.referencePath = referencePath(template.referenceFile);
+  });
 
   function normalizeName(name) {
     return String(name || "").replace(/\s+/g, " ").trim();

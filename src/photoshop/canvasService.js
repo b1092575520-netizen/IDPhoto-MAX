@@ -89,7 +89,9 @@
 
     await window.IDPhotoPhotoshopExecution.executeAsModal(
       async function () {
-        createdDocument = await createDocumentWithDom(app, options);
+        var existing = Array.from(app.documents).map(function (doc) { return doc.id; });
+        await createDocumentWithDom(app, options);
+        createdDocument = window.IDPhotoPhotoshopExecution.resolveCreatedDocument(existing, options);
       },
       "创建 6 寸空白排版画布"
     );

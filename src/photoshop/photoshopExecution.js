@@ -62,6 +62,16 @@
     app.activeDocument = documentRef;
   }
 
+  function resolveCreatedDocument(beforeIds, expected) {
+    // Some Photoshop DOM builds return the previously active document from add().
+    // Resolve only the single document created inside our modal operation.
+    var created = Array.from(getPhotoshop().app.documents).filter(function (doc) { return beforeIds.indexOf(doc.id) === -1; });
+    if (created.length !== 1) throw new Error("无法唯一确认本次新建文档，已保留所有原有文档");
+    var doc = created[0];
+    if (Number(doc.width) !== expected.width || Number(doc.height) !== expected.height || doc.name !== expected.name) throw new Error("本次新建文档名称或像素尺寸不符，已停止处理");
+    return doc;
+  }
+
   async function executeAsModal(callback, commandName) {
     var core = getPhotoshop().core;
     if (!core || typeof core.executeAsModal !== "function") {
@@ -88,6 +98,7 @@
   window.IDPhotoPhotoshopExecution = {
     getPhotoshop: getPhotoshop,
     activateDocument: activateDocument,
+    resolveCreatedDocument: resolveCreatedDocument,
     isCancellation: isCancellation,
     throwIfCancelled: throwIfCancelled,
     batchPlay: batchPlay,

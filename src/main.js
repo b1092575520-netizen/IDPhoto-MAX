@@ -643,7 +643,7 @@
 
   function makeDebugOverrideFromBounds(bounds, existingOverride) {
     var textLayers = {};
-    var textKeys = ["shopNameDate", "shopName", "date", "phone", "tip"];
+    var textKeys = ["shopNameDate", "shopName", "date", "phone", "tip", "pickupCode", "shopContact"];
     var existingTextLayers = existingOverride && existingOverride.textLayers ? existingOverride.textLayers : {};
     var savedTextCount = 0;
     var override = {
@@ -738,7 +738,9 @@
     }
 
     existingOverride = window.IDPhotoTemplateOverrideService && window.IDPhotoTemplateOverrideService.getOverride ? window.IDPhotoTemplateOverrideService.getOverride(template.id) : null;
+    if (template.infoBar.layoutVersion === 5 && existingOverride && existingOverride.layoutVersion !== 5) existingOverride = null;
     override = makeDebugOverrideFromBounds(bounds, existingOverride);
+    override.layoutVersion = template.infoBar.layoutVersion;
     var savedTextLayerCount = override.__savedTextLayerCount || 0;
     delete override.__savedTextLayerCount;
     result = window.IDPhotoDebugSettingsStore.saveOverride(template.id, override);
@@ -869,6 +871,7 @@
         templateNames: templateNames,
         sourceDocument: sourceDocument,
         docInfo: docInfo,
+        delivery: Boolean(options && options.delivery),
         cropStrategy: getSelectedCropStrategy(),
         exportJpg: state.exportJpg,
         nasArchive: state.nasArchive,
@@ -975,6 +978,10 @@
           ? "（" + printFailures[0].result.printResult.message + "）"
           : "");
     }
+    successResults.forEach(function (entry) {
+      var delivery = entry.result && entry.result.deliveryResult;
+      if (delivery && delivery.requested) completionMessage += "；" + delivery.message;
+    });
     state.lastClickedTemplateId = null;
     if (runResult.cancelled) completionMessage += "；用户已取消，后续模板未执行";
     state.lastTemplateRangeAnchor = null;
@@ -1081,6 +1088,47 @@
         runCurrentTemplateSafely({ source: "点击主执行按钮" });
       });
     }
+    var deliverButton = one("#deliverLayoutButton");
+    if (deliverButton) deliverButton.addEventListener("click", function () {
+      runCurrentTemplateSafely({ source: "排版并交付（沿用打印开关）", delivery: true });
+    });
+    var electronicButton = one("#electronicDeliveryButton");
+    if (electronicButton) electronicButton.addEventListener("click", async function () {
+      if (!beginPhotoshopOperation("delivery")) { setStatus("当前任务尚未完成，请稍候"); return; }
+      try {
+        var info = await readActiveDocumentForStatus("电子交付"), sourceDoc = getCurrentDocumentObject();
+        if (!info || !sourceDoc || sourceDoc.id !== info.id) throw new Error("活动照片已改变，请重新确认");
+        setStatus("正在生成当前照片的独立电子成片，不调用打印");
+        var task = await window.IDPhotoDeliveryService.electronic(sourceDoc, info, window.IDPhotoSettingsStore.load());
+        setStatus("电子成片已交接，等待后台发布；" + (task.code ? "取件码 " + task.code : "取码待补") + "；信息条：" + (task.status.info === "saved" ? "已保存" : "待重试"));
+      } catch (error) { setStatus("电子交付未完成：" + errorToText(error)); }
+      finally { endPhotoshopOperation("delivery"); }
+    });
+    var configureDelivery = one("#configureDeliveryRoot");
+    if (configureDelivery) configureDelivery.addEventListener("click", async function () {
+      try { var path = await window.IDPhotoDeliveryService.configure(); if (path) setStatus("本机交接目录：" + path + "；请在后台选择同一目录，仅需配置一次"); }
+      catch (error) { setStatus(errorToText(error)); }
+    });
+    var showDelivery = one("#showDeliveryRoot");
+    if (showDelivery) showDelivery.addEventListener("click", async function () {
+      try { setStatus("后台监听目录：" + (await window.IDPhotoDeliveryService.root()).nativePath); } catch (error) { setStatus(errorToText(error)); }
+    });
+    var regenerate = one("#regenerateDeliveryInfo");
+    if (regenerate) regenerate.addEventListener("click", async function () {
+      if (!beginPhotoshopOperation("delivery")) return;
+      try { setStatus("原任务信息条已生成：" + await window.IDPhotoDeliveryService.regenerate()); }
+      catch (error) { setStatus("补码未完成：" + errorToText(error)); }
+      finally { endPhotoshopOperation("delivery"); }
+    });
+    var chooseDelivery = one("#chooseDeliveryInfo");
+    if (chooseDelivery) chooseDelivery.addEventListener("click", async function () {
+      if (!beginPhotoshopOperation("delivery")) return;
+      try {
+        var taskFolder = await require("uxp").storage.localFileSystem.getFolder();
+        if (taskFolder) setStatus("所选原任务信息条已生成：" + await window.IDPhotoDeliveryService.regenerate(taskFolder));
+      } catch (error) { setStatus("原任务补码未完成：" + errorToText(error)); }
+      finally { endPhotoshopOperation("delivery"); }
+    });
 
     if (debugModeToggle) {
       debugModeToggle.addEventListener("click", function () {

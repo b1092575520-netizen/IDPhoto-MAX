@@ -1,6 +1,6 @@
 {
   "name": "idphoto-max-uxp",
-  "version": "0.5.8",
+  "version": "0.5.9",
   "private": true,
   "scripts": {
     "test": "node --test",
