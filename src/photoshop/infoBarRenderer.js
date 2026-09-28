@@ -687,8 +687,8 @@
     var value = "";
 
     if (key === "pickupCode") {
-      var code = String(options && options.pickupCode || "");
-      value = "取件码：" + (/^(?=.*[A-Z])(?=.*[2-9])[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/.test(code) ? code : "待补码");
+      if (!options || !options.pickupCodeMode) return "";
+      value = "取件码：" + window.IDPhotoDeliveryProtocol.requirePickupCode(options.pickupCode);
     } else if (key === "shopContact") {
       value = buildTextValue("shopName", settings, options) + " " + buildTextValue("phone", settings, options);
     } else if (key === "shopNameDate") {
@@ -1129,6 +1129,12 @@
   }
 
   async function renderInfoBar(targetDocument, infoBar, settings, options) {
+    if (options && options.pickupCodeMode) {
+      window.IDPhotoDeliveryProtocol.requirePickupCode(options.pickupCode);
+      if (!infoBar || infoBar.enabled === false || infoBar.position === "none") {
+        throw window.IDPhotoDeliveryProtocol.pickupCodeError("取件码模式需要可用的信息条。");
+      }
+    }
     var lines = infoBar ? buildLines(settings || {}, options || {}) : [];
     var textItems = [];
     var createdCount = 0;
@@ -1149,6 +1155,9 @@
     hasConfiguredHorizontalTextBlock = Boolean(infoBar.texts && !Array.isArray(infoBar.texts) && infoBar.texts.mode === "horizontalBlock");
     textItems = layout.explicitTexts ? buildExplicitTextItems(infoBar, settings || {}, options || {}) : buildAutoTextItems(lines, layout, infoBar);
     textItems = applyTextLayerOverrides(textItems, infoBar);
+    if (options && options.pickupCodeMode && !textItems.some(function (item) { return item.key === "pickupCode"; })) {
+      throw window.IDPhotoDeliveryProtocol.pickupCodeError("当前信息条缺少取件码位置，已停止输出。");
+    }
 
     debugLog("[infoBarRenderer] infoBar bounds", {
       templateId: template.id || "",

@@ -26,6 +26,7 @@
     exportJpg: true,
     nasArchive: true,
     quickPrint: false,
+    pickupCodeMode: false,
     closeAfterPrint: false,
     activeDocumentInfo: null,
     isRunning: false,
@@ -156,6 +157,7 @@
     parts.push("JPG " + (state.exportJpg ? "开" : "关"));
     parts.push("NAS " + (state.nasArchive ? "开" : "关"));
     parts.push("快印 " + (state.quickPrint ? "开" : "关"));
+    parts.push("取件码 " + (state.pickupCodeMode ? "开" : "关"));
     parts.push("调试" + (isDebugModeEnabled() ? "开" : "关"));
 
     if (actionText) {
@@ -208,6 +210,20 @@
 
   function logStepError(name, error) {
     console.error("[" + name + "] failed", error);
+  }
+
+  async function showPickupCodeFailure(error) {
+    var message = "取件码模式已中止\n\n" + errorToText(error) +
+      "\n\n本次未输出成品、未提交打印。请检查交付后台是否运行、网络及交接目录是否一致。" +
+      "\n若已生成独立交接副本，会保留待处理；本次未提交交付完成，网络恢复不会自动打印或发布。" +
+      "\n如仅需普通排版，请关闭取件码模式，再使用“开始排版”。";
+    setStatus(message);
+    try {
+      await window.IDPhotoPhotoshopExecution.getPhotoshop().app.showAlert(message);
+    } catch (alertError) {
+      logStepError("pickup-code-alert", alertError);
+      setStatus(message + "；提示窗口未能打开：" + errorToText(alertError));
+    }
   }
 
   function beginPhotoshopOperation(operationName) {
@@ -545,7 +561,8 @@
     var optionLabels = {
       exportJpg: "JPG",
       nasArchive: "NAS",
-      quickPrint: "DS-RX1 快速打印"
+      quickPrint: "DS-RX1 快速打印",
+      pickupCodeMode: "取件码模式"
     };
     var runButtonLabel;
 
@@ -553,9 +570,23 @@
       return;
     }
 
-    state[key] = !state[key];
+    if (key === "pickupCodeMode") {
+      if (state.activePhotoshopOperation) {
+        setStatus("当前任务尚未结束，请结束后再切换取件码模式");
+        return;
+      }
+      try {
+        state.pickupCodeMode = window.IDPhotoPickupCodeModeStore.setEnabled(!state.pickupCodeMode);
+      } catch (error) {
+        setStatus("取件码模式未改变：" + errorToText(error));
+        return;
+      }
+    } else {
+      state[key] = !state[key];
+    }
     if (button) {
       button.classList.toggle("active", state[key]);
+      button.setAttribute("aria-pressed", String(state[key]));
       stateText = one(".toggle-state", button);
       if (stateText) {
         stateText.textContent = state[key] ? "开" : "关";
@@ -610,6 +641,17 @@
     state.quickPrint = Boolean(preference.initialEnabled);
     state.closeAfterPrint = Boolean(preference.closeAfterPrint);
     return preference;
+  }
+
+  function loadPickupCodeMode() {
+    state.pickupCodeMode = Boolean(window.IDPhotoPickupCodeModeStore && window.IDPhotoPickupCodeModeStore.load());
+    var button = one('.toggle-btn[data-key="pickupCodeMode"]');
+    if (button) {
+      button.classList.toggle("active", state.pickupCodeMode);
+      button.setAttribute("aria-pressed", String(state.pickupCodeMode));
+      var label = one(".toggle-state", button);
+      if (label) label.textContent = state.pickupCodeMode ? "开" : "关";
+    }
   }
 
   function getCurrentBaseTemplate() {
@@ -814,6 +856,7 @@
 
   async function runCurrentTemplate(options) {
     state.pendingTemplateSelection = null;
+    var delivery = options && typeof options.delivery === "boolean" ? options.delivery : state.pickupCodeMode;
 
     var templateNames = getSelectedTemplateNames();
     var docInfo;
@@ -871,7 +914,7 @@
         templateNames: templateNames,
         sourceDocument: sourceDocument,
         docInfo: docInfo,
-        delivery: Boolean(options && options.delivery),
+        delivery: delivery,
         cropStrategy: getSelectedCropStrategy(),
         exportJpg: state.exportJpg,
         nasArchive: state.nasArchive,
@@ -887,6 +930,7 @@
     } catch (workflowError) {
       logStepError("layout-workflow", workflowError);
       setStatus("排版任务失败：" + errorToText(workflowError));
+      if (workflowError && workflowError.code === "PICKUP_CODE_REQUIRED") await showPickupCodeFailure(workflowError);
       return;
     } finally {
       if (settingsViewController && settingsViewController.refreshNasAuthorization) {
@@ -904,6 +948,14 @@
     closeAfterPrintFailures = runResult.closeAfterPrintFailures;
     duplicateExports = runResult.duplicateExports;
     replacedExports = runResult.replacedExports;
+
+    var pickupFailure = failures.find(function (entry) { return entry.error && entry.error.code === "PICKUP_CODE_REQUIRED"; });
+    if (pickupFailure) {
+      // Keep the selection so the operator can correct the connection or choose
+      // ordinary mode deliberately. A failure must never look like completion.
+      await showPickupCodeFailure(pickupFailure.error);
+      return;
+    }
 
     if (failures.length) {
       completionMessage =
@@ -1011,6 +1063,7 @@
     applySelectedTemplateIds(getTemplateOrder(), templateIds[templateIds.length - 1], null, true);
     runCurrentTemplateSafely({
       source: "全模板视觉验收",
+      delivery: false,
       skipExport: true,
       skipPrint: true,
       debugMode: false
@@ -1100,8 +1153,11 @@
         if (!info || !sourceDoc || sourceDoc.id !== info.id) throw new Error("活动照片已改变，请重新确认");
         setStatus("正在生成当前照片的独立电子成片，不调用打印");
         var task = await window.IDPhotoDeliveryService.electronic(sourceDoc, info, window.IDPhotoSettingsStore.load());
-        setStatus("电子成片已交接，等待后台发布；" + (task.code ? "取件码 " + task.code : "取码待补") + "；信息条：" + (task.status.info === "saved" ? "已保存" : "待重试"));
-      } catch (error) { setStatus("电子交付未完成：" + errorToText(error)); }
+        setStatus("电子成片已交接，等待后台发布；取件码 " + task.code + "；信息条：" + (task.status.info === "saved" ? "已保存" : "待重试"));
+      } catch (error) {
+        setStatus("电子交付未完成：" + errorToText(error));
+        if (error && error.code === "PICKUP_CODE_REQUIRED") await showPickupCodeFailure(error);
+      }
       finally { endPhotoshopOperation("delivery"); }
     });
     var configureDelivery = one("#configureDeliveryRoot");
@@ -1210,6 +1266,7 @@
 
   function init() {
     loadQuickPrintPreference();
+    loadPickupCodeMode();
     initSettings();
     syncTemplateButtons();
     bindTabs();

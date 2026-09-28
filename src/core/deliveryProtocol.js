@@ -40,11 +40,25 @@
     else for (var i = 0; i < data.length; i++) data[i] = Math.floor(Math.random() * 256);
     return Array.from(data).map(function (n) { return n.toString(16).padStart(2, "0"); }).join("");
   }
+  function isPickupCode(code) {
+    return typeof code === "string" && /^(?=.*[A-Z])(?=.*[2-9])[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/.test(code);
+  }
+  function pickupCodeError(reason) {
+    if (reason && reason.code === "PICKUP_CODE_REQUIRED") return reason;
+    var error = new Error(reason && reason.message ? reason.message : String(reason || "尚未取得本次交付的有效取件码。"));
+    error.code = "PICKUP_CODE_REQUIRED";
+    return error;
+  }
+  function requirePickupCode(code) {
+    if (!isPickupCode(code)) throw pickupCodeError("后台未确认本次交付的有效六位取件码，请检查后台、网络和交接目录。");
+    return code;
+  }
   function confirmedCode(receipt, task) {
     if (!receipt || receipt.version !== 2 || !task.confirmationId || receipt.requestId !== task.confirmationId || receipt.confirmed !== true ||
       !receipt.contextKey || (task.contextKey && task.contextKey !== receipt.contextKey) || (task.deliveryId && task.deliveryId !== receipt.deliveryId) ||
-      !["preparing", "ready"].includes(receipt.status) || receipt.taskId !== task.id || receipt.manifestFingerprint !== task.fingerprint || receipt.accepted !== true || !receipt.deliveryId || !/^(?=.*[A-Z])(?=.*[2-9])[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/.test(receipt.code || "")) return "";
+      !["preparing", "ready"].includes(receipt.status) || receipt.taskId !== task.id || receipt.manifestFingerprint !== task.fingerprint || receipt.accepted !== true || !receipt.deliveryId || !isPickupCode(receipt.code)) return "";
     return receipt.code;
   }
-  window.IDPhotoDeliveryProtocol = { sha256: sha256, id: id, confirmedCode: confirmedCode };
+  window.IDPhotoDeliveryProtocol = { sha256: sha256, id: id, confirmedCode: confirmedCode,
+    isPickupCode: isPickupCode, requirePickupCode: requirePickupCode, pickupCodeError: pickupCodeError };
 })();

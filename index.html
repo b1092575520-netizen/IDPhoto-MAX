@@ -52,6 +52,10 @@
                 <span class="toggle-name">打印</span><span class="toggle-state">关</span>
               </button>
             </div>
+            <button class="toggle-btn switch-btn wide-btn" type="button" data-key="pickupCodeMode" aria-pressed="false">
+              <span class="toggle-name">取件码模式</span><span class="toggle-state">关</span>
+            </button>
+            <div class="settings-note">开启后，开始排版会先取码；取码失败会弹窗中止。关闭时按普通流程排版，不自动交付。下方交付按钮始终需要取件码。</div>
             <button class="run-button" id="runButton" type="button" data-icon="rocket"><span class="btn-label">开始排版</span></button>
             <button class="run-button" id="deliverLayoutButton" type="button"><span class="btn-label">排版并交付 · 沿用打印开关</span></button>
             <button class="panel-btn green-btn wide-btn" id="electronicDeliveryButton" type="button"><span class="btn-label">仅电子交付 · 当前照片</span></button>
@@ -221,6 +225,7 @@
     <script src="src/core/settingsBackupService.js"></script>
     <script src="src/core/settingsStore.js"></script>
     <script src="src/core/quickPrintPreferenceStore.js"></script>
+    <script src="src/core/pickupCodeModeStore.js"></script>
     <script src="src/core/sourceEligibilityService.js"></script>
     <script src="src/core/photoVariantService.js"></script>
     <script src="src/core/cropStrategyStore.js"></script>

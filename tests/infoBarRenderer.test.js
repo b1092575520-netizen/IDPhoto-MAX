@@ -140,6 +140,7 @@ function makeRendererHarness(options) {
   };
   vm.createContext(context);
   loadPhotoshopExecution(context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/core/deliveryProtocol.js"), "utf8"), context);
   vm.runInContext(fs.readFileSync(rendererPath, "utf8"), context, { filename: rendererPath });
 
   return {
@@ -242,7 +243,7 @@ for (const template of loadTemplates().getAllTemplates()) {
     const harness=makeRendererHarness();
     await harness.renderer.renderInfoBar(harness.targetDocument,template.infoBar,
       {shopName:'福清印象照相馆',shopPhone:'电话未填写'},
-      {dateText:'2026.09.27',pickupCode:'A2B3C4',template,sourceDocument:harness.sourceDocument});
+      {dateText:'2026.09.27',pickupCodeMode:true,pickupCode:'A2B3C4',template,sourceDocument:harness.sourceDocument});
     const text=harness.textCommands.map(c=>c.using.textKey);
     assert.ok(text.includes('取件码：A2B3C4'));
     assert.equal(text.length,template.infoBar.texts.length);
@@ -252,13 +253,23 @@ for (const template of loadTemplates().getAllTemplates()) {
     }
   });
 }
-test('invalid or missing code renders pending; never use an archive marker or invent contact data',async()=>{
+test('invalid or missing code is rejected before any information-bar layers are created',async()=>{
   for(const pickupCode of ['', '123456', 'ABCDEF', 'I2B3C4', 'A2B3C4-stale']) {
     const template=loadTemplates().getTemplateById('one-inch'),harness=makeRendererHarness();
+    await assert.rejects(harness.renderer.renderInfoBar(harness.targetDocument,template.infoBar,{},
+      {pickupCodeMode:true,pickupCode,template,sourceDocument:harness.sourceDocument}),error=>error.code==='PICKUP_CODE_REQUIRED');
+    assert.equal(harness.targetDocument.layers.length,0);
+    assert.equal(harness.textCommands.length,0);
+  }
+});
+
+test('ordinary mode never renders a pickup code, including one left in caller options',async()=>{
+  for(const template of loadTemplates().getAllTemplates()) {
+    const harness=makeRendererHarness();
     await harness.renderer.renderInfoBar(harness.targetDocument,template.infoBar,{},
-      {pickupCode,template,sourceDocument:harness.sourceDocument});
-    assert.ok(harness.textCommands.some(c=>c.using.textKey==='取件码：待补码'));
-    assert.ok(harness.textCommands.some(c=>c.using.textKey==='电话未填写'));
+      {pickupCodeMode:false,pickupCode:'A2B3C4',template,sourceDocument:harness.sourceDocument});
+    assert.equal(harness.textCommands.some(c=>/取件码|待补码/.test(c.using.textKey)),false,template.id);
+    assert.ok(harness.textCommands.some(c=>c.using.textKey.includes('电话未填写')));
   }
 });
 
@@ -271,7 +282,7 @@ test("debug mode gives compact code/contact layers savable DEBUG names", async (
     harness.targetDocument,
     template.infoBar,
     { shopName: "\u798f\u6e05\u5370\u8c61\u7167\u76f8\u9986", shopPhone: "13003825982" },
-    { dateText: "2026. 1.", template, sourceDocument: harness.sourceDocument, debugMode: true }
+    { dateText: "2026. 1.", pickupCodeMode: true, pickupCode: "A2B3C4", template, sourceDocument: harness.sourceDocument, debugMode: true }
   );
 
   assert.deepEqual(

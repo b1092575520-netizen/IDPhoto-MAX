@@ -182,6 +182,7 @@
           docInfo && docInfo.name ? docInfo.name : ""
         );
         if (decision.leaveBlank) {
+          if (runOptions.delivery) throw window.IDPhotoDeliveryProtocol.pickupCodeError("当前照片的信息条不可用，已停止取件码模式输出。");
           return {
             ok: true,
             createdCount: 0,
@@ -201,6 +202,7 @@
         getSettings(),
         {
           dateText: dateText,
+          pickupCodeMode: Boolean(runOptions.delivery),
           pickupCode: runOptions.pickupCode || "",
           template: template,
           sourceDocument: targetDocument,
@@ -300,10 +302,13 @@
       }
       if (runOptions.delivery) {
         try {
+          if (!template.infoBar || template.infoBar.enabled === false || template.infoBar.position === "none") {
+            throw new Error("当前模板缺少可用信息条，请选择带取件码信息条的模板。");
+          }
           deliveryTask = await requireMethod("IDPhotoDeliveryService", "begin")(docInfo, "print", template, getSettings());
+          if (!deliveryTask) throw new Error("未创建有效的交付任务。");
         } catch (deliveryError) {
-          deliveryResult = { requested: true, ok: false, message: "交付未开始：" + errorToText(deliveryError) };
-          status(deliveryResult.message + "；继续原排版与打印");
+          throw window.IDPhotoDeliveryProtocol.pickupCodeError(deliveryError);
         }
       }
 
@@ -334,12 +339,19 @@
       runOptions.pickupCode = "";
       if (deliveryTask) {
         try {
+          if (!processResult.highResolutionDocument || sameDocument(processResult.highResolutionDocument, sourceDocument)) {
+            throw new Error("独立高清成片不可用，未请求取件码。");
+          }
           runOptions.pickupCode = await requireMethod("IDPhotoDeliveryService", "prepare")(deliveryTask, processResult.highResolutionDocument);
-          deliveryResult = { requested: true, ok: true, taskId: deliveryTask.id, message: runOptions.pickupCode ? "取件码 " + runOptions.pickupCode + "，照片准备中" : "取码待补；原任务保留，网络恢复不补打" };
+          window.IDPhotoDeliveryProtocol.requirePickupCode(runOptions.pickupCode);
+          deliveryResult = { requested: true, ok: true, taskId: deliveryTask.id, message: "取件码 " + runOptions.pickupCode + "，照片准备中" };
         } catch (deliveryError) {
-          deliveryResult = { requested: true, ok: false, taskId: deliveryTask.id, message: "交付待处理：" + errorToText(deliveryError) };
+          await closeProcessedDocument(processResult, "pickup code blocked");
+          throw window.IDPhotoDeliveryProtocol.pickupCodeError(deliveryError);
         } finally {
-          if (processResult.highResolutionDocument) await window.IDPhotoDocumentService.closeWithoutSaving(processResult.highResolutionDocument);
+          if (processResult.highResolutionDocument && !sameDocument(processResult.highResolutionDocument, sourceDocument)) {
+            await closeProcessedDocument({ document: processResult.highResolutionDocument }, "delivery high-resolution copy");
+          }
           processResult.highResolutionDocument = null;
         }
       }
@@ -479,7 +491,7 @@
         runOptions || {}
       );
       templateNames = runOptions.templateNames.slice();
-      if (runOptions.delivery && templateNames.length !== 1) throw new Error("阶段 5 自动交付仅支持一次选一张规格；多模板请使用原排版保存，再明确人工导入。未创建交付。");
+      if (runOptions.delivery && templateNames.length !== 1) throw window.IDPhotoDeliveryProtocol.pickupCodeError("取件码模式一次选一张规格；多规格请使用“多规格草稿”，或关闭取件码模式后普通排版。未创建交付。");
 
       if (runOptions.sourceDocument && runOptions.docInfo && runOptions.docInfo.id != null &&
           runOptions.sourceDocument.id !== runOptions.docInfo.id) {

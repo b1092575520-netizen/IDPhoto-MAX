@@ -3,6 +3,10 @@
   var TOKEN = "idphoto-delivery-root-v1";
   var latestTask = null;
   function errorText(error) { return error && error.message ? error.message : String(error); }
+  function addDiagnostic(error, label, secondary) {
+    error.message = errorText(error) + "；" + label + "：" + errorText(secondary);
+    return error;
+  }
   function fs() { return require("uxp").storage.localFileSystem; }
   function format(binary) { return binary ? require("uxp").storage.formats.binary : require("uxp").storage.formats.utf8; }
   function protocol() { return window.IDPhotoDeliveryProtocol; }
@@ -65,11 +69,20 @@
     var payload = JSON.stringify(request); task.fingerprint = protocol().sha256(payload);
     await writeAtomic(task.folder, "request.json", payload);
     await status(task, { processing: "awaiting-code", manifestFingerprint: task.fingerprint });
-    // No Photoshop modal lock is held during this bounded wait. Receipt timeout
-    // cannot change the ID, publish, or prevent a valid print.
-    task.code = await confirmCode(task);
-    await status(task, { processing: "prepared", codeState: task.code ? "confirmed" : "pending" });
-    return task.code;
+    // Network confirmation never holds a Photoshop modal lock. An unconfirmed
+    // task stays incomplete; a late receipt cannot resume output or publish it.
+    try {
+      task.code = await confirmCode(task);
+      protocol().requirePickupCode(task.code);
+      await status(task, { processing: "prepared", codeState: "confirmed" });
+      return task.code;
+    } catch (error) {
+      task.code = "";
+      var blocked = protocol().pickupCodeError(error);
+      try { await status(task, { processing: "blocked-code", codeState: "unconfirmed", error: errorText(error) }); }
+      catch (statusError) { addDiagnostic(blocked, "取码失败状态未能写入", statusError); }
+      throw blocked;
+    }
   }
   async function readCode(task) {
     try {
@@ -106,11 +119,12 @@
     } finally { if (copy) await window.IDPhotoDocumentService.closeWithoutSaving(copy); }
   }
   async function complete(task, targetDocument, infoBar) {
+    protocol().requirePickupCode(task.code);
+    if (!task.fingerprint) throw new Error("高清成片尚未可靠交接，未生成发布完成信号。");
     var artifacts = [];
     if (task.mode === "print") artifacts.push(await saveJpeg(task, targetDocument, "layout.jpg", "layout"));
     try { artifacts.push(await cropInfo(task, targetDocument, infoBar)); await status(task, { info: "saved" }); }
     catch (error) { await status(task, { info: "failed", infoError: errorText(error) }); }
-    if (!task.fingerprint) throw new Error("高清成片尚未可靠交接，未生成发布完成信号。");
     await writeAtomic(task.folder, "complete.json", JSON.stringify({ version: 1, taskId: task.id, manifestFingerprint: task.fingerprint, processingComplete: true, artifacts: artifacts }));
     await status(task, { processing: "complete", message: "处理完成，等待后台确认发布", outputDirectory: task.folder.nativePath });
     return task.status;
@@ -121,6 +135,7 @@
     bar.texts.forEach(function (item) { item.x -= x; item.y -= y; }); return bar;
   }
   async function standaloneInfo(task, photoDocument, code) {
+    protocol().requirePickupCode(code);
     var bar = localInfoBar(task.template), canvas;
     try {
       await window.IDPhotoPhotoshopExecution.executeAsModal(async function () {
@@ -130,7 +145,7 @@
         await app.documents.add(options);
         canvas = window.IDPhotoPhotoshopExecution.resolveCreatedDocument(existing, options);
       }, "创建独立信息条");
-      await window.IDPhotoInfoBarRenderer.renderInfoBar(canvas, bar, task.settings, { dateText: task.dateText, pickupCode: code, template: task.template, sourceDocument: photoDocument });
+      await window.IDPhotoInfoBarRenderer.renderInfoBar(canvas, bar, task.settings, { dateText: task.dateText, pickupCodeMode: true, pickupCode: code, template: task.template, sourceDocument: photoDocument });
       return { document: canvas, infoBar: bar };
     } catch (e) { if (canvas) await window.IDPhotoDocumentService.closeWithoutSaving(canvas); throw e; }
   }
@@ -138,11 +153,14 @@
     // Current processed pixels are the explicit product. No template recrop or
     // six-inch page is part of the electronic-only path.
     var template = window.IDPhotoTemplates.getTemplateById("one-inch");
-    var task = await begin(docInfo, "electronic", template, settings), photo, info;
+    var task, photo, info, failure = null;
     try {
+      try { task = await begin(docInfo, "electronic", template, settings); }
+      catch (beginError) { throw protocol().pickupCodeError(beginError); }
       var shape = { name: "电子成片", widthPx: docInfo.widthPx, heightPx: docInfo.heightPx };
       photo = await window.IDPhotoCropService.prepareSinglePhoto(sourceDocument, docInfo, shape, { ok: true }, { preservePixels: true });
-      await prepare(task, photo.document);
+      try { await prepare(task, photo.document); }
+      catch (prepareError) { throw protocol().pickupCodeError(prepareError); }
       try { info = await standaloneInfo(task, photo.document, task.code); }
       catch (error) { await status(task, { info: "failed", infoError: errorText(error) }); }
       if (info) await complete(task, info.document, info.infoBar);
@@ -151,8 +169,27 @@
         await status(task, { processing: "complete", message: "成片已交接；信息条生成失败，可单独重试" });
       }
       return task;
-    } catch (error) { await status(task, { error: errorText(error) }); throw error; }
-    finally { if (info) await window.IDPhotoDocumentService.closeWithoutSaving(info.document); if (photo) await window.IDPhotoDocumentService.closeWithoutSaving(photo.document); }
+    } catch (error) {
+      failure = error && typeof error === "object" ? error : new Error(errorText(error));
+      if (task) {
+        try { await status(task, { error: errorText(failure) }); }
+        catch (statusError) { addDiagnostic(failure, "错误记录未能写入", statusError); }
+      }
+      throw failure;
+    } finally {
+      var cleanupError = null;
+      // Try each owned copy even if the first close fails. Secondary failures
+      // must not replace the pickup gate error that drives the required alert.
+      for (var copy of [info && info.document, photo && photo.document]) {
+        if (!copy) continue;
+        try { await window.IDPhotoDocumentService.closeWithoutSaving(copy); }
+        catch (closeError) {
+          if (failure) addDiagnostic(failure, "临时副本未能关闭", closeError);
+          else if (!cleanupError) cleanupError = closeError;
+        }
+      }
+      if (cleanupError) throw cleanupError;
+    }
   }
   async function restoreTask(folder) {
     var payload = await (await folder.getEntry("request.json")).read({ format: format(false) });

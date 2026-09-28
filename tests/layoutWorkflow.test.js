@@ -74,6 +74,7 @@ function loadWorkflow(options = {}) {
       IDPhotoInfoBarRenderer: {
         async renderInfoBar(_target, _infoBar, _settings, renderOptions) {
           calls.push("info:" + renderOptions.template.id);
+          if (options.inspectRender) options.inspectRender(renderOptions);
           return { ok: true, createdCount: 1 };
         }
       },
@@ -140,6 +141,7 @@ function loadWorkflow(options = {}) {
   };
 
   vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/core/deliveryProtocol.js"), "utf8"), context);
   if (options.delivery) context.window.IDPhotoDeliveryService = options.delivery;
   if (options.analyzeDocument) context.window.IDPhotoVariantService = { analyzeDocument: options.analyzeDocument };
   vm.runInContext(fs.readFileSync(workflowPath, "utf8"), context, { filename: workflowPath });
@@ -152,17 +154,33 @@ function loadWorkflow(options = {}) {
   };
 }
 
-test('delivery outage never prevents one valid print and never submits completion without a saved photo',async()=>{
-  for(const errorStage of ['begin','prepare','complete']) {
+test('pickup-code failure blocks canvas, archive, completion and print, cleaning only owned copies',async()=>{
+  for(const errorStage of ['begin','prepare','empty','invalid','missing-task']) {
     let completed=0;
-    const delivery={begin:async()=>{if(errorStage==='begin')throw Error('offline');return {id:'task',fingerprint:''};},prepare:async task=>{if(errorStage==='prepare')throw Error('offline');task.fingerprint='saved-photo';return '';},complete:async task=>{completed++;assert.equal(task.fingerprint,'saved-photo');throw Error('completion unavailable');}};
+    const delivery={begin:async()=>{if(errorStage==='begin')throw Error('offline');if(errorStage==='missing-task')return null;return {id:'task',fingerprint:''};},prepare:async task=>{if(errorStage==='prepare')throw Error('offline');task.fingerprint='saved-photo';return errorStage==='invalid'?'123456':'';},complete:async()=>{completed++;}};
     const loaded=loadWorkflow({delivery});
-    const result=await loaded.workflow.run({templateNames:['模板一'],sourceDocument:{id:101},docInfo:{id:101,name:'original',sourceMetadata:{}},delivery:true,quickPrint:true,skipExport:true});
-    assert.equal(result.ok,true);assert.equal(loaded.calls.filter(c=>c==='print').length,1);
-    assert.equal(completed,errorStage==='complete'?1:0);
-    assert.equal(result.successResults[0].result.deliveryResult.ok,false);
-    if(errorStage!=='begin')assert.ok(loaded.calls.includes('close:high-resolution-1'));
+    const result=await loaded.workflow.run({templateNames:['模板一'],sourceDocument:{id:101},docInfo:{id:101,name:'original',sourceMetadata:{}},delivery:true,quickPrint:true,exportJpg:true,nasArchive:true});
+    assert.equal(result.ok,false,errorStage);
+    assert.equal(result.failures[0].error.code,'PICKUP_CODE_REQUIRED',errorStage);
+    assert.equal(loaded.calls.some(c=>/^(canvas:|export:|info:|print)/.test(c)),false,errorStage);
+    assert.equal(completed,0);
+    if(!['begin','missing-task'].includes(errorStage)) {
+      assert.ok(loaded.calls.includes('close:high-resolution-1'));
+      assert.ok(loaded.calls.includes('close:processed-1'));
+    }
   }
+});
+
+test('a confirmed code reaches the strip and prints once even if later completion persistence fails',async()=>{
+  let completed=0;
+  const delivery={begin:async()=>({id:'task'}),prepare:async task=>{task.fingerprint='saved-photo';return 'A2B3C4';},complete:async()=>{completed++;throw Error('completion unavailable');}};
+  const loaded=loadWorkflow({delivery,inspectRender:opts=>{assert.equal(opts.pickupCodeMode,true);assert.equal(opts.pickupCode,'A2B3C4');}});
+  const result=await loaded.workflow.run({templateNames:['模板一'],sourceDocument:{id:101},docInfo:{id:101},delivery:true,quickPrint:true,exportJpg:true});
+  assert.equal(result.ok,true);
+  assert.equal(loaded.calls.filter(c=>c==='print').length,1);
+  assert.equal(loaded.calls.filter(c=>c==='export:one').length,1);
+  assert.equal(completed,1);
+  assert.equal(result.successResults[0].result.deliveryResult.ok,false);
 });
 
 test('multi-template delivery fails before creating a task; ordinary layout never invokes delivery',async()=>{

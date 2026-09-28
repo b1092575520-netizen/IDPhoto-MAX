@@ -15,11 +15,14 @@ function harness(options = {}) {
       if(name === 'code-response.json' && options.receipt !== false) {
         const confirmation = JSON.parse(await (await this.getEntry('code-request.json')).read());
         const request = await this.getEntry('request.json'), context = JSON.parse(await (await this.getEntry('context.json')).read());
-        return {read:async()=>JSON.stringify({version:2,requestId:options.staleNonce?'old-request':confirmation.requestId,confirmed:options.denied!==true,contextKey:options.foreignContext?'ctx-other':'ctx-test',status:options.terminal||'preparing',accepted:true,taskId:options.foreignReceipt?'other':context.id,manifestFingerprint:window.IDPhotoDeliveryProtocol.sha256(await request.read()),deliveryId:'remote-'+context.id,code:options.changedDuringRender&&renders.length>1?'N7EW8A':'T2EST4'})};
+        return {read:async()=>JSON.stringify({version:2,requestId:options.staleNonce?'old-request':confirmation.requestId,confirmed:options.denied!==true,contextKey:options.foreignContext?'ctx-other':'ctx-test',status:options.terminal||'preparing',accepted:true,taskId:options.foreignReceipt?'other':context.id,manifestFingerprint:window.IDPhotoDeliveryProtocol.sha256(await request.read()),deliveryId:'remote-'+context.id,code:options.invalidCode?'123456':options.changedDuringRender&&renders.length>1?'N7EW8A':'T2EST4'})};
       }
       if(!this.children.has(name))throw Error('Missing '+name); return this.children.get(name);
     }
-    async write(value) { this.value=value; files.set(this.nativePath,value); }
+    async write(value) {
+      if(options.statusWriteFail && this.name.startsWith('plugin-status.json.') && JSON.parse(value).processing==='blocked-code') throw Error('status disk failure');
+      this.value=value; files.set(this.nativePath,value);
+    }
     async read() { return this.value; }
     async moveTo(folder, options) { this.parent.children.delete(this.name); this.name=options.newName; this.parent=folder; folder.children.set(this.name,this); }
   }
@@ -38,10 +41,10 @@ function harness(options = {}) {
     IDPhotoPathService:{getDateFolders:()=>({year:'2026',month:'2026-09',day:'2026-09-27'})},
     IDPhotoDateService:{formatDisplayDate:()=> '2026.9.27'},
     IDPhotoPhotoshopExecution:{executeAsModal:async cb=>cb(),activateDocument:async d=>{active=d},getPhotoshop:()=>({app}),resolveCreatedDocument:(ids,expected)=>{const d=app.documents.filter(d=>!ids.includes(d.id));assert.equal(d.length,1);assert.equal(d[0].name,expected.name);return d[0];}},
-    IDPhotoDocumentService:{closeWithoutSaving:async d=>{closed.push(d.id)}},
+    IDPhotoDocumentService:{closeWithoutSaving:async d=>{closed.push(d.id);if(options.cleanupFail&&d===photo)throw Error('close failure');}},
     IDPhotoCropService:{prepareSinglePhoto:async(d,info,shape,ratio,opts)=>{assert.equal(d,original);assert.equal(opts.preservePixels,true);return {document:photo};}},
     IDPhotoTemplates:{getTemplateById:()=>({infoBar:{x:0,y:100,width:1653,height:555,avatar:{x:20,y:120},texts:[{x:100,y:140}]}})},
-    IDPhotoInfoBarRenderer:{renderInfoBar:async(d,bar,settings,opts)=>{renders.push({id:d.id,source:opts.sourceDocument.id,code:opts.pickupCode});if(options.renderFail)throw 'injected Photoshop failure';}},
+    IDPhotoInfoBarRenderer:{renderInfoBar:async(d,bar,settings,opts)=>{renders.push({id:d.id,source:opts.sourceDocument.id,code:opts.pickupCode,mode:opts.pickupCodeMode});if(options.renderFail)throw 'injected Photoshop failure';}},
   };
   class Clock extends Date { static now(){clock+=1500;return clock;} }
   const context=vm.createContext({window,console,Date:Clock,setTimeout:fn=>{fn();},require:name=>{assert.equal(name,'uxp');return {storage:{localFileSystem:filesystem,formats:{binary:'binary',utf8:'utf8'}}};}});
@@ -60,15 +63,62 @@ test('electronic delivery binds original pixels, completion and code; info failu
     assert.equal(task.status.info,renderFail?'failed':'saved');
     if(renderFail)assert.equal(task.status.infoError,'injected Photoshop failure');
     assert.equal(h.closed.includes(h.original.id),false);assert.ok(h.closed.includes(h.photo.id));
-    assert.equal(h.renders[0].source,h.photo.id);assert.equal(h.renders[0].code,'T2EST4');
+    assert.equal(h.renders[0].source,h.photo.id);assert.equal(h.renders[0].code,'T2EST4');assert.equal(h.renders[0].mode,true);
   }
 });
-test('late or foreign receipts never borrow a code; unavailable receipt still preserves valid electronic completion',async()=>{
-  for(const options of [{receipt:false},{foreignReceipt:true}]) {
-    const h=harness(options),task=await h.service.electronic(h.original,h.info,{});
-    assert.equal(task.code,'');assert.equal(task.status.codeState,'pending');
-    assert.equal(h.renders[0].code,'');assert.equal(JSON.parse(await(await task.folder.getEntry('complete.json')).read()).processingComplete,true);
+test('missing, stale, foreign, terminal or invalid code blocks electronic output and preserves the uncompleted handoff',async()=>{
+  for(const options of [{receipt:false},{foreignReceipt:true},{staleNonce:true},{terminal:'cancelled'},{terminal:'withdrawn'},{denied:true},{invalidCode:true}]) {
+    const h=harness(options);
+    await assert.rejects(h.service.electronic(h.original,h.info,{}),error=>error.code==='PICKUP_CODE_REQUIRED');
+    const task=h.service.latest();
+    assert.equal(task.code,'');assert.equal(task.status.codeState,'unconfirmed');
+    assert.equal(h.renders.length,0);assert.equal(h.canvases.length,0);
+    await assert.rejects(task.folder.getEntry('complete.json'));
+    await assert.rejects(task.folder.getEntry('info.jpg'));
+    await task.folder.getEntry('photo.jpg');await task.folder.getEntry('request.json');
+    assert.ok(h.closed.includes(h.photo.id));assert.equal(h.closed.includes(h.original.id),false);
+    h.options.receipt=true;h.options.foreignReceipt=false;h.options.staleNonce=false;h.options.terminal=null;h.options.denied=false;h.options.invalidCode=false;
+    assert.equal(await h.service.readCode(task),'T2EST4');
+    await assert.rejects(task.folder.getEntry('complete.json'),'a late code must not finish the aborted operation');
   }
+});
+
+test('complete cannot export artifacts or publish with an empty code',async()=>{
+  const h=harness(),task=await h.service.begin(h.info,'print',{},{});
+  task.fingerprint='saved-photo';
+  await assert.rejects(h.service.complete(task,h.photo,{}),error=>error.code==='PICKUP_CODE_REQUIRED');
+  await assert.rejects(task.folder.getEntry('layout.jpg'));
+  await assert.rejects(task.folder.getEntry('complete.json'));
+});
+
+test('electronic pickup error survives secondary status and cleanup failures for the native popup',async()=>{
+  for(const fault of [{statusWriteFail:true},{cleanupFail:true},{statusWriteFail:true,cleanupFail:true}]) {
+    const h=harness({receipt:false,...fault});
+    await assert.rejects(h.service.electronic(h.original,h.info,{}),error=>{
+      assert.equal(error.code,'PICKUP_CODE_REQUIRED');
+      if(fault.statusWriteFail)assert.match(error.message,/status disk failure/);
+      if(fault.cleanupFail)assert.match(error.message,/close failure/);
+      return true;
+    });
+    const task=h.service.latest();
+    await assert.rejects(task.folder.getEntry('complete.json'));
+    assert.equal(h.canvases.length,0);assert.equal(h.renders.length,0);
+    assert.equal(h.closed.includes(h.original.id),false);
+    assert.ok(h.closed.includes(h.photo.id),'attempt owned-copy cleanup even when status writing fails');
+  }
+});
+
+test('cleanup failure after successful electronic completion is not mislabeled as a pickup rejection',async()=>{
+  const h=harness({cleanupFail:true});
+  await assert.rejects(h.service.electronic(h.original,h.info,{}),error=>{
+    assert.notEqual(error.code,'PICKUP_CODE_REQUIRED');
+    assert.match(error.message,/close failure/);
+    return true;
+  });
+  const task=h.service.latest();
+  assert.equal(JSON.parse(await(await task.folder.getEntry('complete.json')).read()).processingComplete,true);
+  assert.equal(task.code,'T2EST4');
+  assert.equal(h.closed.includes(h.original.id),false);
 });
 test('regeneration preserves original task/complete signal and selects that photo; tampered photo is rejected',async()=>{
   const h=harness(),task=await h.service.electronic(h.original,h.info,{});
