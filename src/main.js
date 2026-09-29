@@ -1376,6 +1376,26 @@
       finally { endPhotoshopOperation("delivery"); }
     });
     var chooseDelivery = one("#chooseDeliveryInfo");
+    if (chooseDelivery && window.IDPhotoDeliveryService.receiveInformationTasks) {
+      var receiveInformation = document.createElement("button");
+      receiveInformation.id = "receiveInformationTasks";
+      receiveInformation.className = chooseDelivery.className;
+      receiveInformation.textContent = "领取后台信息条任务";
+      receiveInformation.type = "button";
+      chooseDelivery.parentNode.insertBefore(receiveInformation, chooseDelivery);
+      receiveInformation.addEventListener("click", async function () {
+        if (!beginPhotoshopOperation("delivery")) return;
+        receiveInformation.disabled = true;
+        try {
+          setStatus("正在领取后台信息条任务");
+          var result = await window.IDPhotoDeliveryService.receiveInformationTasks();
+          setStatus("后台信息条已完成 " + result.completed + " 份" +
+            (result.failures.length ? "；未完成：" + result.failures[0] : "") +
+            (result.remaining ? "；还有 " + result.remaining + " 份待下次领取" : ""));
+        } catch (error) { setStatus("信息条领取未完成：" + errorToText(error)); }
+        finally { receiveInformation.disabled = false; endPhotoshopOperation("delivery"); }
+      });
+    }
     if (chooseDelivery) chooseDelivery.addEventListener("click", async function () {
       if (!beginPhotoshopOperation("delivery")) return;
       try {

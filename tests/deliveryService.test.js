@@ -10,6 +10,7 @@ function harness(options = {}) {
   class Entry {
     constructor(name, parent, folder = true) { this.name = name; this.parent = parent; this.isFolder = folder; this.nativePath = parent ? parent.nativePath + '/' + name : name; this.children = new Map(); }
     async createFolder(name) { if (this.children.has(name)) throw Error('Folder exists'); const e = new Entry(name, this); this.children.set(name,e); return e; }
+    async getEntries() { return [...this.children.values()]; }
     async createFile(name, opts) { if(this.children.has(name) && !opts.overwrite) throw Error('File exists'); const e = new Entry(name,this,false); this.children.set(name,e); return e; }
     async getEntry(name) {
       if (name === 'connection-response.json' || name === 'code-response.json') assert.equal(modalDepth, 0, 'Never wait for backend inside Photoshop modal execution');
@@ -23,7 +24,7 @@ function harness(options = {}) {
       if(name === 'code-response.json' && options.receipt !== false) {
         const confirmation = JSON.parse(await (await this.getEntry('code-request.json')).read());
         const request = await this.getEntry('request.json'), context = JSON.parse(await (await this.getEntry('context.json')).read());
-        return {read:async()=>{ clock += options.replyDelay || 0; return JSON.stringify({version:2,requestId:options.staleNonce?'old-request':confirmation.requestId,confirmed:options.denied!==true,contextKey:options.foreignContext?'ctx-other':'ctx-test',status:options.terminal||'preparing',accepted:true,taskId:options.foreignReceipt?'other':context.id,manifestFingerprint:window.IDPhotoDeliveryProtocol.sha256(await request.read()),deliveryId:'remote-'+context.id,errorCode:options.errorCode||'',code:options.invalidCode?'123456':options.changedDuringRender&&renders.length>1?'N7EW8A':'T2EST4'});}};
+        return {read:async()=>{ clock += options.replyDelay || 0; return JSON.stringify({version:2,requestId:options.staleNonce?'old-request':confirmation.requestId,confirmed:options.denied!==true,contextKey:options.foreignContext?'ctx-other':options.contextKey||'ctx-test',status:options.terminal||'preparing',accepted:true,taskId:options.foreignReceipt?'other':context.id,manifestFingerprint:window.IDPhotoDeliveryProtocol.sha256(await request.read()),deliveryId:options.deliveryId||'remote-'+context.id,errorCode:options.errorCode||'',code:options.invalidCode?'123456':options.changedDuringRender&&renders.length>1?'N7EW8A':'T2EST4'});}};
       }
       if(!this.children.has(name))throw Error('Missing '+name); return this.children.get(name);
     }
@@ -58,6 +59,7 @@ function harness(options = {}) {
     IDPhotoDocumentService:{closeWithoutSaving:async d=>{closed.push(d.id);if(options.cleanupFail&&d===photo)throw Error('close failure');}},
     IDPhotoCropService:{prepareSinglePhoto:async(d,info,shape,ratio,opts)=>{assert.equal(d,original);assert.equal(opts.preservePixels,true);return {document:photo};}},
     IDPhotoTemplates:{getTemplateById:()=>({infoBar:{x:0,y:100,width:1653,height:555,avatar:{x:20,y:120},texts:[{x:100,y:140}]}})},
+    IDPhotoSettingsStore:{load:()=>({})},
     IDPhotoInfoBarRenderer:{renderInfoBar:async(d,bar,settings,opts)=>{renders.push({id:d.id,source:opts.sourceDocument.id,code:opts.pickupCode,mode:opts.pickupCodeMode,date:opts.dateText});if(options.renderFail)throw 'injected Photoshop failure';return {ok:true,createdCount:1,message:'rendered'};}},
   };
   class Clock extends Date { static now(){clock+=1500;return clock;} }
@@ -449,4 +451,81 @@ test('a changed code after rendering stops repeat completion; another deliberate
   assert.equal([...h.files.keys()].filter(p=>/output-complete-[a-f0-9]+.json$/.test(p)).length,0);
   const next=await h.service.reprintCurrent(first.id,true);
   assert.equal(next.id,first.id);assert.equal(next.code,'N7EW8A');assert.equal(h.taskCount(),1);
+});
+
+async function informationFixture() {
+  const h=harness({contextKey:'a'.repeat(64),deliveryId:'b'.repeat(64)});
+  const task=await h.service.electronic(h.original,h.info,{});
+  const request=JSON.parse(await(await task.folder.getEntry('request.json')).read());
+  Object.assign(request,{version:2,informationOnly:true,referenceDeliveryId:h.options.deliveryId,
+    referenceContextKey:h.options.contextKey,referenceFileId:'c'.repeat(64),referenceRevision:3});
+  delete request.contextFingerprint;
+  const payload=JSON.stringify(request),fingerprint=h.window.IDPhotoDeliveryProtocol.sha256(payload);
+  await(await task.folder.getEntry('request.json')).write(payload);
+  await(await task.folder.getEntry('context.json')).delete();
+  await(await task.folder.getEntry('code-binding.json')).write(JSON.stringify({version:2,taskId:task.id,
+    manifestFingerprint:fingerprint,contextKey:h.options.contextKey,deliveryId:h.options.deliveryId}));
+  const root=await h.service.root(),inbox=await root.createFolder('information-requests');
+  const input={version:1,taskId:task.id,relativePath:task.folder.nativePath.slice(root.nativePath.length+1),
+    manifestFingerprint:fingerprint,contextKey:h.options.contextKey,deliveryId:h.options.deliveryId,
+    code:'T2EST4',signature:'d'.repeat(64),dateText:'2026.9.29'};
+  const enqueue=async()=>{await(await inbox.createFile(task.id+'.json',{overwrite:true})).write(JSON.stringify(input));};
+  await enqueue();
+  return {h,task,input,enqueue,inbox,request,payload};
+}
+
+test('backend information pickup uses the original generator and binds result without completing or uploading again',async()=>{
+  const {h,task,input,payload}=await informationFixture();
+  const complete=await(await task.folder.getEntry('complete.json')).read(),before=h.renders.length;
+  const result=await h.service.receiveInformationTasks();
+  assert.equal(result.completed,1,JSON.stringify(result));assert.equal(result.failures.length,0);
+  assert.equal(h.renders.length,before+1);
+  assert.equal(h.renders.at(-1).date,'2026.9.29');
+  assert.equal(await(await task.folder.getEntry('request.json')).read(),payload);
+  assert.equal(await(await task.folder.getEntry('complete.json')).read(),complete);
+  const receipt=JSON.parse(await(await task.folder.getEntry('information-result.json')).read());
+  assert.equal(receipt.code,input.code);assert.equal(receipt.signature,input.signature);
+  assert.equal(receipt.fileId,'c'.repeat(64));assert.equal(receipt.revision,3);
+  assert.equal(receipt.contextKey,input.contextKey);assert.equal(receipt.deliveryId,input.deliveryId);
+  assert.match(receipt.artifact.path,/^info-[a-f0-9]{32}\.jpg$/);
+  assert.equal(h.taskCount(),1);
+});
+
+test('information pickup recovers acknowledgement loss without rerendering, and explicitly repairs a missing image',async()=>{
+  const {h,task,enqueue}=await informationFixture();
+  await h.service.receiveInformationTasks();const count=h.renders.length;
+  await enqueue();await h.service.receiveInformationTasks();
+  assert.equal(h.renders.length,count);
+  const receipt=JSON.parse(await(await task.folder.getEntry('information-result.json')).read());
+  await(await task.folder.getEntry(receipt.artifact.path)).delete();
+  await enqueue();const repaired=await h.service.receiveInformationTasks();
+  assert.equal(repaired.completed,1);assert.equal(h.renders.length,count+1);
+});
+
+test('information pickup rejects cross-task, traversal, foreign connection and changed photo without a result',async()=>{
+  for(const scenario of ['task','traversal','connection','photo','code']) {
+    const {h,task,input,enqueue}=await informationFixture();
+    if(scenario==='task')input.deliveryId='f'.repeat(64);
+    if(scenario==='traversal')input.relativePath='../'+input.relativePath;
+    if(scenario==='connection')h.options.foreignContext=true;
+    if(scenario==='photo')await(await task.folder.getEntry('photo.jpg')).write(new Uint8Array([9]).buffer);
+    if(scenario==='code')input.code='A3BC4D';
+    await enqueue();const before=h.renders.length,result=await h.service.receiveInformationTasks();
+    assert.equal(result.completed,0,scenario);assert.equal(result.failures.length,1,scenario);
+    assert.equal(h.renders.length,before,scenario);
+    await assert.rejects(task.folder.getEntry('information-result.json'));
+  }
+});
+
+test('information pickup preserves a failed task for explicit retry and never treats rendering-time rotation as success',async()=>{
+  const {h,task}=await informationFixture();
+  h.options.changedDuringRender=true;
+  const failed=await h.service.receiveInformationTasks();
+  assert.equal(failed.completed,0);assert.equal(failed.failures.length,1);
+  await assert.rejects(task.folder.getEntry('information-result.json'));
+  const error=JSON.parse(await(await task.folder.getEntry('information-error.json')).read());
+  assert.equal(error.taskId,task.id);
+  h.options.changedDuringRender=false;
+  const retry=await h.service.receiveInformationTasks();
+  assert.equal(retry.completed,1,JSON.stringify(retry));
 });

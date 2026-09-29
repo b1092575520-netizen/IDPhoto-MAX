@@ -454,7 +454,7 @@
       if (cleanupError) throw cleanupError;
     }
   }
-  async function restoreTask(folder) {
+  async function restoreTask(folder, informationInput) {
     var payload = await (await folder.getEntry("request.json")).read({ format: format(false) });
     var request = JSON.parse(payload);
     if (request.informationOnly && (!/^[a-f0-9]{64}$/.test(request.referenceFileId || "") || !Number.isInteger(request.referenceRevision) || request.referenceRevision < 1)) throw new Error("信息条缺少原文件版本绑定，请在后台重新导出任务。");
@@ -468,7 +468,7 @@
       if (window.IDPhotoTemplates.forDelivery) referenceTemplate = window.IDPhotoTemplates.forDelivery(referenceTemplate, true);
       await writeAtomic(folder, "context.json", JSON.stringify({ version: 1, id: request.taskId, outputId: request.outputId, mode: "electronic",
         docInfo: { id: request.sourceDocumentId, name: request.title }, template: referenceTemplate,
-        settings: window.IDPhotoSettingsStore.load(), dateText: "" }));
+        settings: window.IDPhotoSettingsStore.load(), dateText: informationInput && /^\d{4}\.\d{1,2}\.\d{1,2}$/.test(informationInput.dateText || "") ? informationInput.dateText : "" }));
       contextFile = await folder.getEntry("context.json");
     }
     var contextPayload = await contextFile.read({ format: format(false) });
@@ -596,13 +596,16 @@
     if (confirmedOriginal !== true) throw new Error("请核对原照片并确认补印；不会采用当前活动照片替换原成片");
     return await retryPending(expectedId, true);
   }
-  async function regenerate(folder) {
+  async function regenerate(folder, informationInput) {
     if (!folder) {
       var token = window.localStorage.getItem("idphoto-delivery-last-v1");
       if (!token) throw new Error("没有可补码的原任务，请选择交接任务目录。");
       folder = await fs().getEntryForPersistentToken(token);
     }
-    var task = await restoreTask(folder), code = await confirmCode(task), photo, info;
+    var task = await restoreTask(folder, informationInput), code = await confirmCode(task), photo, info;
+    if (informationInput && (task.id !== informationInput.taskId || task.fingerprint !== informationInput.manifestFingerprint ||
+        task.contextKey !== informationInput.contextKey || task.deliveryId !== informationInput.deliveryId || code !== informationInput.code))
+      throw new Error("后台信息条任务的取件码或绑定已变化，请返回交付管理重新生成");
     if (window.IDPhotoTemplates.forDelivery && task.template && task.template.id)
       task.template = window.IDPhotoTemplates.forDelivery(window.IDPhotoTemplates.getTemplateById(task.template.id), true);
     if (!code) throw new Error("本次取件码待核对：后台未确认有效码，或交付已取消/撤回；请核对原连接与管理结果。");
@@ -627,6 +630,8 @@
       if (await confirmCode(task) !== code) throw new Error("生成期间取件码或管理状态变化，未导出旧码；请待核对后重试原任务。");
       var filename = "info-" + protocol().id() + ".jpg";
       var artifact = await cropInfo(task, info.document, info.infoBar, filename);
+      if (informationInput && await confirmCode(task) !== code)
+        throw new Error("导出期间取件码或交付状态已变化，本次图片不提供查看或保存，请重新生成");
       var supplements = { version: 1, taskId: task.id, manifestFingerprint: task.fingerprint, artifacts: [] };
       var previous;
       try { previous = await folder.getEntry("supplements.json"); } catch (e) { /* First regeneration. */ }
@@ -637,10 +642,79 @@
       if (supplements.artifacts.length >= 16) throw new Error("本任务已有 16 张补码图片，已保留本次图片，请人工归档；未改变原交付。");
       supplements.artifacts.push(artifact);
       await writeAtomic(folder, "supplements.json", JSON.stringify(supplements));
+      if (informationInput) {
+        await writeAtomic(folder, "information-result.json", JSON.stringify({
+          version: 1, taskId: task.id, manifestFingerprint: task.fingerprint,
+          contextKey: task.contextKey, deliveryId: task.deliveryId, code: code,
+          signature: informationInput.signature, fileId: request.referenceFileId,
+          revision: request.referenceRevision, artifact: artifact
+        }));
+      }
       await status(task, { info: "saved", infoError: "", regenerated: filename, codeState: "confirmed", message: "原任务信息条已重导，成片交付状态请以后台为准" });
       return folder.nativePath + "\\" + filename;
     } catch (error) { await status(task, { info: "failed", infoError: errorText(error) }); throw error; }
     finally { if (info) await window.IDPhotoDocumentService.closeWithoutSaving(info.document); if (photo) await window.IDPhotoDocumentService.closeWithoutSaving(photo); }
+  }
+  async function receiveInformationTasks() {
+    if (creatingTask || retryingTask || activeWait) throw new Error("当前交付尚未结束，请稍后领取信息条任务");
+    retryingTask = true;
+    try {
+      var source = await root(), inbox = await optionalEntry(source, "information-requests");
+      if (!inbox) return { completed: 0, failures: [] };
+      await connection(source);
+      var entries = (await inbox.getEntries()).filter(function (entry) {
+        return !entry.isFolder && /^[a-f0-9]{32}\.json$/.test(entry.name);
+      }).sort(function (a, b) { return a.name.localeCompare(b.name); });
+      var completed = 0, failures = [];
+      // Explicit operator action, bounded work; never a Photoshop timer or
+      // ordinary printing entry. The existing generator remains authoritative.
+      for (var entry of entries.slice(0, 20)) {
+        var folder = null, input = null;
+        try {
+          input = JSON.parse(await entry.read({ format: format(false) }));
+          if (input.version !== 1 || entry.name !== input.taskId + ".json" ||
+              !/^[a-f0-9]{32}$/.test(input.taskId || "") ||
+              !/^\d{4}\/\d{4}-\d{2}\/\d{4}-\d{2}-\d{2}\/[a-f0-9]{32}$/.test(input.relativePath || "") ||
+              input.relativePath.split("/")[3] !== input.taskId ||
+              !/^[a-f0-9]{64}$/.test(input.contextKey || "") || !/^[a-f0-9]{64}$/.test(input.deliveryId || "") ||
+              !/^[a-f0-9]{64}$/.test(input.signature || "") || !/^[a-f0-9]{64}$/.test(input.manifestFingerprint || ""))
+            throw new Error("后台信息条任务入口无效，已保留资料");
+          protocol().requirePickupCode(input.code);
+          folder = source;
+          for (var part of input.relativePath.split("/")) folder = await folder.getEntry(part);
+          var payload = await (await folder.getEntry("request.json")).read({ format: format(false) });
+          var request = JSON.parse(payload);
+          if (protocol().sha256(payload) !== input.manifestFingerprint || request.informationOnly !== true ||
+              request.taskId !== input.taskId || request.referenceDeliveryId !== input.deliveryId ||
+              request.referenceContextKey !== input.contextKey)
+            throw new Error("后台信息条原任务归属不符，未生成");
+          var resultFile = await optionalEntry(folder, "information-result.json"), result = null, reusable = false;
+          if (resultFile) result = JSON.parse(await resultFile.read({ format: format(false) }));
+          if (result && result.version === 1 && result.taskId === input.taskId &&
+              result.manifestFingerprint === input.manifestFingerprint && result.signature === input.signature &&
+              result.code === input.code && result.contextKey === input.contextKey && result.deliveryId === input.deliveryId &&
+              result.fileId === request.referenceFileId && result.revision === request.referenceRevision &&
+              result.artifact && /^info-[a-f0-9]{32}\.jpg$/.test(result.artifact.path || "")) {
+            try {
+              var saved = await (await folder.getEntry(result.artifact.path)).read({ format: format(true) });
+              reusable = saved.byteLength === result.artifact.sizeBytes && protocol().sha256(saved) === result.artifact.sha256;
+            } catch (_) { /* Explicit regeneration can repair a missing artifact. */ }
+          }
+          if (!reusable) await regenerate(folder, input);
+          await entry.delete();
+          completed++;
+        } catch (error) {
+          failures.push(errorText(error));
+          if (folder && input && folder.name === input.taskId) {
+            try {
+              await writeAtomic(folder, "information-error.json", JSON.stringify({ version: 1, taskId: input.taskId,
+                manifestFingerprint: input.manifestFingerprint, message: errorText(error) }));
+            } catch (_) { /* Keep the request available for an explicit retry. */ }
+          }
+        }
+      }
+      return { completed: completed, failures: failures, remaining: Math.max(0, entries.length - 20) };
+    } finally { retryingTask = false; }
   }
   async function archiveBatch(task, request) {
     if (!task.outputOptions || !task.outputOptions.exportJpg) return [];
@@ -754,6 +828,7 @@
     finally { await execution.activateDocument(sourceDocument); }
   }
   window.IDPhotoDeliveryService = { begin: begin, prepare: prepare, complete: complete, electronic: electronic, multi: multi, regenerate: regenerate,
+    receiveInformationTasks: receiveInformationTasks,
     pending: pending, retryPending: function (id) { return retryPending(id, false); }, deferPending: deferPending, startOutput: startOutput,
     current: current, currentPreview: currentPreview, nextCustomer: nextCustomer, chooseCurrent: chooseCurrent,
     reprintCurrent: reprintCurrent, verifyOutput: verifyOutput, retryCurrentArchives: retryCurrentArchives,
