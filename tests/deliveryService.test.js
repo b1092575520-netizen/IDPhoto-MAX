@@ -6,25 +6,39 @@ const path = require('node:path');
 
 function harness(options = {}) {
   const files = new Map(), memory = new Map(), closed = [], renders = [], canvases = [];
-  let window, clock = 0, sequence = 20, active = null;
+  let window, clock = 0, sequence = 20, active = null, modalDepth = 0;
   class Entry {
     constructor(name, parent, folder = true) { this.name = name; this.parent = parent; this.isFolder = folder; this.nativePath = parent ? parent.nativePath + '/' + name : name; this.children = new Map(); }
     async createFolder(name) { if (this.children.has(name)) throw Error('Folder exists'); const e = new Entry(name, this); this.children.set(name,e); return e; }
     async createFile(name, opts) { if(this.children.has(name) && !opts.overwrite) throw Error('File exists'); const e = new Entry(name,this,false); this.children.set(name,e); return e; }
     async getEntry(name) {
+      if (name === 'connection-response.json' || name === 'code-response.json') assert.equal(modalDepth, 0, 'Never wait for backend inside Photoshop modal execution');
+      if (name === 'connection-response.json' && options.connection !== false) {
+        const request = JSON.parse(await (await this.getEntry('connection-request.json')).read());
+        return { read: async () => JSON.stringify({ version: 1, requestId: options.staleConnection ? 'old' : request.requestId,
+          protocol: options.connectionProtocol || request.protocol, sourceRoot: options.wrongConnectionRoot ? 'elsewhere' : this.nativePath,
+          consumerId: options.consumerId || 'test-consumer', sourceIdentity: options.sourceIdentity || 'test-directory', state: options.connectionState || 'running',
+          ready: !options.connectionState, cloudChecked: false }) };
+      }
       if(name === 'code-response.json' && options.receipt !== false) {
         const confirmation = JSON.parse(await (await this.getEntry('code-request.json')).read());
         const request = await this.getEntry('request.json'), context = JSON.parse(await (await this.getEntry('context.json')).read());
-        return {read:async()=>JSON.stringify({version:2,requestId:options.staleNonce?'old-request':confirmation.requestId,confirmed:options.denied!==true,contextKey:options.foreignContext?'ctx-other':'ctx-test',status:options.terminal||'preparing',accepted:true,taskId:options.foreignReceipt?'other':context.id,manifestFingerprint:window.IDPhotoDeliveryProtocol.sha256(await request.read()),deliveryId:'remote-'+context.id,code:options.invalidCode?'123456':options.changedDuringRender&&renders.length>1?'N7EW8A':'T2EST4'})};
+        return {read:async()=>{ clock += options.replyDelay || 0; return JSON.stringify({version:2,requestId:options.staleNonce?'old-request':confirmation.requestId,confirmed:options.denied!==true,contextKey:options.foreignContext?'ctx-other':'ctx-test',status:options.terminal||'preparing',accepted:true,taskId:options.foreignReceipt?'other':context.id,manifestFingerprint:window.IDPhotoDeliveryProtocol.sha256(await request.read()),deliveryId:'remote-'+context.id,errorCode:options.errorCode||'',code:options.invalidCode?'123456':options.changedDuringRender&&renders.length>1?'N7EW8A':'T2EST4'});}};
       }
       if(!this.children.has(name))throw Error('Missing '+name); return this.children.get(name);
     }
     async write(value) {
+      if(options.requestWriteFail && this.name.startsWith('request.json.'))throw Error('request disk failure');
       if(options.statusWriteFail && this.name.startsWith('plugin-status.json.') && JSON.parse(value).processing==='blocked-code') throw Error('status disk failure');
       this.value=value; files.set(this.nativePath,value);
     }
     async read() { return this.value; }
-    async moveTo(folder, options) { this.parent.children.delete(this.name); this.name=options.newName; this.parent=folder; folder.children.set(this.name,this); }
+    async moveTo(folder, options) {
+      if (options.overwrite === false && folder.children.has(options.newName)) throw Error('Destination exists');
+      files.delete(this.nativePath); this.parent.children.delete(this.name); this.name=options.newName; this.parent=folder;
+      this.nativePath=folder.nativePath+'/'+this.name; folder.children.set(this.name,this); files.set(this.nativePath,this.value);
+    }
+    async delete() { this.parent.children.delete(this.name); files.delete(this.nativePath); }
   }
   const root = new Entry('local');
   const pixels = new Uint8Array([255,216,3,4,5,6,255,217]).buffer;
@@ -33,24 +47,197 @@ function harness(options = {}) {
     const data=new Uint8Array(500+opts.quality*100);data.set([255,216,255,192,0,11,8,d.height>>8,d.height&255,d.width>>8,d.width&255,1,1,17,0,255,218]);data[data.length-2]=255;data[data.length-1]=217;await file.write(data.buffer);
   }},crop:async()=>{},resizeImage:async(w,h)=>{d.width=w;d.height=h;},duplicate:async()=>doc(d.width,d.height)}; return d; }
   const photo=doc(3000,4000), original=doc(3000,4000);
-  const app={documents:[],open:async()=>photo,get activeDocument(){return active},set activeDocument(d){active=d}};
+  const app={documents:[],open:async()=>{const d=doc(3000,4000);app.documents.push(d);return d;},get activeDocument(){return active},set activeDocument(d){active=d}};
   app.documents.add=async({width,height,name})=>{const d=doc(width,height);d.name=name;canvases.push(d);app.documents.push(d);return d;};
   const filesystem={getDataFolder:async()=>root,createPersistentToken:async entry=>{files.set(entry.nativePath,entry);return entry.nativePath;},getEntryForPersistentToken:async token=>files.get(token)};
   window={localStorage:{getItem:key=>memory.get(key),setItem:(key,value)=>memory.set(key,value)},
     IDPhotoSourceEligibilityService:{checkSource:()=>({eligible:true})},
     IDPhotoPathService:{getDateFolders:()=>({year:'2026',month:'2026-09',day:'2026-09-27'})},
     IDPhotoDateService:{formatDisplayDate:()=> '2026.9.27'},
-    IDPhotoPhotoshopExecution:{executeAsModal:async cb=>cb(),activateDocument:async d=>{active=d},getPhotoshop:()=>({app}),resolveCreatedDocument:(ids,expected)=>{const d=app.documents.filter(d=>!ids.includes(d.id));assert.equal(d.length,1);assert.equal(d[0].name,expected.name);return d[0];}},
+    IDPhotoPhotoshopExecution:{executeAsModal:async cb=>{modalDepth++;try{return await cb();}finally{modalDepth--;}},activateDocument:async d=>{active=d},getPhotoshop:()=>({app}),resolveCreatedDocument:(ids,expected)=>{const d=app.documents.filter(d=>!ids.includes(d.id));assert.equal(d.length,1);assert.equal(d[0].name,expected.name);return d[0];}},
     IDPhotoDocumentService:{closeWithoutSaving:async d=>{closed.push(d.id);if(options.cleanupFail&&d===photo)throw Error('close failure');}},
     IDPhotoCropService:{prepareSinglePhoto:async(d,info,shape,ratio,opts)=>{assert.equal(d,original);assert.equal(opts.preservePixels,true);return {document:photo};}},
     IDPhotoTemplates:{getTemplateById:()=>({infoBar:{x:0,y:100,width:1653,height:555,avatar:{x:20,y:120},texts:[{x:100,y:140}]}})},
-    IDPhotoInfoBarRenderer:{renderInfoBar:async(d,bar,settings,opts)=>{renders.push({id:d.id,source:opts.sourceDocument.id,code:opts.pickupCode,mode:opts.pickupCodeMode});if(options.renderFail)throw 'injected Photoshop failure';}},
+    IDPhotoInfoBarRenderer:{renderInfoBar:async(d,bar,settings,opts)=>{renders.push({id:d.id,source:opts.sourceDocument.id,code:opts.pickupCode,mode:opts.pickupCodeMode,date:opts.dateText});if(options.renderFail)throw 'injected Photoshop failure';return {ok:true,createdCount:1,message:'rendered'};}},
   };
   class Clock extends Date { static now(){clock+=1500;return clock;} }
-  const context=vm.createContext({window,console,Date:Clock,setTimeout:fn=>{fn();},require:name=>{assert.equal(name,'uxp');return {storage:{localFileSystem:filesystem,formats:{binary:'binary',utf8:'utf8'}}};}});
-  for(const file of ['core/deliveryProtocol','core/deliverySpecifications','photoshop/deliveryService'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../src',file+'.js'),'utf8'),context);
-  return {options,service:window.IDPhotoDeliveryService,original,photo,files,closed,renders,canvases,info:{id:original.id,name:'test',widthPx:3000,heightPx:4000,sourceMetadata:{}}};
+  const context=vm.createContext({window,console,Date:Clock,setTimeout:fn=>{if(options.onSleep)options.onSleep(window.IDPhotoDeliveryService);fn();},require:name=>{assert.equal(name,'uxp');return {storage:{localFileSystem:filesystem,formats:{binary:'binary',utf8:'utf8'}}};}});
+  for(const file of ['core/sourceEligibilityService','core/deliveryProtocol','core/deliverySpecifications','photoshop/deliveryService'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../src',file+'.js'),'utf8'),context);
+  window.IDPhotoSourceEligibilityService.checkSource = () => ({ eligible: options.eligible !== false });
+  const reload=()=>vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/photoshop/deliveryService.js'),'utf8'),context);
+  const taskCount=()=>{let count=0;function walk(entry){if(entry.children.has('context.json'))count++;for(const child of entry.children.values())if(child.isFolder)walk(child);}walk(root);return count;};
+  const loadWorkflow=()=>vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/core/layoutWorkflow.js'),'utf8'),context);
+  return {options,get service(){return window.IDPhotoDeliveryService;},reload,loadWorkflow,taskCount,window,doc,app,original,photo,files,closed,renders,canvases,info:{id:original.id,name:'test',widthPx:3000,heightPx:4000,sourceMetadata:{}}};
 }
+test('timeout and reload retain one immutable logical task; explicit electronic retry confirms a new attempt without new delivery', async () => {
+  const h=harness({receipt:false});
+  await assert.rejects(h.service.electronic(h.original,h.info,{}),/超时/);
+  const task=h.service.latest(), payload=await(await task.folder.getEntry('request.json')).read();
+  const previousAttempt=JSON.parse(await(await task.folder.getEntry('code-request.json')).read()).requestId;
+  await assert.rejects(h.service.electronic(h.original,h.info,{}),/尚未完成/);
+  assert.equal(h.taskCount(),1);
+  h.reload();
+  assert.equal((await h.service.pending()).id,task.id);
+  await assert.rejects(h.service.electronic(h.original,h.info,{}),/尚未完成/);
+  h.options.receipt=true;
+  const restored=await h.service.retryPending(task.id);
+  assert.equal(restored.id,task.id);assert.equal(h.taskCount(),1);
+  assert.equal(await(await task.folder.getEntry('request.json')).read(),payload);
+  assert.notEqual(JSON.parse(await(await task.folder.getEntry('code-request.json')).read()).requestId,previousAttempt);
+  assert.equal(restored.completionWritten,true);assert.equal(await h.service.pending(),null);
+  assert.equal(h.renders.length,1);assert.equal(h.closed.includes(h.original.id),false);
+  assert.equal([...h.files.keys()].some(key=>/delivery-retry-temporary\/retry-.*\.jpg$/.test(key)),false);
+  await assert.rejects(h.service.retryPending(task.id),/已改变或已有完成/);
+  assert.equal(h.renders.length,1,'completed retry must not print/render twice');
+});
+
+test('a failed request write resumes the same independently verified prepared photo, without recropping or replacing task identity', async () => {
+  const h=harness({requestWriteFail:true});
+  await assert.rejects(h.service.electronic(h.original,h.info,{}),/request disk failure/);
+  const task=h.service.latest();
+  await assert.rejects(task.folder.getEntry('request.json'));
+  await task.folder.getEntry('photo-prepared.json');
+  h.options.requestWriteFail=false;h.reload();
+  const restored=await h.service.retryPending(task.id);
+  assert.equal(restored.id,task.id);assert.equal(h.taskCount(),1);assert.equal(h.renders.length,1);
+  assert.equal(restored.completionWritten,true);
+});
+
+test('retry refuses changed photo, changed snapshot, consumer, directory identity, or prior output; no completion is invented', async () => {
+  for (const failure of ['photo','context','consumer','directory','output']) {
+    const h=harness({receipt:false});
+    await assert.rejects(h.service.electronic(h.original,h.info,{}));
+    const task=h.service.latest();h.options.receipt=true;
+    if(failure==='photo')await(await task.folder.getEntry('photo.jpg')).write(new Uint8Array([9]).buffer);
+    if(failure==='context'){
+      const contextFile=await task.folder.getEntry('context.json'),value=JSON.parse(await contextFile.read());value.dateText='fake';await contextFile.write(JSON.stringify(value));
+    }
+    if(failure==='consumer')h.options.consumerId='other';
+    if(failure==='directory')h.options.sourceIdentity='other';
+    if(failure==='output')await(await task.folder.createFile('output-started.json',{overwrite:false})).write('{}');
+    await assert.rejects(h.service.retryPending(task.id),/已变化|已改变|不同|输出痕迹/);
+    assert.equal(h.taskCount(),1);assert.equal(h.canvases.length,0);
+    await assert.rejects(task.folder.getEntry('complete.json'));
+  }
+});
+
+test('stopping local wait and late valid receipts never auto-output; a different customer requires explicit deferral', async () => {
+  const h=harness({receipt:false,onSleep:service=>service.stopWaiting()});
+  await assert.rejects(h.service.electronic(h.original,h.info,{}),/停止本机等待/);
+  const task=h.service.latest();h.options.receipt=true;h.options.onSleep=null;
+  assert.equal(await h.service.readCode(task),'T2EST4');
+  assert.equal(h.renders.length,0);await assert.rejects(task.folder.getEntry('complete.json'));
+  await assert.rejects(h.service.deferPending('other'),/已改变/);
+  await h.service.deferPending(task.id);assert.equal(await h.service.pending(),null);
+  const next=await h.service.electronic(h.original,{...h.info,id:99,name:'next'}, {});
+  assert.notEqual(next.id,task.id);assert.equal(h.taskCount(),2);
+  await assert.rejects(task.folder.getEntry('complete.json'));
+});
+
+test('bound authentication diagnostics differ from timeout; stale/cross-task errors cannot become this task diagnosis', async () => {
+  for(const invalid of [false,'staleNonce','foreignReceipt']) {
+    const h=harness({denied:true,errorCode:'UNAUTHENTICATED',...(invalid?{[invalid]:true}:{})});
+    await assert.rejects(h.service.electronic(h.original,h.info,{}),invalid?/超时/:/云端认证失败/);
+    assert.equal(h.canvases.length,0);
+  }
+  const late=harness({replyDelay:61000});
+  await assert.rejects(late.service.electronic(late.original,late.info,{}),/超时/);
+  assert.equal(late.canvases.length,0,'response read after deadline cannot authorize output');
+});
+
+test('a slow but bounded cloud confirmation completes once, outside Photoshop modal execution', async () => {
+  const h=harness({replyDelay:45000});
+  const task=await h.service.electronic(h.original,h.info,{});
+  assert.equal(task.completionWritten,true);
+  assert.equal(h.taskCount(),1);
+  assert.equal(h.renders.length,1);
+  assert.equal(await h.service.pending(),null);
+});
+
+test('concurrent starts and retries have one owner, one task and one output', async () => {
+  const first=harness();
+  const outcomes=await Promise.allSettled([first.service.electronic(first.original,first.info,{}),first.service.electronic(first.original,first.info,{})]);
+  assert.equal(outcomes.filter(x=>x.status==='fulfilled').length,1);assert.equal(first.taskCount(),1);assert.equal(first.renders.length,1);
+  const h=harness({receipt:false});await assert.rejects(h.service.electronic(h.original,h.info,{}));const task=h.service.latest();
+  h.options.receipt=true;
+  const retries=await Promise.allSettled([h.service.retryPending(task.id),h.service.retryPending(task.id)]);
+  assert.equal(retries.filter(x=>x.status==='fulfilled').length,1);assert.equal(h.taskCount(),1);assert.equal(h.renders.length,1);
+});
+
+test('print retry runs the real workflow on saved pixels and frozen template/options; no new prepare or task', async () => {
+  const h=harness({receipt:false}), actions=[];
+  const template={...h.window.IDPhotoTemplates.getTemplateById(),id:'one',name:'原模板',widthPx:600,heightPx:800};
+  const originalVariant={sourceKey:'original-source',background:'blue'};
+  h.info.sourceVariant=originalVariant;
+  const task=await h.service.begin(h.info,'print',template,{shopName:'原店铺'},null,{
+    exportJpg:true,nasArchive:true,quickPrint:true,skipPrint:false,rowGap:10,colGap:12,cropStrategy:'auto'
+  });
+  await assert.rejects(h.service.prepare(task,h.photo),/超时/);
+  const payload=await(await task.folder.getEntry('request.json')).read();
+  h.options.receipt=true;
+  h.window.IDPhotoTemplateOverrideService={getEffectiveTemplateByName:()=>{throw Error('must use original template snapshot');}};
+  h.window.IDPhotoRatioChecker={checkDocumentRatio:()=>({canCheck:true,ok:true,errorPercent:0})};
+  h.window.IDPhotoCropService={prepareSinglePhoto:async(source,info,t,ratio,options)=>{
+    assert.notEqual(source.id,h.original.id);assert.equal(options.keepHighResolution,false);assert.equal(t.name,'原模板');
+    actions.push('crop-saved');return {document:h.doc(600,800)};
+  }};
+  h.window.IDPhotoCanvasService={createSixInchCanvas:async()=>({document:h.doc(3600,2400)})};
+  h.window.IDPhotoLayoutEngine={createLayoutPlan:({template:t})=>({positions:[{x:0,y:0}],infoBar:t.infoBar})};
+  h.window.IDPhotoLayerService={placePhotoCopies:async()=>({placedCount:1})};
+  h.window.IDPhotoExportService={exportSingleJpg:async(doc,options)=>{
+    assert.deepEqual(JSON.parse(JSON.stringify(options.docInfo.sourceVariant)),originalVariant);
+    assert.equal(options.nasArchive,true);actions.push('archive');return {ok:true};
+  }};
+  h.window.IDPhotoPrintService={printOneCopy:async()=>{actions.push('print-substitute');return {ok:true,printed:true};}};
+  h.window.IDPhotoVariantService={analyzeDocument:async()=>{throw Error('must retain pre-crop identity');}};
+  h.loadWorkflow();
+  const restored=await h.service.retryPending(task.id);
+  assert.equal(restored.id,task.id);assert.equal(restored.completionWritten,true);assert.equal(h.taskCount(),1);
+  assert.deepEqual(actions,['crop-saved','archive','print-substitute']);
+  assert.equal(h.renders.length,1);assert.equal(await(await task.folder.getEntry('request.json')).read(),payload);
+  assert.equal(h.closed.includes(h.original.id),false);
+  await assert.rejects(h.service.retryPending(task.id),/已有完成/);
+  assert.equal(actions.filter(x=>x==='print-substitute').length,1);
+});
+function historicalIntent(info) {
+  return { type: "historical-shop", confirmed: true, noExistingDelivery: true, sourceDocumentId: String(info.id),
+    sourceName: String(info.name || ""), sourceMetadata: JSON.stringify(info.sourceMetadata || {}) };
+}
+test('connection requires this nonce and directory; local readiness creates no delivery or code', async () => {
+  const h = harness();
+  const response = await h.service.connection();
+  assert.equal(response.cloudChecked, false);
+  assert.equal(h.service.latest(), null);
+  assert.equal(Array.from(h.files.keys()).some(key => key.endsWith('photo.jpg') || key.includes('/code-request.json')), false);
+  for (const options of [{ connection: false }, { staleConnection: true }, { wrongConnectionRoot: true },
+    { connectionState: 'isolated' }, { connectionState: 'stopping' }, { connectionState: 'stopped' }, { connectionProtocol: 'old' }]) {
+    const blocked = harness(options);
+    await assert.rejects(blocked.service.electronic(blocked.original, blocked.info, {}), error => error.code === 'PICKUP_CODE_REQUIRED');
+    assert.equal(blocked.service.latest(), null);
+    assert.equal(blocked.canvases.length, 0);
+    assert.equal(blocked.renders.length, 0);
+    assert.equal(Array.from(blocked.files.keys()).some(key => key.endsWith('photo.jpg') || key.includes('/request.json')), false);
+  }
+});
+test('historical electronic delivery requires this-photo confirmation; unknown dates stay empty and next photos remain blocked', async () => {
+  for (const captureDate of [undefined, "2000:01:02 12:00:00", "invalid"]) {
+    const h = harness({ eligible: false });
+    if (captureDate) h.info.sourceMetadata.captureDate = captureDate;
+    await assert.rejects(h.service.electronic(h.original, h.info, {}), /明确确认/);
+    assert.equal(h.service.latest(), null);
+    const intent = historicalIntent(h.info);
+    const task = await h.service.electronic(h.original, h.info, {}, intent);
+    const request = JSON.parse(await (await task.folder.getEntry("request.json")).read());
+    assert.equal(request.sourceConfirmation.kind, "historical-shop");
+    assert.equal(request.sourceConfirmation.sourceDocumentId, String(h.info.id));
+    assert.equal(request.sourceConfirmation.captureDate, captureDate && captureDate.startsWith("2000") ? "2000.01.02" : "");
+    assert.equal(h.renders[0].date, request.sourceConfirmation.captureDate);
+    await task.folder.getEntry("complete.json");
+    h.info.id++;
+    await assert.rejects(h.service.electronic(h.original, h.info, {}, intent), /明确确认/);
+    await assert.rejects(h.service.electronic(h.original, h.info, {}), /明确确认/);
+  }
+});
 test('electronic delivery binds original pixels, completion and code; info failure stays independent and records string errors',async()=>{
   for(const renderFail of [false,true]) {
     const h=harness({renderFail}), task=await h.service.electronic(h.original,h.info,{});

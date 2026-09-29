@@ -55,10 +55,29 @@
             <button class="toggle-btn switch-btn wide-btn" type="button" data-key="pickupCodeMode" aria-pressed="false">
               <span class="toggle-name">取件码模式</span><span class="toggle-state">关</span>
             </button>
-            <div class="settings-note">开启后，开始排版会先取码；取码失败会弹窗中止。关闭时按普通流程排版，不自动交付。下方交付按钮始终需要取件码。</div>
+            <div class="settings-note">开启后，本店当天新拍照片先取码再排版；外来、旧片重印和日期不明照片仅排版，信息条留白。旧片需要上传时请明确选择下方交付入口。</div>
             <button class="run-button" id="runButton" type="button" data-icon="rocket"><span class="btn-label">开始排版</span></button>
+            <p id="deliveryConnectionStatus" class="settings-note">交接尚未核对；不影响普通排版</p>
+            <button class="panel-btn wide-btn" id="reviewPendingDelivery" type="button">交付连接与恢复 · 处理未完成交付</button>
+            <button class="panel-btn wide-btn" id="stopDeliveryWait" type="button" style="display: none;">停止本次取码等待</button>
+            <div id="pendingDeliveryPanel" class="delivery-draft-panel" style="display: none;">
+              <p id="pendingDeliveryDescription" class="settings-note"></p>
+              <button class="panel-btn wide-btn" id="checkDeliveryConnection" type="button">检测照片交付后台连接</button>
+              <p class="settings-note">继续的是原任务已保存的照片，不是当前活动照片。会重新核对取件码并沿用原输出选项；停止等待不等于云端取消。</p>
+              <button class="run-button" id="retryPendingDelivery" type="button">继续原任务 · 沿用原输出选项</button>
+              <button class="panel-btn wide-btn" id="deferPendingDelivery" type="button">当前是另一位顾客 · 保留旧任务</button>
+              <button class="panel-btn wide-btn" id="closePendingDelivery" type="button">返回，不改变原任务</button>
+            </div>
             <button class="run-button" id="deliverLayoutButton" type="button"><span class="btn-label">排版并交付 · 沿用打印开关</span></button>
             <button class="panel-btn green-btn wide-btn" id="electronicDeliveryButton" type="button"><span class="btn-label">仅电子交付 · 当前照片</span></button>
+            <div id="historicalDeliveryPanel" class="delivery-draft-panel" style="display: none;">
+              <p id="historicalDeliveryPhoto" class="settings-note"></p>
+              <p class="settings-note">这张照片不符合本店当天新拍规则。只有确认是本店旧片并需要本次补交，才会生成独立成片、取码并上传。拍摄日期缺失时保持未知，不改变普通保存资格。</p>
+              <button class="run-button" id="confirmHistoricalDelivery" type="button">确认本店旧片 · 尚未交付，本次取码上传</button>
+              <button class="panel-btn wide-btn" id="existingHistoricalDelivery" type="button">已经交付 · 选择原任务重导信息条</button>
+              <p class="settings-note">已有交付需要修改照片时，请在后台选择原交付补交／修订，不重复新建。</p>
+              <button class="panel-btn wide-btn" id="cancelHistoricalDelivery" type="button">取消本次交付</button>
+            </div>
             <button class="panel-btn green-btn wide-btn" id="multiDeliveryButton" type="button">多规格草稿 / 同行共领</button>
             <div class="settings-note">仅电子不打印。多规格先生成独立 JPG，再在后台核对并完成；不同底色请先完成处理，再明确补交对应版本。</div>
             <div id="multiDeliveryPanel" class="delivery-draft-panel" style="display: none;">

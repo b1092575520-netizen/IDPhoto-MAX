@@ -31,6 +31,21 @@ function Test-IsAdministrator {
   return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+function Set-RegistryDefaultIfNeeded {
+  param([string]$Path, [string]$Value)
+  if (Test-Path -LiteralPath $Path) {
+    $key = Get-Item -LiteralPath $Path
+    try {
+      if ($key.GetValue('') -ceq $Value) { return }
+    } finally {
+      $key.Close()
+    }
+  } else {
+    New-Item -Path $Path -Force | Out-Null
+  }
+  Set-Item -LiteralPath $Path -Value $Value
+}
+
 function Get-RegisteredPluginTarget {
   param([string]$RegistrationPath, [string]$SystemPluginsRoot, [string]$PluginId)
   if (-not (Test-Path -LiteralPath $RegistrationPath -PathType Leaf)) {
@@ -103,7 +118,7 @@ if (-not $DryRun -and -not (Test-IsAdministrator)) {
     "-Elevated"
   )
   try {
-    $process = Start-Process -FilePath "powershell.exe" -ArgumentList $arguments -Verb RunAs -Wait -PassThru
+    $process = Start-Process -FilePath "powershell.exe" -ArgumentList $arguments -Verb RunAs -WindowStyle Hidden -Wait -PassThru
     exit $process.ExitCode
   } catch {
     Show-DeveloperToolFallback
@@ -133,12 +148,13 @@ if ($DryRun) {
   $programKey = "Registry::HKEY_LOCAL_MACHINE\Software\Classes\IDPhotoMAX.PrintJob"
   $commandKey = Join-Path $programKey "shell\open\command"
   $associationCommand = '"powershell.exe" -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + $bridgeTarget + '" "%1"'
-  New-Item -Path $extensionKey -Force | Out-Null
-  Set-Item -Path $extensionKey -Value "IDPhotoMAX.PrintJob"
-  New-Item -Path $programKey -Force | Out-Null
-  Set-Item -Path $programKey -Value "IDPhoto MAX DS-RX1 Print Job"
-  New-Item -Path $commandKey -Force | Out-Null
-  Set-Item -Path $commandKey -Value $associationCommand
+  Set-RegistryDefaultIfNeeded $extensionKey "IDPhotoMAX.PrintJob"
+  Set-RegistryDefaultIfNeeded $programKey "IDPhoto MAX DS-RX1 Print Job"
+  Set-RegistryDefaultIfNeeded $commandKey $associationCommand
+  if ((Get-Item 'Registry::HKEY_CLASSES_ROOT\.idprint').GetValue('') -cne 'IDPhotoMAX.PrintJob' -or
+      (Get-Item 'Registry::HKEY_CLASSES_ROOT\IDPhotoMAX.PrintJob\shell\open\command').GetValue('') -cne $associationCommand) {
+    throw 'The effective .idprint association differs from the installed bridge; plugin files were not changed.'
+  }
   Write-Host "DS-RX1 bridge deployed to: $bridgeTarget"
   Write-Host ".idprint association registered as IDPhotoMAX.PrintJob"
 }

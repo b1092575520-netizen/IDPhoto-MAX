@@ -263,6 +263,17 @@
     return cameras.length ? cameras.map(cameraLabel).join("；") : "尚未登记本店相机";
   }
 
+  function historicalIntentMatches(intent, docInfo) {
+    return Boolean(intent && docInfo && docInfo.id != null &&
+      intent.type === "historical-shop" && intent.confirmed === true && intent.noExistingDelivery === true &&
+      intent.sourceDocumentId === String(docInfo.id) && intent.sourceName === String(docInfo.name || "") &&
+      intent.sourceMetadata === JSON.stringify(docInfo.sourceMetadata || {}));
+  }
+
+  function captureDateText(metadata) {
+    return normalizeDateKey(metadata && metadata.captureDate).replace(/-/g, ".");
+  }
+
   window.IDPhotoSourceEligibilityService = {
     parseXmp: parseXmp,
     getStableSourceIdFromXmp: getStableSourceIdFromXmp,
@@ -273,6 +284,8 @@
     registerCamera: registerCamera,
     clearRegisteredCameras: clearRegisteredCameras,
     checkSource: checkSource,
+    historicalIntentMatches: historicalIntentMatches,
+    captureDateText: captureDateText,
     getInfoBarDecision: getInfoBarDecision,
     getRegistrationSummary: getRegistrationSummary
   };

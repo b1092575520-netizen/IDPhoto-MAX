@@ -142,7 +142,13 @@ function loadWorkflow(options = {}) {
 
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/core/deliveryProtocol.js"), "utf8"), context);
-  if (options.delivery) context.window.IDPhotoDeliveryService = options.delivery;
+  if (options.realEligibility) {
+    context.window.IDPhotoSettingsProfile = { load: () => ({ cameras: [{ serialNumber: "SHOP" }] }) };
+    vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/core/sourceEligibilityService.js"), "utf8"), context);
+  }
+  if (options.delivery) context.window.IDPhotoDeliveryService = Object.assign({
+    startOutput: async () => { calls.push("output-started"); }
+  }, options.delivery);
   if (options.analyzeDocument) context.window.IDPhotoVariantService = { analyzeDocument: options.analyzeDocument };
   vm.runInContext(fs.readFileSync(workflowPath, "utf8"), context, { filename: workflowPath });
   return {
@@ -330,6 +336,48 @@ test("historical source leaves every information bar blank while preserving layo
   assert.ok(!loaded.calls.includes("info:one"));
   assert.equal(result.successResults[0].result.infoResult.createdCount, 0);
   assert.equal(result.successResults[0].result.infoResult.sourceNotOwned, true);
+});
+
+test("external/history/unknown ordinary multi-template runs never render any strip or contact delivery, even offline", async () => {
+  let begins = 0, prepared = 0;
+  const loaded = loadWorkflow({ realEligibility: true, delivery: {
+    begin: async () => { begins++; throw Error("backend offline"); },
+    prepare: async () => { prepared++; throw Error("must not create upload copy"); }
+  } });
+  for (const metadata of [{ serialNumber: "EXTERNAL" }, { serialNumber: "SHOP", captureDate: "2000-01-02" }, {}, { serialNumber: "SHOP" }]) {
+    const result = await loaded.workflow.run({ templateNames: ["模板一", "模板二"], sourceDocument: { id: 101 },
+      docInfo: { id: 101, name: "ordinary.jpg", sourceMetadata: metadata }, delivery: false, quickPrint: true });
+    assert.equal(result.ok, true);
+    assert.equal(result.successResults[0].result.infoResult.createdCount, 0);
+  }
+  assert.equal(begins, 0); assert.equal(prepared, 0);
+  assert.equal(loaded.calls.filter(call => call.startsWith("info:")).length, 0);
+  assert.equal(loaded.calls.filter(call => call.startsWith("canvas:")).length, 8);
+  assert.equal(loaded.calls.filter(call => call === "print").length, 8);
+});
+
+test("confirmed historical layout shows a coded strip with the real or unknown date and does not change archive metadata", async () => {
+  for (const dateText of ["", "2000.01.02"]) {
+    const originalMetadata = { historical: true };
+    let completes = 0;
+    const loaded = loadWorkflow({ leaveInfoBarBlank: true, delivery: {
+      begin: async (_info, _mode, _template, _settings, intent) => {
+        assert.equal(intent.type, "historical-shop"); return { id: "history", historical: true, dateText };
+      },
+      prepare: async task => { task.fingerprint = "saved"; return "A2B3C4"; },
+      complete: async () => { completes++; return { info: "saved", message: "prepared" }; }
+    }, inspectRender: options => { assert.equal(options.dateText, dateText); assert.equal(options.pickupCode, "A2B3C4"); },
+    inspectExport: options => { assert.equal(options.docInfo.sourceMetadata.historical, true); } });
+    const result = await loaded.workflow.run({ templateNames: ["模板一"], sourceDocument: { id: 101 },
+      docInfo: { id: 101, sourceMetadata: originalMetadata }, delivery: true,
+      deliveryIntent: { type: "historical-shop" }, exportJpg: true, quickPrint: true });
+    assert.equal(result.ok, true);
+    assert.equal(completes, 1);
+    assert.equal(loaded.calls.filter(call => call === "info:one").length, 1);
+    assert.equal(loaded.calls.filter(call => call === "print").length, 1);
+    assert.equal(result.exportFailures.length, 0);
+    assert.deepEqual(originalMetadata, { historical: true });
+  }
 });
 
 test("quick print submits each successful layout once and keeps the final document open", async () => {

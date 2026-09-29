@@ -181,7 +181,7 @@
           docInfo && docInfo.sourceMetadata ? docInfo.sourceMetadata : null,
           docInfo && docInfo.name ? docInfo.name : ""
         );
-        if (decision.leaveBlank) {
+        if (decision.leaveBlank && !runOptions.historicalDelivery && !runOptions.resumeDeliveryTask) {
           if (runOptions.delivery) throw window.IDPhotoDeliveryProtocol.pickupCodeError("当前照片的信息条不可用，已停止取件码模式输出。");
           return {
             ok: true,
@@ -189,17 +189,18 @@
             skipped: true,
             sourceNotOwned: true,
             eligibilityReason: decision.reason,
-            message: "非本店拍摄照片，信息条区域留白"
+            message: "本次仅排版，信息条区域留白"
           };
         }
       }
       if (window.IDPhotoDateService && typeof window.IDPhotoDateService.formatDisplayDate === "function") {
         dateText = window.IDPhotoDateService.formatDisplayDate();
       }
+      if (runOptions.historicalDelivery || runOptions.resumeDeliveryTask) dateText = runOptions.deliveryDateText || "";
       return await requireMethod("IDPhotoInfoBarRenderer", "renderInfoBar")(
         targetDocument,
         layoutPlan.infoBar,
-        getSettings(),
+        runOptions.deliverySettings || getSettings(),
         {
           dateText: dateText,
           pickupCodeMode: Boolean(runOptions.delivery),
@@ -285,7 +286,7 @@
     }
 
     async function runOne(templateName, sourceDocument, docInfo, runOptions, index, total) {
-      var template = getEffectiveTemplateByName(templateName);
+      var template = runOptions.resumeDeliveryTask ? JSON.parse(JSON.stringify(runOptions.resumeDeliveryTask.template)) : getEffectiveTemplateByName(templateName);
       var ratioResult;
       var processResult;
       var canvasResult;
@@ -305,8 +306,12 @@
           if (!template.infoBar || template.infoBar.enabled === false || template.infoBar.position === "none") {
             throw new Error("当前模板缺少可用信息条，请选择带取件码信息条的模板。");
           }
-          deliveryTask = await requireMethod("IDPhotoDeliveryService", "begin")(docInfo, "print", template, getSettings());
+          deliveryTask = runOptions.resumeDeliveryTask ||
+            await requireMethod("IDPhotoDeliveryService", "begin")(docInfo, "print", template, getSettings(), runOptions.deliveryIntent, runOptions);
           if (!deliveryTask) throw new Error("未创建有效的交付任务。");
+          runOptions.historicalDelivery = deliveryTask.historical === true;
+          runOptions.deliveryDateText = deliveryTask.dateText || "";
+          runOptions.deliverySettings = deliveryTask.settings;
         } catch (deliveryError) {
           throw window.IDPhotoDeliveryProtocol.pickupCodeError(deliveryError);
         }
@@ -331,7 +336,7 @@
         docInfo,
         template,
         ratioResult,
-        { strategy: runOptions.cropStrategy, keepHighResolution: Boolean(deliveryTask) }
+        { strategy: runOptions.cropStrategy, keepHighResolution: Boolean(deliveryTask && !runOptions.resumeDeliveryTask) }
       );
       if (!processResult || !processResult.document || sameDocument(processResult.document, sourceDocument)) {
         throw new Error("处理后单张不是独立文档，已停止以保护原片");
@@ -339,11 +344,16 @@
       runOptions.pickupCode = "";
       if (deliveryTask) {
         try {
+          if (runOptions.resumeDeliveryTask) {
+            runOptions.pickupCode = window.IDPhotoDeliveryProtocol.requirePickupCode(deliveryTask.code);
+          } else {
           if (!processResult.highResolutionDocument || sameDocument(processResult.highResolutionDocument, sourceDocument)) {
             throw new Error("独立高清成片不可用，未请求取件码。");
           }
           runOptions.pickupCode = await requireMethod("IDPhotoDeliveryService", "prepare")(deliveryTask, processResult.highResolutionDocument);
           window.IDPhotoDeliveryProtocol.requirePickupCode(runOptions.pickupCode);
+          }
+          await requireMethod("IDPhotoDeliveryService", "startOutput")(deliveryTask);
           deliveryResult = { requested: true, ok: true, taskId: deliveryTask.id, message: "取件码 " + runOptions.pickupCode + "，照片准备中" };
         } catch (deliveryError) {
           await closeProcessedDocument(processResult, "pickup code blocked");
@@ -386,7 +396,7 @@
           deliveryResult.message += "；" + deliveryStatus.message + (deliveryStatus.info === "failed" ? "；信息条图片待重试" : "；信息条图片已保存");
         } catch (completionError) {
           deliveryResult.ok = false;
-          deliveryResult.message += "；处理完成信号未提交：" + errorToText(completionError);
+          deliveryResult.message += (deliveryTask.completionWritten ? "；处理完成信号已保存，后续状态未能记录：" : "；处理完成信号未提交：") + errorToText(completionError);
         }
       }
 
@@ -491,6 +501,8 @@
         runOptions || {}
       );
       templateNames = runOptions.templateNames.slice();
+      runOptions.historicalDelivery = false;
+      runOptions.deliveryDateText = "";
       if (runOptions.delivery && templateNames.length !== 1) throw window.IDPhotoDeliveryProtocol.pickupCodeError("取件码模式一次选一张规格；多规格请使用“多规格草稿”，或关闭取件码模式后普通排版。未创建交付。");
 
       if (runOptions.sourceDocument && runOptions.docInfo && runOptions.docInfo.id != null &&
@@ -498,8 +510,9 @@
         throw new Error("读取原片后活动文档已改变，请重新执行排版");
       }
       // Freeze one identity before any template crops/resizes the original.
-      runOptions.docInfo = Object.assign({}, runOptions.docInfo, { sourceVariant: null });
-      if (!runOptions.skipExport && (runOptions.exportJpg || runOptions.tryExportSingle) &&
+      runOptions.docInfo = Object.assign({}, runOptions.docInfo, {
+        sourceVariant: runOptions.resumeDeliveryTask ? runOptions.resumeDeliveryTask.docInfo.sourceVariant : null });
+      if (!runOptions.resumeDeliveryTask && !runOptions.skipExport && (runOptions.exportJpg || runOptions.tryExportSingle) &&
           window.IDPhotoVariantService && window.IDPhotoVariantService.analyzeDocument) {
         try {
           runOptions.docInfo.sourceVariant = await window.IDPhotoVariantService.analyzeDocument(runOptions.sourceDocument);

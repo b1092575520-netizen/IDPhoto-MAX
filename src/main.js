@@ -216,7 +216,7 @@
     var message = "取件码模式已中止\n\n" + errorToText(error) +
       "\n\n本次未输出成品、未提交打印。请检查交付后台是否运行、网络及交接目录是否一致。" +
       "\n若已生成独立交接副本，会保留待处理；本次未提交交付完成，网络恢复不会自动打印或发布。" +
-      "\n如仅需普通排版，请关闭取件码模式，再使用“开始排版”。";
+      "\n已有独立副本请使用“处理未完成交付”继续原任务；不要重复新建同一交付。";
     setStatus(message);
     try {
       await window.IDPhotoPhotoshopExecution.getPhotoshop().app.showAlert(message);
@@ -854,9 +854,50 @@
     return text;
   }
 
+  async function confirmDeliverySource(docInfo) {
+    var service = window.IDPhotoSourceEligibilityService;
+    if (!service || !service.checkSource) throw new Error("照片来源判断未加载");
+    if (service.checkSource(docInfo.sourceMetadata, docInfo.name).eligible) return { proceed: true, intent: null };
+    var panel = one("#historicalDeliveryPanel");
+    if (!panel) throw new Error("本店旧片补交确认界面未加载");
+    var intent = { type: "historical-shop", confirmed: true, noExistingDelivery: true,
+      sourceDocumentId: String(docInfo.id), sourceName: String(docInfo.name || ""),
+      sourceMetadata: JSON.stringify(docInfo.sourceMetadata || {}) };
+    one("#historicalDeliveryPhoto").textContent = "本次照片：" + docInfo.name;
+    panel.style.display = "block";
+    setStatus("请核对本次旧片补交；普通重印请取消后使用开始排版");
+    var choice;
+    try {
+      choice = await new Promise(function (resolve) {
+        one("#confirmHistoricalDelivery").onclick = function () { resolve("new"); };
+        one("#existingHistoricalDelivery").onclick = function () { resolve("existing"); };
+        one("#cancelHistoricalDelivery").onclick = function () { resolve("cancel"); };
+      });
+    } finally {
+      panel.style.display = "none";
+      ["#confirmHistoricalDelivery", "#existingHistoricalDelivery", "#cancelHistoricalDelivery"].forEach(function (id) { one(id).onclick = null; });
+    }
+    var active = getCurrentDocumentObject();
+    if (!active || active.id !== docInfo.id) throw new Error("确认期间活动照片已改变，本次补交已取消，请重新选择");
+    if (choice === "existing") {
+      var folder = await require("uxp").storage.localFileSystem.getFolder();
+      if (folder) {
+        await window.IDPhotoDeliveryService.regenerate(folder);
+        setStatus("原交付信息条已重导；未创建新交付，未自动打印");
+      } else setStatus("未选择原任务，本次未创建交付");
+      return { proceed: false };
+    }
+    if (choice !== "new") { setStatus("已取消本次交付"); return { proceed: false }; }
+    var currentInfo = await readActiveDocumentForStatus("补交确认");
+    if (!service.historicalIntentMatches(intent, currentInfo))
+      throw new Error("确认期间照片来源信息已改变，本次补交已取消，请重新核对");
+    return { proceed: true, intent: intent };
+  }
+
   async function runCurrentTemplate(options) {
     state.pendingTemplateSelection = null;
-    var delivery = options && typeof options.delivery === "boolean" ? options.delivery : state.pickupCodeMode;
+    var explicitDelivery = options && typeof options.delivery === "boolean" ? options.delivery : null;
+    var delivery = explicitDelivery === true;
 
     var templateNames = getSelectedTemplateNames();
     var docInfo;
@@ -874,6 +915,7 @@
     var duplicateExports;
     var replacedExports;
     var completionMessage;
+    var deliveryIntent = null;
 
     if (!templateNames.length) {
       setStatus("请选择尺寸");
@@ -903,6 +945,17 @@
       }
       logStep("document", "success", docInfo);
       setStatus("步骤1成功：" + describeDocument(docInfo));
+      // Decide from this original photo before creating any delivery copy/task.
+      // An explicit delivery failure must never fall back to ordinary printing.
+      if (explicitDelivery === null && state.pickupCodeMode) {
+        var eligibilityService = window.IDPhotoSourceEligibilityService;
+        if (!eligibilityService || typeof eligibilityService.checkSource !== "function") {
+          throw new Error("照片来源判断未加载，请重新加载插件后再排版");
+        }
+        var sourceDecision = eligibilityService.checkSource(docInfo.sourceMetadata, docInfo.name);
+        delivery = sourceDecision.eligible === true;
+        if (!delivery) setStatus("本次仅排版，信息条区域留白");
+      }
     } catch (documentError) {
       logStepError("document", documentError);
       setStatus("documentService 失败：" + errorToText(documentError));
@@ -910,11 +963,17 @@
     }
 
     try {
+      if (explicitDelivery === true) {
+        var confirmation = await confirmDeliverySource(docInfo);
+        if (!confirmation.proceed) return;
+        deliveryIntent = confirmation.intent;
+      }
       runResult = await getLayoutWorkflow().run({
         templateNames: templateNames,
         sourceDocument: sourceDocument,
         docInfo: docInfo,
         delivery: delivery,
+        deliveryIntent: deliveryIntent,
         cropStrategy: getSelectedCropStrategy(),
         exportJpg: state.exportJpg,
         nasArchive: state.nasArchive,
@@ -1151,16 +1210,77 @@
       try {
         var info = await readActiveDocumentForStatus("电子交付"), sourceDoc = getCurrentDocumentObject();
         if (!info || !sourceDoc || sourceDoc.id !== info.id) throw new Error("活动照片已改变，请重新确认");
+        var confirmation = await confirmDeliverySource(info);
+        if (!confirmation.proceed) return;
         setStatus("正在生成当前照片的独立电子成片，不调用打印");
-        var task = await window.IDPhotoDeliveryService.electronic(sourceDoc, info, window.IDPhotoSettingsStore.load());
+        var task = await window.IDPhotoDeliveryService.electronic(sourceDoc, info, window.IDPhotoSettingsStore.load(), confirmation.intent);
         setStatus("电子成片已交接，等待后台发布；取件码 " + task.code + "；信息条：" + (task.status.info === "saved" ? "已保存" : "待重试"));
       } catch (error) {
-        setStatus("电子交付未完成：" + errorToText(error));
+        setStatus((error && error.completed ? "完成信号已提交，后续处理待核对：" : "电子交付未完成：") + errorToText(error));
         if (error && error.code === "PICKUP_CODE_REQUIRED") await showPickupCodeFailure(error);
       }
       finally { endPhotoshopOperation("delivery"); }
     });
     var configureDelivery = one("#configureDeliveryRoot");
+    var pendingReview = one("#reviewPendingDelivery"), pendingId = null;
+    if (pendingReview) {
+      pendingReview.addEventListener("click", async function () {
+        if (!beginPhotoshopOperation("pending-review")) { setStatus("当前操作尚未结束，请稍候"); return; }
+        try {
+          var item = await window.IDPhotoDeliveryService.pending();
+          one("#pendingDeliveryPanel").style.display = "block";
+          one("#retryPendingDelivery").style.display = item ? "block" : "none";
+          one("#deferPendingDelivery").style.display = item ? "block" : "none";
+          if (!item) { pendingId = null; one("#pendingDeliveryDescription").textContent = "没有等待继续的原任务；可在此检测本机交接连接"; return; }
+          pendingId = item.id;
+          one("#pendingDeliveryDescription").textContent = "原照片：" + item.name + " · " +
+            (item.mode === "electronic" ? "仅电子，不打印" : "排版；原快速打印" + (item.outputOptions.quickPrint && !item.outputOptions.skipPrint ? "开启" : "关闭"));
+          one("#pendingDeliveryPanel").style.display = "block";
+        } catch (error) { setStatus("原任务待核对：" + errorToText(error)); }
+        finally { endPhotoshopOperation("pending-review"); }
+      });
+      one("#closePendingDelivery").addEventListener("click", function () {
+        if (!state.activePhotoshopOperation) { pendingId = null; one("#pendingDeliveryPanel").style.display = "none"; }
+      });
+      one("#deferPendingDelivery").addEventListener("click", async function () {
+        if (!pendingId || !beginPhotoshopOperation("delivery")) return;
+        try {
+          await window.IDPhotoDeliveryService.deferPending(pendingId);
+          pendingId = null; one("#pendingDeliveryPanel").style.display = "none";
+          setStatus("旧任务保留未完成，不代表云端取消；现在可为另一位顾客明确开始新交付");
+        } catch (error) { setStatus(errorToText(error)); }
+        finally { endPhotoshopOperation("delivery"); }
+      });
+      one("#retryPendingDelivery").addEventListener("click", async function () {
+        if (!pendingId || !beginPhotoshopOperation("delivery")) return;
+        try {
+          var task = await window.IDPhotoDeliveryService.retryPending(pendingId);
+          pendingId = null; one("#pendingDeliveryPanel").style.display = "none";
+          var message = task.completionWritten ? "原任务已提交完成信号，等待后台发布" : "原任务已生成成品；完成信号仍待核对，勿重复输出";
+          if (task.retryResult && task.retryResult.printFailures.length) message += "；打印未成功，请核对打印状态";
+          if (task.retryResult && task.retryResult.exportFailures.length) message += "；普通保存未成功，请核对归档状态";
+          setStatus(message);
+        } catch (error) {
+          setStatus((error && error.completed ? "原任务完成信号已保存，后续处理待核对：" : "原任务未继续：") + errorToText(error));
+          if (error && error.code === "PICKUP_CODE_REQUIRED") await showPickupCodeFailure(error);
+        } finally { endPhotoshopOperation("delivery"); }
+      });
+    }
+    var stopWait = one("#stopDeliveryWait");
+    if (stopWait) stopWait.addEventListener("click", function () {
+      setStatus(window.IDPhotoDeliveryService.stopWaiting() ?
+        "已请求停止本机等待；原任务保留，不代表云端取消" : "当前没有正在等待的取码请求");
+    });
+    var checkConnection = one("#checkDeliveryConnection");
+    if (checkConnection) checkConnection.addEventListener("click", async function () {
+      if (state.activePhotoshopOperation) { setStatus("当前操作尚未结束，请稍候再检测连接"); return; }
+      checkConnection.disabled = true;
+      try {
+        await window.IDPhotoDeliveryService.connection();
+        one("#deliveryConnectionStatus").textContent = "交接已连通；云端将在实际交付时核对";
+      } catch (error) { one("#deliveryConnectionStatus").textContent = errorToText(error); }
+      finally { checkConnection.disabled = false; }
+    });
     if (window.IDPhotoDeliveryDraftView) window.IDPhotoDeliveryDraftView.create({ currentDocumentId: function () { var doc = getCurrentDocumentObject(); return doc && doc.id; }, generate: async function (specs, target) {
       if (!beginPhotoshopOperation("delivery")) throw new Error("当前任务尚未完成，请稍候。");
       try {
@@ -1265,6 +1385,16 @@
   }
 
   function init() {
+    if (window.IDPhotoDeliveryService && window.IDPhotoDeliveryService.onWaitingChanged)
+      window.IDPhotoDeliveryService.onWaitingChanged(function (waiting) {
+        var stop = one("#stopDeliveryWait"); if (stop) stop.style.display = waiting ? "block" : "none";
+      });
+    if (window.IDPhotoDeliveryService && window.IDPhotoDeliveryService.onProgress)
+      window.IDPhotoDeliveryService.onProgress(function (message) {
+        var connectionStatus = one("#deliveryConnectionStatus");
+        if (connectionStatus) connectionStatus.textContent = message;
+        setStatus(message);
+      });
     loadQuickPrintPreference();
     loadPickupCodeMode();
     initSettings();
