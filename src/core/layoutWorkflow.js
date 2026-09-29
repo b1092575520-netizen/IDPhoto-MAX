@@ -25,8 +25,15 @@
     return moduleRef[methodName].bind(moduleRef);
   }
 
-  function getEffectiveTemplateByName(name) {
+  function getEffectiveTemplateByName(name, delivery) {
     var template;
+    if (window.IDPhotoTemplates && window.IDPhotoTemplates.forDelivery) {
+      template = window.IDPhotoTemplates.getTemplateByName(name);
+      if (!template) return null;
+      template = window.IDPhotoTemplates.forDelivery(template, Boolean(delivery));
+      return window.IDPhotoTemplateOverrideService ?
+        window.IDPhotoTemplateOverrideService.getEffectiveTemplate(template) : template;
+    }
     if (
       window.IDPhotoTemplateOverrideService &&
       typeof window.IDPhotoTemplateOverrideService.getEffectiveTemplateByName === "function"
@@ -270,6 +277,7 @@
         template: template,
         docInfo: docInfo,
         nasArchive: Boolean(runOptions.nasArchive),
+        deliveryTask: runOptions.deliveryTask,
         archiveIndexExecutor: runOptions.archiveIndexExecutor
       });
     }
@@ -286,7 +294,7 @@
     }
 
     async function runOne(templateName, sourceDocument, docInfo, runOptions, index, total) {
-      var template = runOptions.resumeDeliveryTask ? JSON.parse(JSON.stringify(runOptions.resumeDeliveryTask.template)) : getEffectiveTemplateByName(templateName);
+      var template = runOptions.resumeDeliveryTask ? JSON.parse(JSON.stringify(runOptions.resumeDeliveryTask.template)) : getEffectiveTemplateByName(templateName, runOptions.delivery);
       var ratioResult;
       var processResult;
       var canvasResult;
@@ -392,6 +400,13 @@
       }
       if (deliveryTask && deliveryTask.fingerprint) {
         try {
+          await requireMethod("IDPhotoDeliveryService", "verifyOutput")(deliveryTask, runOptions.pickupCode);
+        } catch (changedDelivery) {
+          await closeTargetDocument(targetDocument, "pickup code changed");
+          await closeProcessedDocument(processResult, "pickup code changed");
+          throw window.IDPhotoDeliveryProtocol.pickupCodeError(changedDelivery);
+        }
+        try {
           var deliveryStatus = await requireMethod("IDPhotoDeliveryService", "complete")(deliveryTask, targetDocument, layoutResult.layoutPlan.infoBar);
           deliveryResult.message += "；" + deliveryStatus.message + (deliveryStatus.info === "failed" ? "；信息条图片待重试" : "；信息条图片已保存");
         } catch (completionError) {
@@ -404,6 +419,8 @@
       async function submitPrint(archiveIndex) {
         printAttempted = true;
         try {
+          if (deliveryTask && runOptions.quickPrint && !runOptions.skipPrint)
+            await requireMethod("IDPhotoDeliveryService", "verifyOutput")(deliveryTask, runOptions.pickupCode);
           printResult = await printLayout(targetDocument, runOptions, archiveIndex);
         } catch (printError) {
           reportError("print", printError);
@@ -412,6 +429,7 @@
         }
       }
       var exportOptions = Object.assign({}, runOptions);
+      exportOptions.deliveryTask = deliveryTask;
       if (runOptions.quickPrint && !runOptions.skipPrint) {
         // Save the photo first, then commit its index and print through one shell launch.
         exportOptions.archiveIndexExecutor = async function (file, operation) {

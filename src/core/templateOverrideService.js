@@ -158,6 +158,17 @@
     }
 
     applyTextOverride(next.infoBar.texts, override);
+    if (next.infoBar.pickupLayout === "v5") {
+      var bar = next.infoBar, space = template.deliveryArea || template.infoBar;
+      if (bar.x < space.x || bar.y < space.y ||
+          bar.x + bar.width > space.x + space.width || bar.y + bar.height > space.y + space.height ||
+          Math.max(bar.width, bar.height) > 1417 || Math.min(bar.width, bar.height) < 150)
+        throw new Error("取码信息条调试尺寸超出模板空位或6厘米限制，请恢复本模板默认布局");
+      bar.safeMargin = 24;
+      // V5 typography is measured and fitted as one coherent reading layout.
+      // Old independent text rectangles cannot override or remove its code.
+      delete bar.textLayers; delete bar.avatar;
+    }
     next.debugOverrideApplied = true;
     return next;
   }
@@ -166,7 +177,8 @@
     var override = template ? getOverride(template.id) : null;
     // Old debug rectangles describe full-length strips. Keep their saved data,
     // but do not apply them to the new detachable region or remove its code.
-    if (template && template.infoBar && template.infoBar.layoutVersion === 5 && override && override.layoutVersion !== 5) override = null;
+    if (template && template.infoBar && override &&
+        (template.infoBar.layoutVersion || 0) !== (override.layoutVersion || 0)) override = null;
     return override ? applyOverride(template, override) : clone(template);
   }
 

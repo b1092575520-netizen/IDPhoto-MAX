@@ -48,8 +48,8 @@ function makeRendererHarness(options) {
         id: nextLayerId++,
         bounds: { left: 0, top: 0, right: 950, bottom: 950 },
         async resize(percent) {
-          this.bounds.right = this.bounds.left + (950 * percent) / 100;
-          this.bounds.bottom = this.bounds.top + (950 * percent) / 100;
+          this.bounds.right = this.bounds.left + ((this.bounds.right-this.bounds.left) * percent) / 100;
+          this.bounds.bottom = this.bounds.top + ((this.bounds.bottom-this.bounds.top) * percent) / 100;
         }
       };
       if (sourceDocument === destinationDocument) {
@@ -100,6 +100,14 @@ function makeRendererHarness(options) {
     action: {
       async batchPlay(commands) {
         const command = commands[0];
+        if(command && command._obj==='transform') {
+          assert.equal(command.angle._value,90);
+          const layer=targetDocument.layers.find(l=>l.id===command._target[0]._id);
+          const b=layer.bounds,w=b.right-b.left,h=b.bottom-b.top;
+          layer.bounds={left:b.left,top:b.top,right:b.left+h,bottom:b.top+w};
+          layer.rotated=true;
+          return [];
+        }
         if (command && command._obj === "move" && command._target[0]._id) {
           const layerIndex = targetDocument.layers.findIndex((layer) => layer.id === command._target[0]._id);
           if (layerIndex === 0) throw new Error('Photoshop: move to front is unavailable for the first layer');
@@ -141,6 +149,7 @@ function makeRendererHarness(options) {
   vm.createContext(context);
   loadPhotoshopExecution(context);
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/core/deliveryProtocol.js"), "utf8"), context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/core/pickupStripLayout.js"), "utf8"), context);
   vm.runInContext(fs.readFileSync(rendererPath, "utf8"), context, { filename: rendererPath });
 
   return {
@@ -238,18 +247,22 @@ for (const templateName of ["香港台湾 3.0x4.0", "阿根廷 4.0x4.0"]) {
   });
 }
 
-for (const template of loadTemplates().getAllTemplates()) {
-  test(template.id + ' renders only compact bounded text and the matching pickup code', async () => {
+for (const raw of loadTemplates().getAllTemplates()) {
+  const template=loadTemplates().forDelivery(raw,true);
+  test(template.id + ' renders v5 content with the matching code and 1mm margins', async () => {
     const harness=makeRendererHarness();
     await harness.renderer.renderInfoBar(harness.targetDocument,template.infoBar,
       {shopName:'福清印象照相馆',shopPhone:'电话未填写'},
       {dateText:'2026.09.27',pickupCodeMode:true,pickupCode:'A2B3C4',template,sourceDocument:harness.sourceDocument});
     const text=harness.textCommands.map(c=>c.using.textKey);
-    assert.ok(text.includes('取件码：A2B3C4'));
-    assert.equal(text.length,template.infoBar.texts.length);
-    for(const layer of harness.targetDocument.layers.filter(l=>l.kind==='text')) {
+    assert.ok(text.includes('A2B3C4'));
+    assert.ok(text.some(t=>/电子照片/.test(t)));
+    assert.ok(text.some(t=>/保存照片/.test(t)));
+    assert.equal(text.some(t=>/扫码|扫一扫|占位/.test(t)),false);
+    for(const layer of harness.targetDocument.layers) {
       const b=layer.bounds,r=template.infoBar;
-      assert.ok(b.left>=r.x && b.top>=r.y && b.right<=r.x+r.width+1 && b.bottom<=r.y+r.height+1,template.id+' overflow');
+      assert.ok(b.left>=r.x+24 && b.top>=r.y+24 && b.right<=r.x+r.width-24+0.001 && b.bottom<=r.y+r.height-24+0.001,template.id+' overflow');
+      assert.equal(Boolean(layer.rotated),r.orientation==='vertical');
     }
   });
 }
@@ -269,13 +282,14 @@ test('ordinary mode never renders a pickup code, including one left in caller op
     await harness.renderer.renderInfoBar(harness.targetDocument,template.infoBar,{},
       {pickupCodeMode:false,pickupCode:'A2B3C4',template,sourceDocument:harness.sourceDocument});
     assert.equal(harness.textCommands.some(c=>/取件码|待补码/.test(c.using.textKey)),false,template.id);
-    assert.ok(harness.textCommands.some(c=>c.using.textKey.includes('电话未填写')));
+    if(template.id==='us-visa') assert.equal(harness.targetDocument.layers.length,0);
+    else assert.ok(harness.textCommands.some(c=>c.using.textKey.includes('电话未填写')));
   }
 });
 
-test("debug mode gives compact code/contact layers savable DEBUG names", async () => {
+test("debug mode gives v5 layers unique DEBUG names", async () => {
   const templates = loadTemplates();
-  const template = templates.getTemplateById("standard-two-inch");
+  const template = templates.forDelivery(templates.getTemplateById("standard-two-inch"),true);
   const harness = makeRendererHarness();
 
   await harness.renderer.renderInfoBar(
@@ -287,7 +301,7 @@ test("debug mode gives compact code/contact layers savable DEBUG names", async (
 
   assert.deepEqual(
     harness.textCommands.map((command) => command.using.name),
-    ["DEBUG_text_pickupCode", "DEBUG_text_shopContact"]
+    ["DEBUG_text_pickupLabel", "DEBUG_text_pickupCode", "DEBUG_text_steps", "DEBUG_text_details"]
   );
 });
 
@@ -296,16 +310,16 @@ test("a saved free-transform target is reapplied to the next text layer", async 
   const template = templates.getTemplateById("standard-two-inch");
   const harness = makeRendererHarness();
   template.infoBar.textLayers = {
-    shopContact: { x: 3300, y: 280, width: 480, height: 120, fontSize: 6.4 }
+    phone: { x: 3300, y: 280, width: 480, height: 120, fontSize: 6.4 }
   };
 
   await harness.renderer.renderInfoBar(
     harness.targetDocument,
     template.infoBar,
     { shopName: "\u798f\u6e05\u5370\u8c61\u7167\u76f8\u9986", shopPhone: "13003825982" },
-    { dateText: "2026. 1.", template, sourceDocument: harness.sourceDocument }
+    { dateText: "2026. 1.", template, sourceDocument: harness.sourceDocument, debugMode:true }
   );
 
-  const phoneLayer = harness.targetDocument.layers.find((layer) => layer.name === "shopContact");
+  const phoneLayer = harness.targetDocument.layers.find((layer) => layer.name === "DEBUG_text_phone");
   assert.deepEqual(phoneLayer.bounds, { left: 3300, top: 280, right: 3780, bottom: 400 });
 });

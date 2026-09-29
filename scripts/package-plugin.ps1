@@ -69,6 +69,10 @@ New-Item -ItemType Directory -Path $stageRoot -Force | Out-Null
 }
 Copy-Item -LiteralPath (Join-Path $ProjectRoot "src") -Destination $stageRoot -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $ProjectRoot "bridge") -Destination $stageRoot -Recurse -Force
+New-Item -ItemType Directory -Path (Join-Path $stageRoot "docs") -Force | Out-Null
+foreach ($document in @("pickup-code-mode.md", "store-workflow.md")) {
+  Copy-Item -LiteralPath (Join-Path $ProjectRoot ("docs\" + $document)) -Destination (Join-Path $stageRoot "docs") -Force
+}
 Copy-Item -LiteralPath (Join-Path $ProjectRoot "scripts\install-plugin.ps1") -Destination $stageRoot -Force
 Copy-Item -LiteralPath (Join-Path $ProjectRoot "scripts\install-plugin.cmd") -Destination $stageRoot -Force
 

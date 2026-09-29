@@ -68,7 +68,7 @@
   }
 
   function getLayerBounds(layer) {
-    var bounds = layer && (layer.boundsNoEffects || layer.bounds);
+    var bounds = layer && (layer.bounds || layer.boundsNoEffects);
     if (!bounds) {
       return { left: 0, top: 0, right: 0, bottom: 0 };
     }
@@ -632,12 +632,17 @@
     };
   }
 
-  async function makeTextLayerWithBatchPlay(targetDocument, text, x, y, fontSize, name, color, orientation, knownLayerIds) {
+  async function makeTextLayerWithBatchPlay(targetDocument, text, x, y, fontSize, name, color, orientation, knownLayerIds, bold) {
     var attempts = [
       { postScriptName: "AdobeHeitiStd-Regular", name: "Adobe 黑体 Std", style: "Regular" },
       { postScriptName: "SimHei", name: "黑体", style: "Regular" },
       null
     ];
+    // Only the new strip uses YaHei. Ordinary templates keep their original font.
+    if (typeof bold === "boolean") attempts.unshift({
+      postScriptName: bold ? "MicrosoftYaHei-Bold" : "MicrosoftYaHei",
+      name: "Microsoft YaHei", style: bold ? "Bold" : "Regular"
+    });
     var index;
     var lastError;
     var layerService = getLayerService();
@@ -669,12 +674,12 @@
     throw lastError || new Error("创建文字图层失败");
   }
 
-  async function createTextLayer(targetDocument, text, x, y, fontSize, name, color, orientation, knownLayerIds) {
+  async function createTextLayer(targetDocument, text, x, y, fontSize, name, color, orientation, knownLayerIds, bold) {
     var layer;
 
     assertPointInCanvas(x, y, name);
     await activateDocument(targetDocument);
-    layer = await makeTextLayerWithBatchPlay(targetDocument, text, x, y, fontSize, name, color, orientation, knownLayerIds);
+    layer = await makeTextLayerWithBatchPlay(targetDocument, text, x, y, fontSize, name, color, orientation, knownLayerIds, bold);
     if (!layer) {
       throw new Error("创建文字图层后未获取到目标图层：" + name);
     }
@@ -1128,6 +1133,82 @@
     return items;
   }
 
+  async function fitInside(layer, rectangle, label) {
+    var bounds = getLayerBounds(layer);
+    var scale = Math.min(1, rectangle.width / Math.max(1, bounds.right - bounds.left),
+      rectangle.height / Math.max(1, bounds.bottom - bounds.top));
+    if (scale < 1) await scaleLayerByPercent(layer, scale * 100, label);
+    bounds = getLayerBounds(layer);
+    if (Math.abs(bounds.left - rectangle.x) < 0.001 && Math.abs(bounds.top - rectangle.y) < 0.001) return bounds;
+    return await getLayerService().moveLayerTo(layer, rectangle.x, rectangle.y, label);
+  }
+  async function turnReadingLayer(layer, rectangle, reading, label) {
+    var size = getLayerSize(layer);
+    var scale = Math.min(1, (reading.vertical ? rectangle.height : rectangle.width) / size.width,
+      (reading.vertical ? rectangle.width : rectangle.height) / size.height);
+    if (scale < 1) await scaleLayerByPercent(layer, scale * 100, label);
+    if (reading.vertical) {
+      await batchPlay([{ _obj: "transform", _target: [{ _ref: "layer", _id: getLayerId(layer) }],
+        freeTransformCenterState: { _enum: "quadCenterState", _value: "QCSAverage" },
+        angle: { _unit: "angleUnit", _value: 90 }, _options: { dialogOptions: "dontDisplay" } }]);
+    }
+    // Font antialiasing after rotation can expand the raster bounds by 1–2 px.
+    // Fit the measured result without relaxing the 24 px trim margin.
+    for (var attempt = 0; attempt < 3; attempt++) {
+      var measured = getLayerSize(layer);
+      if (measured.width <= rectangle.width && measured.height <= rectangle.height) break;
+      var correction = Math.min(1, Math.max(1, rectangle.width - 2) / measured.width,
+        Math.max(1, rectangle.height - 2) / measured.height);
+      await scaleLayerByPercent(layer, correction * 100, label);
+    }
+    // After a clockwise quarter-turn, the reading-space top edge is the
+    // physical right edge. Align measured glyphs there, not at the slot's left
+    // edge, otherwise short third lines sink to the end of a tall slot.
+    var alignedX = reading.vertical ? rectangle.x + rectangle.width - getLayerSize(layer).width : rectangle.x;
+    var bounds = await getLayerService().moveLayerTo(layer, alignedX, rectangle.y, label);
+    if (!isBoundsInsideRect(bounds, rectangle)) throw new Error("信息条内容超出安全位置：" + label);
+    return bounds;
+  }
+  async function renderPickupStrip(targetDocument, bar, settings, options) {
+    var planner = window.IDPhotoPickupStripLayout;
+    if (!planner) throw new Error("新版信息条布局模块未加载");
+    var source = options.sourceLayer;
+    if (!source && options.sourceLayerName) source = getLayerService().findLayerByName(options.sourceDocument.layers, options.sourceLayerName);
+    if (!source) source = getSourceLayer(options.sourceDocument);
+    var size = getLayerSize(source), reading = planner.plan(bar, settings, options, size.width / size.height);
+    var evidence = [];
+    await window.IDPhotoPhotoshopExecution.executeAsModal(async function () {
+      await activateDocument(targetDocument);
+      await createInfoBarBackground(bar, options);
+      for (var region of reading.regions) {
+        var layer;
+        if (region.key === "portrait") {
+          layer = await duplicateSourceLayerToTarget(options.sourceDocument, targetDocument, source);
+        } else {
+          if (!options.entryCodeDocument) throw new Error("小程序码资产未核实，不能印扫码说明");
+          layer = await duplicateSourceLayerToTarget(options.entryCodeDocument, targetDocument, getSourceLayer(options.entryCodeDocument));
+        }
+        await activateDocument(targetDocument);
+        layer.name = isDebugRender(options) ? "DEBUG_infoBar_" + region.key :
+          region.key === "portrait" ? "信息条小头像" : "完整小程序码";
+        await moveLayerToFront(layer, targetDocument);
+        var rectangle = planner.placed(bar, reading, region);
+        var bounds = await turnReadingLayer(layer, rectangle, reading, layer.name);
+        evidence.push({ key: region.key, bounds: formatBounds(bounds), slot: rectangle });
+      }
+      var ids = getLayerService().getDocumentLayerIds(targetDocument);
+      for (var item of reading.items) {
+        var textLayer = await createTextLayer(targetDocument, item.text, 0, 0, item.fontSize,
+          isDebugRender(options) ? "DEBUG_text_" + item.key : item.key, item.color, "horizontal", ids, item.bold);
+        var box = planner.placed(bar, reading, item);
+        var textBounds = await turnReadingLayer(textLayer, box, reading, item.key);
+        evidence.push({ key: item.key, text: item.text, bounds: formatBounds(textBounds), slot: box });
+      }
+    }, "绘制第五版取件信息条");
+    return { ok: true, createdCount: reading.items.length, layoutVersion: 7, evidence: evidence,
+      entryCodeShown: reading.entryCodeShown, message: "电子照片领取信息条已生成" +
+        (reading.entryCodeShown ? "" : "；入口码未使用，请从已提供的小程序入口领取") };
+  }
   async function renderInfoBar(targetDocument, infoBar, settings, options) {
     if (options && options.pickupCodeMode) {
       window.IDPhotoDeliveryProtocol.requirePickupCode(options.pickupCode);
@@ -1151,6 +1232,18 @@
     }
 
     infoBar = clampInfoBar(infoBar);
+    if (options && options.pickupCodeMode && infoBar.pickupLayout === "v5") {
+      // Only sufficiently wide strips use the complete asset. No placeholder,
+      // clipping, or missing-asset fallback may retain a scan instruction.
+      if (infoBar.orientation !== "vertical" && infoBar.width >= 1370 && infoBar.height >= 500 &&
+          window.IDPhotoEntryCodeService) {
+        return await window.IDPhotoEntryCodeService.withAsset(async function (doc) {
+          return await renderPickupStrip(targetDocument, infoBar, settings || {},
+            Object.assign({}, options, { entryCodeAvailable: Boolean(doc), entryCodeDocument: doc }));
+        });
+      }
+      return await renderPickupStrip(targetDocument, infoBar, settings || {}, options);
+    }
     layout = getLineLayout(infoBar);
     hasConfiguredHorizontalTextBlock = Boolean(infoBar.texts && !Array.isArray(infoBar.texts) && infoBar.texts.mode === "horizontalBlock");
     textItems = layout.explicitTexts ? buildExplicitTextItems(infoBar, settings || {}, options || {}) : buildAutoTextItems(lines, layout, infoBar);
@@ -1208,7 +1301,18 @@
         };
         await activateDocument(targetDocument);
         await createInfoBarBackground(infoBar, options || {});
-        await createAvatarThumbnail(targetDocument, getAvatarRect(infoBar), options || {});
+        // Text rasterization on modal exit can add two edge pixels beyond the
+        // in-modal DOM bounds. Ordinary templates keep their original layout;
+        // only edge-touching content is moved into this conservative inset.
+        var safeRect = { x: infoBar.x + 26, y: infoBar.y + 26, width: infoBar.width - 52, height: infoBar.height - 52 };
+        var avatarLayer = await createAvatarThumbnail(targetDocument, getAvatarRect(infoBar), options || {});
+        if (avatarLayer && !(options && options.debugMode)) {
+          var avatarBounds = getLayerBounds(avatarLayer);
+          var avatarSize = getLayerSize(avatarLayer);
+          await fitInside(avatarLayer, { x: Math.max(safeRect.x, Math.min(avatarBounds.left, safeRect.x + safeRect.width - Math.min(avatarSize.width, safeRect.width))),
+            y: Math.max(safeRect.y, Math.min(avatarBounds.top, safeRect.y + safeRect.height - Math.min(avatarSize.height, safeRect.height))),
+            width: Math.min(avatarSize.width, safeRect.width), height: Math.min(avatarSize.height, safeRect.height) }, "普通信息条缩略图安全边");
+        }
         knownTargetLayerIds = layerService.getDocumentLayerIds(targetDocument);
         for (i = 0; i < textItems.length; i += 1) {
           item = textItems[i];
@@ -1269,6 +1373,16 @@
         }
         if (!hasFixedTextPositions && !hasConfiguredHorizontalTextBlock) {
           await alignTextGroup(layerService, textLayerEntries, infoBar);
+        }
+        // Preserve the original arrangement and font sizes unless an actual
+        // measured glyph touches the trim edge; shrink/move only that content.
+        if (!(options && options.debugMode)) for (var entry of textLayerEntries) {
+          var b = getLayerBounds(entry.layer), w = Math.min(b.right - b.left, safeRect.width),
+            h = Math.min(b.bottom - b.top, safeRect.height);
+          entry.bounds = await fitInside(entry.layer, {
+            x: Math.max(safeRect.x, Math.min(b.left, safeRect.x + safeRect.width - w)),
+            y: Math.max(safeRect.y, Math.min(b.top, safeRect.y + safeRect.height - h)), width: w, height: h
+          }, entry.item.key);
         }
         textLayerEntries.forEach(function (entry) {
           textSummary[entry.item.fieldKey || entry.item.key] = {

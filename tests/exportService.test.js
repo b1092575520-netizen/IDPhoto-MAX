@@ -48,6 +48,7 @@ function makeFolder(name, parentPath = "C:\\Mock") {
       }
       const file = {
         name: entryName,
+        nativePath: this.nativePath + "\\" + entryName,
         isFile: true,
         content: "",
         async read(options) { checkStorageFormat(options); return this.content; },
@@ -222,6 +223,237 @@ test("exportSingleJpg keeps the largest JPG per source and approximate aspect ra
   assert.equal(differentSource.skipped, undefined);
   assert.equal(savedNames.length, 4);
   assert.equal(Array.from(dayFolder.entries.keys()).filter(name => /\.jpg$/i.test(name)).length, 3);
+});
+
+test("managed archive keeps independent upload/local hashes and never assigns another customer the existing archive",async()=>{
+  const root=makeFolder('root'),loaded=loadExportService(root);
+  for(const module of ['core/deliveryProtocol','photoshop/archiveNamingService'])
+    vm.runInContext(fs.readFileSync(path.join(__dirname,'../src',module+'.js'),'utf8'),loaded.context);
+  const protocol=loaded.context.window.IDPhotoDeliveryProtocol;
+  async function task() {
+    const folder=await root.createFolder(protocol.id()),payload=JSON.stringify({version:1,files:[{role:'photo',sha256:'c'.repeat(64)}]});
+    await(await folder.createFile('request.json',{overwrite:false})).write(payload);
+    return {id:folder.name,folder,fingerprint:protocol.sha256(payload),contextKey:'a'.repeat(64),deliveryId:'b'.repeat(64)};
+  }
+  const variant=variantFixture(loaded.context.window.IDPhotoVariantService,'blue');
+  const photo={saveAs:{jpg:async file=>file.write(new Uint8Array([255,216,1,2,255,217]).buffer)}};
+  const a=await task(),b=await task();
+  const first=await loaded.service.exportSingleJpg(photo,{...exportOptions(638,898,variant),deliveryTask:a});
+  const day=root.entries.get('2026').entries.get('2026-07').entries.get('2026-07-13');
+  let index=JSON.parse(day.entries.get('.idphoto-jpg-index.json').content).entries;
+  const owned=index[first.fileName];
+  assert.equal(owned.deliveryTaskId,a.id);assert.match(owned.archiveId,/^[a-f0-9]{32}$/);
+  const mapping=JSON.parse(a.folder.entries.get('archive-'+owned.archiveId+'.json').content);
+  assert.equal(mapping.uploadChecksum,'c'.repeat(64));assert.notEqual(mapping.localChecksum,mapping.uploadChecksum);
+  assert.equal(mapping.originalName,first.fileName);
+  const duplicate=await loaded.service.exportSingleJpg(photo,{...exportOptions(638,898,variant),deliveryTask:a});
+  assert.equal(duplicate.fileName,first.fileName);assert.equal(duplicate.skipped,true);
+  const other=await loaded.service.exportSingleJpg(photo,{...exportOptions(638,898,variant),deliveryTask:b});
+  assert.notEqual(other.fileName,first.fileName);
+  index=JSON.parse(day.entries.get('.idphoto-jpg-index.json').content).entries;
+  assert.equal(index[other.fileName].deliveryTaskId,b.id);assert.equal(jpgNames(root).length,2);
+  const larger=await loaded.service.exportSingleJpg(photo,{...exportOptions(827,1157,variant),deliveryTask:a});
+  assert.equal(larger.replacedSmaller,true);assert.equal(day.entries.has(first.fileName),false);
+  assert.equal(day.entries.has(other.fileName),true);
+  assert.ok(day.entries.has('.idphoto-archive-retired-'+owned.archiveId+'.json'));
+  assert.equal(day.entries.has('.idphoto-archive.guard'),false);
+});
+test("managed photo recovers its exact map after private-index and handoff registration failures",async()=>{
+  for(const failure of ['private-index','handoff-map']) {
+    const root=makeFolder('root'),loaded=loadExportService(root);
+    for(const module of ['core/deliveryProtocol','photoshop/archiveNamingService'])
+      vm.runInContext(fs.readFileSync(path.join(__dirname,'../src',module+'.js'),'utf8'),loaded.context);
+    const protocol=loaded.context.window.IDPhotoDeliveryProtocol,folder=await root.createFolder(protocol.id());
+    const payload=JSON.stringify({version:1,files:[{role:'photo',sha256:'c'.repeat(64)}]});
+    await(await folder.createFile('request.json',{overwrite:false})).write(payload);
+    const task={id:folder.name,folder,fingerprint:protocol.sha256(payload)};
+    const variant=variantFixture(loaded.context.window.IDPhotoVariantService,'blue');
+    const photo={saveAs:{jpg:async file=>file.write(new Uint8Array([255,216,1,2,255,217]).buffer)}};
+    const options={...exportOptions(638,898,variant),deliveryTask:task};
+    let failing=true;
+    if(failure==='private-index') {
+      const cache=await root.createFolder('archive-index-cache'),create=cache.createFile.bind(cache);
+      cache.createFile=async(name,opts)=>{if(failing)throw Error('index disk failure');return create(name,opts);};
+    } else {
+      const create=folder.createFile.bind(folder);
+      folder.createFile=async(name,opts)=>{if(failing&&name.startsWith('archive-'))throw Error('handoff disk failure');return create(name,opts);};
+    }
+    const first=await loaded.service.exportSingleJpg(photo,options);assert.equal(first.indexUnavailable,true);
+    const day=root.entries.get('2026').entries.get('2026-07').entries.get('2026-07-13');
+    const mapFile=Array.from(day.entries.values()).find(f=>/^\.idphoto-archive-[a-f0-9]{32}\.json$/.test(f.name));
+    assert.ok(mapFile);const map=JSON.parse(mapFile.content);
+    failing=false;
+    const recovered=await loaded.service.exportSingleJpg(photo,options);
+    assert.equal(recovered.keptLargest,true);assert.equal(jpgNames(root).length,1);
+    assert.equal(JSON.parse(day.entries.get('.idphoto-jpg-index.json').content).entries[recovered.fileName].archiveId,map.archiveId);
+    assert.equal(JSON.parse(folder.entries.get('archive-'+map.archiveId+'.json').content).archiveId,map.archiveId);
+    assert.equal(Array.from(day.entries.keys()).filter(n=>/^\.idphoto-archive-[a-f0-9]{32}\.json$/.test(n)).length,1);
+  }
+});
+
+test("SWO-01 ordinary archives never acquire a later delivery, for equal or larger legacy photos", async () => {
+  for (const legacySize of [[638,898],[827,1157]]) for (const changed of [false,true]) {
+    const root=makeFolder('root'), loaded=loadExportService(root);
+    for(const module of ['core/deliveryProtocol','photoshop/archiveNamingService'])
+      vm.runInContext(fs.readFileSync(path.join(__dirname,'../src',module+'.js'),'utf8'),loaded.context);
+    const protocol=loaded.context.window.IDPhotoDeliveryProtocol;
+    const variant=variantFixture(loaded.context.window.IDPhotoVariantService,'blue');
+    const oldBytes=new Uint8Array([255,216,1,2,255,217]).buffer;
+    const newBytes=new Uint8Array([255,216,changed?3:1,2,255,217]).buffer;
+    const old=await loaded.service.exportSingleJpg({saveAs:{jpg:f=>f.write(oldBytes)}},exportOptions(...legacySize,variant));
+    const day=root.entries.get('2026').entries.get('2026-07').entries.get('2026-07-13');
+    const oldIndex=JSON.parse(day.entries.get('.idphoto-jpg-index.json').content).entries[old.fileName];
+    let saves=0;
+    const photo={saveAs:{jpg:async f=>{saves++;await f.write(newBytes);}}};
+    const folder=await root.createFolder(protocol.id()),payload=JSON.stringify({version:1,files:[{role:'photo',sha256:'c'.repeat(64)}]});
+    await(await folder.createFile('request.json',{overwrite:false})).write(payload);
+    const task={id:folder.name,folder,fingerprint:protocol.sha256(payload)};
+    const options={...exportOptions(638,898,variant),deliveryTask:task};
+    const saved=await loaded.service.exportSingleJpg(photo,options);
+    assert.equal(saves,1);assert.notEqual(saved.fileName,old.fileName);
+    assert.equal(day.entries.get(old.fileName).content,oldBytes);
+    let index=JSON.parse(day.entries.get('.idphoto-jpg-index.json').content).entries;
+    assert.deepEqual(index[old.fileName],oldIndex);
+    assert.equal(index[saved.fileName].deliveryTaskId,task.id);
+    const map=JSON.parse(folder.entries.get('archive-'+index[saved.fileName].archiveId+'.json').content);
+    assert.equal(map.localChecksum,protocol.sha256(newBytes));assert.equal(map.uploadChecksum,'c'.repeat(64));
+    // A fresh plugin instance recovers only the explicitly owned output.
+    const restarted=loadExportService(root);
+    for(const module of ['core/deliveryProtocol','photoshop/archiveNamingService'])
+      vm.runInContext(fs.readFileSync(path.join(__dirname,'../src',module+'.js'),'utf8'),restarted.context);
+    assert.equal((await restarted.service.exportSingleJpg(photo,options)).fileName,saved.fileName);
+    assert.equal(saves,1);assert.equal(jpgNames(root).length,2);
+  }
+});
+
+async function managedFixture() {
+  const root=makeFolder('root');
+  function load() {
+    const loaded=loadExportService(root);
+    for(const module of ['core/deliveryProtocol','photoshop/archiveNamingService'])
+      vm.runInContext(fs.readFileSync(path.join(__dirname,'../src',module+'.js'),'utf8'),loaded.context);
+    return loaded;
+  }
+  const loaded=load(), protocol=loaded.context.window.IDPhotoDeliveryProtocol;
+  const folder=await root.createFolder(protocol.id());
+  const payload=JSON.stringify({version:2,files:[{role:'photo',sha256:'a'.repeat(64)},{role:'photo',sha256:'b'.repeat(64)}]});
+  await(await folder.createFile('request.json',{overwrite:false})).write(payload);
+  const task={id:folder.name,folder,fingerprint:protocol.sha256(payload)};
+  const variant=variantFixture(loaded.context.window.IDPhotoVariantService,'blue');
+  let saves=0;
+  const bytes=new Uint8Array([255,216,1,2,255,217]).buffer;
+  const photo={saveAs:{jpg:async f=>{saves++;await f.write(bytes);}}};
+  return {root,loaded,load,protocol,task,photo,bytes,variant,saves:()=>saves,
+    options:(size=[638,898],ordinal=0)=>({...exportOptions(...size,variant),deliveryTask:{...task,archiveOrdinal:ordinal}}),
+    day:()=>root.entries.get('2026').entries.get('2026-07').entries.get('2026-07-13')};
+}
+
+test("SWO-R1 larger same-task keeper retains its real ordinal across smaller-spec retries and restart",async()=>{
+  const f=await managedFixture();
+  const first=await f.loaded.service.exportSingleJpg(f.photo,f.options([827,1157],1));
+  const before=f.task.folder.entries.get(Array.from(f.task.folder.entries.keys()).find(n=>/^archive-/.test(n))).content;
+  const again=await f.load().service.exportSingleJpg(f.photo,f.options([638,898],0));
+  assert.equal(again.fileName,first.fileName);assert.equal(f.saves(),1);
+  const map=JSON.parse(before);assert.equal(map.ordinal,1);assert.equal(map.uploadChecksum,'b'.repeat(64));
+  assert.equal(f.task.folder.entries.get('archive-'+map.archiveId+'.json').content,before);
+});
+
+test("SWO-R1 local map, completion receipt, shared/private indexes and handoff failures recover without another photo save",async()=>{
+  for(const fault of ['local-map','completion-receipt','private-index','shared-index','handoff-map']) {
+    const f=await managedFixture();
+    // Create the dated directory and private index location without saving a photo.
+    const year=await f.root.createFolder('2026'),month=await year.createFolder('2026-07'),day=await month.createFolder('2026-07-13');
+    const cache=await f.root.createFolder('archive-index-cache');
+    let failing=true;
+    for(const folder of [day,cache,f.task.folder]) {
+      const original=folder.createFile.bind(folder);
+      folder.createFile=async(name,options)=>{
+        const hit=(fault==='local-map'&&folder===day&&name.startsWith('.idphoto-archive-'))||
+          (fault==='completion-receipt'&&folder===f.task.folder&&name.startsWith('.archive-output-'))||
+          (fault==='private-index'&&folder===cache)||
+          (fault==='shared-index'&&folder===day&&name.startsWith('.idphoto-jpg-index'))||
+          (fault==='handoff-map'&&folder===f.task.folder&&name.startsWith('archive-'));
+        if(failing&&hit)throw Error(fault+' denied');
+        return original(name,options);
+      };
+    }
+    const first=await f.loaded.service.exportSingleJpg(f.photo,f.options());
+    if(fault!=='completion-receipt')assert.ok(first.indexUnavailable||first.indexSyncWarning,fault);
+    assert.equal(f.saves(),1);assert.equal(jpgNames(f.root).length,1);
+    failing=false;
+    const after=await f.load().service.exportSingleJpg(f.photo,f.options());
+    assert.equal(after.keptLargest,true,fault);assert.equal(after.fileName,first.fileName);assert.equal(f.saves(),1);
+    const entries=JSON.parse(day.entries.get('.idphoto-jpg-index.json').content).entries;
+    const map=JSON.parse(f.task.folder.entries.get('archive-'+entries[after.fileName].archiveId+'.json').content);
+    assert.equal(map.taskId,f.task.id);assert.equal(map.ordinal,0);assert.equal(map.localChecksum,f.protocol.sha256(f.bytes));
+    const local=JSON.parse(Array.from(cache.entries.values()).find(e=>/\.json$/.test(e.name)).content).entries;
+    assert.deepEqual(entries,local);
+  }
+});
+
+test("SWO-R1 missing or conflicting evidence and changed bytes stop reuse without saving or deleting",async()=>{
+  for(const fault of ['missing-map','changed-photo','changed-request','ordinal-conflict','shared-conflict']) {
+    const f=await managedFixture(),first=await f.loaded.service.exportSingleJpg(f.photo,f.options());
+    const day=f.day(),index=JSON.parse(day.entries.get('.idphoto-jpg-index.json').content);
+    const id=index.entries[first.fileName].archiveId;
+    if(fault==='missing-map') {
+      day.entries.delete('.idphoto-archive-'+id+'.json');f.task.folder.entries.delete('.archive-output-'+id+'.json');
+    }
+    if(fault==='changed-photo')day.entries.get(first.fileName).content=new Uint8Array([1,2,3,4]).buffer;
+    if(fault==='changed-request')f.task.folder.entries.get('request.json').content+=' ';
+    if(fault==='ordinal-conflict'){
+      const map=JSON.parse(day.entries.get('.idphoto-archive-'+id+'.json').content);
+      map.ordinal=1;day.entries.get('.idphoto-archive-'+id+'.json').content=JSON.stringify(map);
+    }
+    if(fault==='shared-conflict'){
+      index.entries[first.fileName].deliveryTaskId='f'.repeat(32);
+      day.entries.get('.idphoto-jpg-index.json').content=JSON.stringify(index);
+    }
+    await assert.rejects(f.load().service.exportSingleJpg(f.photo,f.options()),/归档|原任务|凭据/);
+    assert.equal(f.saves(),1,fault);assert.equal(jpgNames(f.root).length,1);
+  }
+});
+
+test("SWO-R1 losing both completion writes retains the reserved output and refuses inferred recovery",async()=>{
+  const f=await managedFixture();
+  const year=await f.root.createFolder('2026'),month=await year.createFolder('2026-07'),day=await month.createFolder('2026-07-13');
+  let failing=true;
+  for(const folder of [day,f.task.folder]){
+    const original=folder.createFile.bind(folder);
+    folder.createFile=async(name,options)=>{
+      if(failing&&/^(\.idphoto-archive-|\.archive-output-)/.test(name))throw Error('both locations denied');
+      return original(name,options);
+    };
+  }
+  assert.equal((await f.loaded.service.exportSingleJpg(f.photo,f.options())).indexUnavailable,true);
+  failing=false;
+  await assert.rejects(f.load().service.exportSingleJpg(f.photo,f.options()),/完成凭据缺失/);
+  assert.equal(f.saves(),1);assert.equal(jpgNames(f.root).length,1);
+});
+
+test("SWO-R1 a stale same-task index cannot authorize replacing a smaller file without its immutable map",async()=>{
+  const f=await managedFixture(),first=await f.loaded.service.exportSingleJpg(f.photo,f.options());
+  const day=f.day(),index=JSON.parse(day.entries.get('.idphoto-jpg-index.json').content).entries;
+  const id=index[first.fileName].archiveId;
+  // Pre-R1 bound records have no output plan/receipt. Simulate loss of their
+  // canonical mapping while their old index remains.
+  day.entries.delete('.idphoto-output-'+id+'.json');
+  day.entries.delete('.idphoto-archive-'+id+'.json');
+  f.task.folder.entries.delete('.archive-output-'+id+'.json');
+  await assert.rejects(f.load().service.exportSingleJpg(f.photo,f.options([827,1157])),/映射缺失/);
+  assert.equal(f.saves(),1);assert.equal(jpgNames(f.root).length,1);
+  assert.equal(day.entries.get(first.fileName).content,f.bytes);
+});
+
+test("SWO-R1 failed Photoshop save removes only its incomplete reservation and later retries reuse the successful output",async()=>{
+  const f=await managedFixture();
+  await assert.rejects(f.loaded.service.exportSingleJpg({saveAs:{jpg:async file=>{
+    await file.write(new Uint8Array([255,216]).buffer);throw Error('encoding failed');
+  }}},f.options()),/encoding failed/);
+  assert.equal(jpgNames(f.root).length,0);
+  const first=await f.load().service.exportSingleJpg(f.photo,f.options());
+  const second=await f.load().service.exportSingleJpg(f.photo,f.options());
+  assert.equal(first.fileName,second.fileName);assert.equal(f.saves(),1);assert.equal(jpgNames(f.root).length,1);
 });
 
 test("external-camera photos are laid out but skipped before JPG or NAS storage access", async () => {

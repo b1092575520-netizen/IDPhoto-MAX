@@ -198,6 +198,17 @@ test('print retry runs the real workflow on saved pixels and frozen template/opt
   assert.equal(h.closed.includes(h.original.id),false);
   await assert.rejects(h.service.retryPending(task.id),/已有完成/);
   assert.equal(actions.filter(x=>x==='print-substitute').length,1);
+  const completion=await(await task.folder.getEntry('complete.json')).read();
+  h.window.IDPhotoPrintService.printOneCopy=async()=>{actions.push('print-cancel-substitute');return {ok:false,cancelled:true};};
+  await assert.rejects(h.service.reprintCurrent(task.id,true),/取消/);
+  assert.equal(h.taskCount(),1);assert.equal((await h.service.current()).id,task.id);
+  h.reload();
+  h.window.IDPhotoPrintService.printOneCopy=async()=>{actions.push('print-substitute');return {ok:true,printed:true};};
+  const repeats=await Promise.allSettled([h.service.reprintCurrent(task.id,true),h.service.reprintCurrent(task.id,true)]);
+  assert.equal(repeats.filter(r=>r.status==='fulfilled').length,1,'double activation must have one output owner');
+  assert.equal(h.taskCount(),1);assert.equal(actions.filter(x=>x==='print-substitute').length,2);
+  assert.equal(await(await task.folder.getEntry('request.json')).read(),payload);
+  assert.equal(await(await task.folder.getEntry('complete.json')).read(),completion);
 });
 function historicalIntent(info) {
   return { type: "historical-shop", confirmed: true, noExistingDelivery: true, sourceDocumentId: String(info.id),
@@ -234,6 +245,8 @@ test('historical electronic delivery requires this-photo confirmation; unknown d
     assert.equal(h.renders[0].date, request.sourceConfirmation.captureDate);
     await task.folder.getEntry("complete.json");
     h.info.id++;
+    await assert.rejects(h.service.electronic(h.original, h.info, {}, intent), /开始下一位/);
+    await h.service.nextCustomer(task.id);
     await assert.rejects(h.service.electronic(h.original, h.info, {}, intent), /明确确认/);
     await assert.rejects(h.service.electronic(h.original, h.info, {}), /明确确认/);
   }
@@ -357,5 +370,83 @@ test('multi rejects impossible bytes, upscaling, changed ratio and duplicate pat
 test('multi explicit target binds only this request and never sticks to the following customer',async()=>{
  const h=harness({multi:true}),target={version:1,deliveryId:'a'.repeat(64),contextKey:'b'.repeat(64),groupVersion:3,code:'T2EST4',title:'明确同行'};
  const task=await h.service.multi(h.original,h.info,{},[{filename:'new.jpg'}],target),request=JSON.parse(await(await task.folder.getEntry('request.json')).read());assert.equal(request.newMember,true);assert.equal(request.targetDeliveryId,target.deliveryId);
+ await h.service.nextCustomer(task.id);
  const next=await h.service.multi(h.original,h.info,{},[{filename:'next.jpg'}]);assert.equal(JSON.parse(await(await next.folder.getEntry('request.json')).read()).targetDeliveryId,undefined);
+});
+test('multi local archives bind each exact file ordinal and retry local failure without recreating or completing the batch',async()=>{
+ const h=harness({multi:true}),exports=[];
+ h.window.IDPhotoVariantService={analyzeDocument:async()=>({identityMarker:'original-only',backgroundColor:'blue'})};
+ let fail=true;
+ h.window.IDPhotoExportService={exportSingleJpg:async(doc,options)=>{
+   exports.push(options);
+   if(fail)throw Error('archive offline');
+   return {ok:true};
+ }};
+ const task=await h.service.multi(h.original,h.info,{},[{filename:'one.jpg'},{filename:'two.jpg'}],null,{exportJpg:true,nasArchive:true});
+ assert.equal(task.status.processing,'draft');assert.equal(task.status.archive,'pending');
+ const request=await(await task.folder.getEntry('request.json')).read(),complete=await(await task.folder.getEntry('complete.json')).read();
+ assert.equal(exports.length,1);assert.equal(exports[0].deliveryTask.archiveOrdinal,0);
+ assert.equal(exports[0].deliveryTask.fingerprint,h.window.IDPhotoDeliveryProtocol.sha256(request));
+ assert.equal(exports[0].docInfo.sourceVariant.identityMarker,'original-only');
+ h.reload();fail=false;
+ assert.equal((await h.service.current()).batch,true);
+ assert.match(await h.service.currentPreview(task.id),/^data:image\/jpeg;base64,/);
+ await h.service.retryCurrentArchives(task.id);
+ assert.deepEqual(exports.slice(1).map(o=>o.deliveryTask.archiveOrdinal),[0,1]);
+ assert.equal(h.taskCount(),1);assert.equal(h.renders.length,0);
+ assert.equal(await(await task.folder.getEntry('request.json')).read(),request);
+ assert.equal(await(await task.folder.getEntry('complete.json')).read(),complete);
+ assert.equal(h.closed.includes(h.original.id),false);
+});
+
+test('completed electronic task survives reload; deliberate repeat keeps request/code and never creates a customer', async()=>{
+  const h=harness(),first=await h.service.electronic(h.original,h.info,{});
+  const request=await(await first.folder.getEntry('request.json')).read();
+  const complete=await(await first.folder.getEntry('complete.json')).read();
+  const marker=await(await first.folder.getEntry('output-started.json')).read();
+  const before=JSON.parse(await(await first.folder.getEntry('code-request.json')).read()).requestId;
+  h.reload();
+  assert.equal((await h.service.current()).id,first.id);
+  assert.match(await h.service.currentPreview(first.id),/^data:image\/jpeg;base64,/);
+  await assert.rejects(h.service.electronic(h.original,h.info,{}),/开始下一位/);
+  await assert.rejects(h.service.reprintCurrent(first.id,false),/核对原照片/);
+  const repeated=await h.service.reprintCurrent(first.id,true);
+  assert.equal(repeated.id,first.id);assert.equal(repeated.code,first.code);assert.equal(h.taskCount(),1);
+  assert.equal(h.renders.length,2);assert.equal(h.closed.includes(h.original.id),false);
+  assert.notEqual(JSON.parse(await(await first.folder.getEntry('code-request.json')).read()).requestId,before);
+  assert.equal(await(await first.folder.getEntry('request.json')).read(),request);
+  assert.equal(await(await first.folder.getEntry('complete.json')).read(),complete);
+  assert.equal(await(await first.folder.getEntry('output-started.json')).read(),marker);
+  await first.folder.getEntry('output-complete-'+repeated.outputAttemptId+'.json');
+  await assert.rejects(h.service.nextCustomer('other'),/已改变/);
+  await h.service.nextCustomer(first.id);
+  // Same filename, same pixels, even same document id still means a new customer
+  // after the explicit next-customer action.
+  const next=await h.service.electronic(h.original,h.info,{});
+  assert.notEqual(next.id,first.id);assert.equal(h.taskCount(),2);
+});
+
+test('repeat refuses replaced photo, root, consumer, terminal status and stale replies without new outputs',async()=>{
+  for(const failure of ['photo','directory','consumer','cancelled','withdrawn','frozen','nonce','network']) {
+    const h=harness(),first=await h.service.electronic(h.original,h.info,{});
+    if(failure==='photo') await(await first.folder.getEntry('photo.jpg')).write(new Uint8Array([9]).buffer);
+    if(failure==='directory') h.options.sourceIdentity='other';
+    if(failure==='consumer') h.options.consumerId='other';
+    if(['cancelled','withdrawn','frozen'].includes(failure))h.options.terminal=failure;
+    if(failure==='nonce')h.options.staleNonce=true;
+    if(failure==='network')h.options.receipt=false;
+    await assert.rejects(h.service.reprintCurrent(first.id,true),undefined,failure);
+    assert.equal(h.taskCount(),1);assert.equal(h.renders.length,1,failure);
+    assert.equal([...h.files.keys()].some(p=>/output-started-[a-f0-9]+.json$/.test(p)),false);
+  }
+});
+
+test('a changed code after rendering stops repeat completion; another deliberate attempt can use the new code',async()=>{
+  const h=harness(),first=await h.service.electronic(h.original,h.info,{});
+  h.options.changedDuringRender=true;
+  await assert.rejects(h.service.reprintCurrent(first.id,true),/取件码已变化/);
+  assert.equal(h.taskCount(),1);
+  assert.equal([...h.files.keys()].filter(p=>/output-complete-[a-f0-9]+.json$/.test(p)).length,0);
+  const next=await h.service.reprintCurrent(first.id,true);
+  assert.equal(next.id,first.id);assert.equal(next.code,'N7EW8A');assert.equal(h.taskCount(),1);
 });

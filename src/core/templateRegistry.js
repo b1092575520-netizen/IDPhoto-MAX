@@ -572,50 +572,28 @@
     })
   ];
 
-  // The colored, fully detachable region (including its inner margins) must fit
-  // flat in the bag. Photo slots and the 600 ppi canvas are never scaled.
-  function compactInfoBar(original) {
-    var bar = cloneObject(original);
-    bar.layoutVersion = 5;
-    var longLimit = Math.floor(70 / 25.4 * PPI);
-    var shortLimit = Math.floor(50 / 25.4 * PPI);
-    var vertical = bar.orientation === "vertical";
-    bar.width = Math.min(bar.width, vertical ? shortLimit : longLimit);
-    bar.height = Math.min(bar.height, vertical ? longLimit : shortLimit);
+  // The registry retains v0.5.8 ordinary layouts. Delivery strips are selected
+  // for the actual operation, never by a process-wide mode at module load time.
+  function forDelivery(template, enabled) {
+    var next = cloneObject(template);
+    if (!next) return next;
+    var original = next.ordinaryInfoBar || next.infoBar;
+    var area = next.deliveryArea || next.infoBar;
+    next.infoBar = cloneObject(original);
+    if (!enabled) return next;
+    var bar = cloneObject(area), vertical = bar.orientation === "vertical";
+    bar.layoutVersion = 7;
+    bar.pickupLayout = "v5";
+    bar.safeMargin = 24;
+    bar.width = Math.min(bar.width, vertical ? 555 : 1417);
+    bar.height = Math.min(bar.height, vertical ? 1417 : 555);
+    bar.background = { red: 151, green: 37, blue: 42 };
+    bar.textColor = { red: 249, green: 233, blue: 160 };
     delete bar.textLayers;
-    bar.texts = [];
-    function text(key, x, y, width, height, size, orientation) {
-      bar.texts.push({ key: key, x: bar.x + x, y: bar.y + y, width: width, height: height,
-        fontSize: size, orientation: orientation || "horizontal", debugFixedPosition: true });
-    }
-    if (vertical) {
-      var thumb = Math.min(bar.width - 24, 250);
-      bar.avatar = thumbnailAvatar(bar.x + 12, bar.y + 12, thumb, thumb, { scaleMode: "fixedFit" });
-      var top = thumb + 40;
-      text("pickupCode", bar.width - 102, top, 90, bar.height - top - 18, 10, "vertical");
-      text("shopContact", 12, top, Math.max(50, bar.width - 124), bar.height - top - 18, 6.5, "vertical");
-    } else if (bar.height < 280) {
-      var size = bar.height - 32;
-      bar.avatar = thumbnailAvatar(bar.x + 16, bar.y + 16, Math.round(size * 0.72), size, { scaleMode: "fixedFit" });
-      var left = Math.round(size * 0.72) + 42;
-      text("pickupCode", left, 18, bar.width - left - 16, 102, 12);
-      text("shopContact", left, 132, bar.width - left - 16, 68, 7.5);
-    } else if (bar.height > 800) {
-      bar.avatar = thumbnailAvatar(bar.x + 30, bar.y + 30, 330, 440, { scaleMode: "fixedFit" });
-      text("shopName", 400, 80, bar.width - 425, 100, 11);
-      text("date", 400, 210, bar.width - 425, 80, 9);
-      text("pickupCode", 30, 540, bar.width - 60, 150, 17);
-      text("phone", 30, 750, bar.width - 60, 100, 10);
-    } else {
-      var avatarHeight = bar.height - 40, avatarWidth = Math.round(avatarHeight * 0.68);
-      bar.avatar = thumbnailAvatar(bar.x + 20, bar.y + 20, avatarWidth, avatarHeight, { scaleMode: "fixedFit" });
-      var start = avatarWidth + 48, width = bar.width - start - 20;
-      text("pickupCode", start, 24, width, 112, 13);
-      text("shopName", start, 154, width, 85, 10);
-      text("phone", start, 254, width, 75, 8.5);
-      if (bar.height >= 430) text("date", start, 348, width, 70, 8);
-    }
-    return bar;
+    delete bar.texts;
+    delete bar.avatar;
+    next.infoBar = bar;
+    return next;
   }
   var referenceFiles = {
     "one-inch": "证件照排版_1寸_2026-09-27.jpg", "standard-two-inch": "证件照排版_标准2寸_2026-09-27.jpg",
@@ -626,7 +604,9 @@
     "wedding": "证件照排版_结婚照_2026-09-27.jpg"
   };
   templates.forEach(function (template) {
-    template.infoBar = compactInfoBar(template.infoBar);
+    template.deliveryArea = cloneObject(template.infoBar);
+    if (template.id === "us-visa") template.infoBar = info("none");
+    template.ordinaryInfoBar = cloneObject(template.infoBar);
     template.referenceFile = referenceFiles[template.id];
     template.referencePath = referencePath(template.referenceFile);
   });
@@ -661,6 +641,7 @@
     CANVAS_WIDTH_PX: CANVAS_WIDTH_PX,
     CANVAS_HEIGHT_PX: CANVAS_HEIGHT_PX,
     REFERENCE_ROOT: REFERENCE_ROOT,
+    forDelivery: forDelivery,
     getAllTemplates: getAllTemplates,
     getTemplateByName: getTemplateByName,
     getTemplateById: getTemplateById

@@ -1,0 +1,826 @@
+{
+  "source": "D:/IDPhoto-MAX/src/core/templateRegistry.js",
+  "sha256": "a5a8227d65f96277ab75f0a434bfbcbc50833d656f6037e9cca7b47e428d3aac",
+  "bars": {
+    "one-inch": {
+      "enabled": true,
+      "position": "bottom",
+      "kind": "bottom",
+      "orientation": "horizontal",
+      "x": 0,
+      "y": 1845,
+      "width": 3592,
+      "height": 555,
+      "background": {
+        "red": 176,
+        "green": 28,
+        "blue": 35
+      },
+      "textColor": {
+        "red": 255,
+        "green": 238,
+        "blue": 150
+      },
+      "avatar": {
+        "x": 24,
+        "y": 1924,
+        "width": 304,
+        "height": 430,
+        "mode": "photoThumbnail"
+      },
+      "texts": [
+        {
+          "key": "shopName",
+          "x": 365,
+          "y": 1935,
+          "width": 1100,
+          "height": 55,
+          "fontSize": 13,
+          "name": "店铺名称"
+        },
+        {
+          "key": "date",
+          "x": 365,
+          "y": 0,
+          "width": 900,
+          "height": 50,
+          "fontSize": 12,
+          "name": "日期"
+        },
+        {
+          "key": "phone",
+          "x": 365,
+          "y": 0,
+          "width": 1500,
+          "height": 50,
+          "fontSize": 11,
+          "name": "电话",
+          "prefix": "Tel:"
+        },
+        {
+          "key": "tip",
+          "x": 365,
+          "y": 0,
+          "width": 1500,
+          "height": 50,
+          "fontSize": 10,
+          "name": "提示语"
+        }
+      ]
+    },
+    "standard-two-inch": {
+      "enabled": true,
+      "position": "right",
+      "kind": "right",
+      "orientation": "vertical",
+      "x": 3400,
+      "y": 0,
+      "width": 200,
+      "height": 2400,
+      "background": {
+        "red": 176,
+        "green": 28,
+        "blue": 35
+      },
+      "textColor": {
+        "red": 255,
+        "green": 238,
+        "blue": 150
+      },
+      "avatar": {
+        "x": 3429,
+        "y": 50,
+        "width": 143,
+        "height": 201,
+        "mode": "photoThumbnail"
+      },
+      "textLayers": {
+        "shopNameDate": {
+          "x": 3490,
+          "y": 280,
+          "width": 79,
+          "height": 979,
+          "fontSize": 83.3
+        },
+        "shopName": {
+          "x": 3521,
+          "y": 282
+        },
+        "date": {
+          "x": 3467,
+          "y": 283
+        },
+        "phone": {
+          "x": 3428,
+          "y": 281,
+          "width": 60,
+          "height": 820,
+          "fontSize": 96
+        }
+      },
+      "texts": {
+        "mode": "verticalText",
+        "x": 3490,
+        "y": 303,
+        "minFontSize": 6.4,
+        "maxFontSize": 10,
+        "lineGap": 0,
+        "groupGap": 8,
+        "columnGap": 48,
+        "keys": [
+          "shopNameDate",
+          "phone"
+        ],
+        "phonePrefix": "Tel:",
+        "omitTip": true,
+        "fontSizes": {
+          "shopNameDate": 10,
+          "phone": 6.4
+        },
+        "separators": {
+          "shopNameDate": ""
+        },
+        "columns": {
+          "shopNameDate": {
+            "x": 3490,
+            "y": 303
+          },
+          "phone": {
+            "x": 3414,
+            "y": 302
+          }
+        }
+      }
+    },
+    "visa-two-inch": {
+      "enabled": true,
+      "position": "bottom",
+      "kind": "bottom",
+      "orientation": "horizontal",
+      "x": 0,
+      "y": 2174,
+      "width": 3600,
+      "height": 226,
+      "background": {
+        "red": 176,
+        "green": 28,
+        "blue": 35
+      },
+      "textColor": {
+        "red": 255,
+        "green": 238,
+        "blue": 150
+      },
+      "avatar": {
+        "x": 25,
+        "y": 2189,
+        "width": 141,
+        "height": 181,
+        "mode": "photoThumbnail"
+      },
+      "textLayers": {
+        "shopNameDate": {
+          "x": 201,
+          "y": 2191,
+          "width": 1221,
+          "height": 95,
+          "fontSize": 11.2
+        },
+        "shopName": {
+          "x": 185,
+          "y": 2183
+        },
+        "date": {
+          "x": 186,
+          "y": 2257
+        },
+        "phone": {
+          "x": 197,
+          "y": 2288,
+          "width": 991,
+          "height": 71,
+          "fontSize": 8.4
+        }
+      },
+      "texts": {
+        "mode": "horizontalBlock",
+        "x": 201,
+        "y": 2191,
+        "gap": 28,
+        "useAvatarGap": false,
+        "minFontSize": 8.4,
+        "maxFontSize": 12,
+        "lineGap": 0,
+        "keys": [
+          "shopNameDate",
+          "phone"
+        ],
+        "phonePrefix": "Tel:",
+        "fontSizes": {
+          "shopNameDate": 12,
+          "phone": 8.4
+        },
+        "separators": {
+          "shopNameDate": "  "
+        },
+        "columns": {
+          "shopNameDate": {
+            "x": 201,
+            "y": 2191
+          },
+          "phone": {
+            "x": 201,
+            "y": 2316
+          }
+        },
+        "omitTip": true
+      }
+    },
+    "small-two-inch": {
+      "enabled": true,
+      "position": "right",
+      "kind": "right",
+      "orientation": "vertical",
+      "x": 3239,
+      "y": 0,
+      "width": 361,
+      "height": 2400,
+      "background": {
+        "red": 176,
+        "green": 28,
+        "blue": 35
+      },
+      "textColor": {
+        "red": 255,
+        "green": 238,
+        "blue": 150
+      },
+      "avatar": {
+        "x": 3293,
+        "y": 48,
+        "width": 214,
+        "height": 312,
+        "mode": "photoThumbnail"
+      },
+      "textLayers": {
+        "shopNameDate": {
+          "x": 3400,
+          "y": 382,
+          "width": 102,
+          "height": 1273,
+          "fontSize": 108.3
+        },
+        "phone": {
+          "x": 3306,
+          "y": 386,
+          "width": 72,
+          "height": 999,
+          "fontSize": 70
+        }
+      },
+      "texts": {
+        "mode": "verticalText",
+        "x": 3400,
+        "y": 382,
+        "minFontSize": 8.4,
+        "maxFontSize": 13,
+        "lineGap": 0,
+        "groupGap": 8,
+        "columnGap": 48,
+        "keys": [
+          "shopNameDate",
+          "phone"
+        ],
+        "phonePrefix": "Tel:",
+        "omitTip": true,
+        "fontSizes": {
+          "shopNameDate": 13,
+          "phone": 8.4
+        },
+        "separators": {
+          "shopNameDate": ""
+        },
+        "columns": {
+          "shopNameDate": {
+            "x": 3400,
+            "y": 382
+          },
+          "phone": {
+            "x": 3275,
+            "y": 380
+          }
+        }
+      }
+    },
+    "hongkong-taiwan": {
+      "enabled": true,
+      "position": "bottom",
+      "kind": "bottom",
+      "orientation": "horizontal",
+      "x": 0,
+      "y": 1950,
+      "width": 3592,
+      "height": 450,
+      "background": {
+        "red": 176,
+        "green": 28,
+        "blue": 35
+      },
+      "textColor": {
+        "red": 255,
+        "green": 238,
+        "blue": 150
+      },
+      "avatar": {
+        "x": 24,
+        "y": 2017,
+        "width": 235,
+        "height": 313,
+        "mode": "photoThumbnail"
+      },
+      "textLayers": {
+        "shopName": {
+          "x": 289,
+          "y": 2037,
+          "width": 687,
+          "height": 95,
+          "fontSize": 100
+        },
+        "date": {
+          "x": 289,
+          "y": 2151,
+          "width": 436,
+          "height": 71,
+          "fontSize": 91.7
+        },
+        "phone": {
+          "x": 289,
+          "y": 2244,
+          "width": 915,
+          "height": 67,
+          "fontSize": 70
+        }
+      },
+      "texts": {
+        "mode": "horizontalBlock",
+        "x": 361,
+        "y": 2090,
+        "gap": 28,
+        "useAvatarGap": false,
+        "minFontSize": 8.4,
+        "maxFontSize": 12,
+        "lineGap": 0,
+        "keys": [
+          "shopName",
+          "date",
+          "phone"
+        ],
+        "phonePrefix": "Tel:",
+        "fontSizes": {
+          "shopName": 12,
+          "date": 11,
+          "phone": 8.4
+        },
+        "columns": {
+          "shopName": {
+            "x": 361,
+            "y": 2090
+          },
+          "date": {
+            "x": 361,
+            "y": 2230
+          },
+          "phone": {
+            "x": 361,
+            "y": 2320
+          }
+        },
+        "omitTip": true
+      }
+    },
+    "brazil": {
+      "enabled": true,
+      "position": "right",
+      "kind": "right",
+      "orientation": "vertical",
+      "x": 2916,
+      "y": 0,
+      "width": 284,
+      "height": 2400,
+      "background": {
+        "red": 176,
+        "green": 28,
+        "blue": 35
+      },
+      "textColor": {
+        "red": 255,
+        "green": 238,
+        "blue": 150
+      },
+      "avatar": {
+        "x": 2950,
+        "y": 56,
+        "width": 210,
+        "height": 263,
+        "mode": "photoThumbnail"
+      },
+      "textLayers": {
+        "shopNameDate": {
+          "x": 3048,
+          "y": 339,
+          "width": 79,
+          "height": 979,
+          "fontSize": 83.3
+        },
+        "shopName": {
+          "x": 3085,
+          "y": 340,
+          "width": 54,
+          "height": 392,
+          "fontSize": 56.7
+        },
+        "date": {
+          "x": 3025,
+          "y": 340,
+          "width": 41,
+          "height": 248,
+          "fontSize": 29.2
+        },
+        "phone": {
+          "x": 2965,
+          "y": 340,
+          "width": 60,
+          "height": 812,
+          "fontSize": 53.3
+        }
+      },
+      "texts": {
+        "mode": "verticalText",
+        "x": 3045,
+        "y": 360,
+        "minFontSize": 6.4,
+        "maxFontSize": 10,
+        "lineGap": 0,
+        "groupGap": 8,
+        "columnGap": 48,
+        "keys": [
+          "shopNameDate",
+          "phone"
+        ],
+        "phonePrefix": "Tel:",
+        "omitTip": true,
+        "fontSizes": {
+          "shopNameDate": 10,
+          "phone": 6.4
+        },
+        "separators": {
+          "shopNameDate": ""
+        },
+        "columns": {
+          "shopNameDate": {
+            "x": 3045,
+            "y": 360
+          },
+          "phone": {
+            "x": 2968,
+            "y": 372
+          }
+        }
+      }
+    },
+    "argentina": {
+      "enabled": true,
+      "position": "bottom",
+      "kind": "bottom",
+      "orientation": "horizontal",
+      "x": 0,
+      "y": 1945,
+      "width": 3600,
+      "height": 455,
+      "background": {
+        "red": 176,
+        "green": 28,
+        "blue": 35
+      },
+      "textColor": {
+        "red": 255,
+        "green": 238,
+        "blue": 150
+      },
+      "avatar": {
+        "x": 70,
+        "y": 2016,
+        "width": 342,
+        "height": 342,
+        "mode": "photoThumbnail"
+      },
+      "textLayers": {
+        "shopName": {
+          "x": 469,
+          "y": 1986,
+          "width": 687,
+          "height": 95,
+          "fontSize": 100
+        },
+        "date": {
+          "x": 468,
+          "y": 2090,
+          "width": 436,
+          "height": 71,
+          "fontSize": 91.7
+        },
+        "phone": {
+          "x": 469,
+          "y": 2188,
+          "width": 1090,
+          "height": 79,
+          "fontSize": 83.3
+        },
+        "tip": {
+          "x": 469,
+          "y": 2279,
+          "width": 636,
+          "height": 74,
+          "fontSize": 75
+        }
+      },
+      "texts": {
+        "mode": "horizontalBlock",
+        "x": 469,
+        "y": 1986,
+        "gap": 28,
+        "useAvatarGap": false,
+        "minFontSize": 9,
+        "maxFontSize": 12,
+        "lineGap": 0,
+        "keys": [
+          "shopName",
+          "date",
+          "phone",
+          "tip"
+        ],
+        "phonePrefix": "Tel:",
+        "fontSizes": {
+          "shopName": 12,
+          "date": 11,
+          "phone": 10,
+          "tip": 9
+        },
+        "columns": {
+          "shopName": {
+            "x": 469,
+            "y": 1986
+          },
+          "date": {
+            "x": 468,
+            "y": 2090
+          },
+          "phone": {
+            "x": 469,
+            "y": 2188
+          },
+          "tip": {
+            "x": 469,
+            "y": 2279
+          }
+        }
+      }
+    },
+    "us-visa": {
+      "enabled": false,
+      "position": "none",
+      "orientation": "horizontal"
+    },
+    "us-visa-51": {
+      "enabled": true,
+      "position": "bottom",
+      "kind": "bottom",
+      "orientation": "horizontal",
+      "x": 0,
+      "y": 1268,
+      "width": 3590,
+      "height": 369,
+      "background": {
+        "red": 176,
+        "green": 28,
+        "blue": 35
+      },
+      "textColor": {
+        "red": 255,
+        "green": 238,
+        "blue": 150
+      },
+      "avatar": {
+        "x": 34,
+        "y": 1312,
+        "width": 280,
+        "height": 280,
+        "mode": "photoThumbnail",
+        "scaleMode": "fixedFit"
+      },
+      "textLayers": {
+        "shopName": {
+          "x": 365,
+          "y": 1319,
+          "width": 630,
+          "height": 87,
+          "fontSize": 10.2
+        },
+        "date": {
+          "x": 365,
+          "y": 1420,
+          "width": 399,
+          "height": 65,
+          "fontSize": 7.6
+        },
+        "phone": {
+          "x": 365,
+          "y": 1499,
+          "width": 980,
+          "height": 71,
+          "fontSize": 8.4
+        }
+      },
+      "texts": {
+        "mode": "horizontalBlock",
+        "x": 365,
+        "y": 1340,
+        "gap": 28,
+        "useAvatarGap": false,
+        "minFontSize": 7,
+        "maxFontSize": 11,
+        "lineGap": 6,
+        "keys": [
+          "shopName",
+          "date",
+          "phone"
+        ],
+        "phonePrefix": "Tel:",
+        "width": 3145,
+        "rightPadding": 80,
+        "bottomPadding": 34,
+        "fontSizes": {
+          "shopName": 11,
+          "date": 10,
+          "phone": 9
+        },
+        "omitTip": true
+      }
+    },
+    "graduation": {
+      "enabled": true,
+      "position": "right",
+      "kind": "right",
+      "orientation": "vertical",
+      "x": 2943,
+      "y": 0,
+      "width": 273,
+      "height": 2400,
+      "background": {
+        "red": 176,
+        "green": 28,
+        "blue": 35
+      },
+      "textColor": {
+        "red": 255,
+        "green": 238,
+        "blue": 150
+      },
+      "avatar": {
+        "x": 2978,
+        "y": 53,
+        "width": 205,
+        "height": 281,
+        "mode": "photoThumbnail"
+      },
+      "textLayers": {
+        "shopNameDate": {
+          "x": 3076,
+          "y": 346,
+          "width": 79,
+          "height": 979,
+          "fontSize": 83.3
+        },
+        "shopName": {
+          "x": 3102,
+          "y": 354,
+          "width": 54,
+          "height": 392,
+          "fontSize": 56.7
+        },
+        "date": {
+          "x": 3040,
+          "y": 354,
+          "width": 41,
+          "height": 248,
+          "fontSize": 29.2
+        },
+        "phone": {
+          "x": 3003,
+          "y": 347,
+          "width": 51,
+          "height": 696,
+          "fontSize": 53.3
+        }
+      },
+      "texts": {
+        "mode": "verticalText",
+        "x": 3072,
+        "y": 370,
+        "minFontSize": 6.4,
+        "maxFontSize": 10,
+        "lineGap": 0,
+        "groupGap": 8,
+        "columnGap": 48,
+        "keys": [
+          "shopNameDate",
+          "phone"
+        ],
+        "phonePrefix": "Tel:",
+        "omitTip": true,
+        "fontSizes": {
+          "shopNameDate": 10,
+          "phone": 6.4
+        },
+        "separators": {
+          "shopNameDate": ""
+        },
+        "columns": {
+          "shopNameDate": {
+            "x": 3072,
+            "y": 370
+          },
+          "phone": {
+            "x": 2995,
+            "y": 372
+          }
+        }
+      }
+    },
+    "wedding": {
+      "enabled": true,
+      "position": "bottom",
+      "kind": "bottom",
+      "orientation": "horizontal",
+      "x": 0,
+      "y": 1795,
+      "width": 3592,
+      "height": 555,
+      "background": {
+        "red": 176,
+        "green": 28,
+        "blue": 35
+      },
+      "textColor": {
+        "red": 255,
+        "green": 238,
+        "blue": 150
+      },
+      "avatar": {
+        "x": 0,
+        "y": 1872,
+        "width": 577,
+        "height": 382,
+        "mode": "photoThumbnail",
+        "scaleMode": "fixedFit"
+      },
+      "texts": {
+        "mode": "horizontalBlock",
+        "x": 618,
+        "y": 1933,
+        "gap": 28,
+        "useAvatarGap": false,
+        "minFontSize": 10,
+        "maxFontSize": 13,
+        "lineGap": 0,
+        "keys": [
+          "shopName",
+          "date",
+          "phone"
+        ],
+        "phonePrefix": "Tel:",
+        "width": 2894,
+        "fontSizes": {
+          "shopName": 13,
+          "date": 12,
+          "phone": 10
+        },
+        "columns": {
+          "shopName": {
+            "x": 618,
+            "y": 1933
+          },
+          "date": {
+            "x": 618,
+            "y": 2048
+          },
+          "phone": {
+            "x": 618,
+            "y": 2165
+          }
+        },
+        "omitTip": true
+      }
+    }
+  }
+}

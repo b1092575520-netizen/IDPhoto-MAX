@@ -91,11 +91,20 @@
     return value.entries;
   }
 
-  async function readJpgIdentityIndex(folder) {
+  async function readJpgIdentityIndex(folder, strictManaged) {
     var local = await readPrivateIndex(await getPrivateIndex(folder));
     var shared;
     try { shared = await readSharedJpgIdentityIndex(folder); }
     catch (error) { if (!local) throw error; shared = {}; }
+    if (strictManaged && local) {
+      for (var name of Object.keys(shared)) {
+        var a = shared[name], b = local[name];
+        if (a && b && (a.archiveId || b.archiveId) &&
+            (a.archiveId !== b.archiveId || a.deliveryTaskId !== b.deliveryTaskId ||
+              a.identityMarker !== b.identityMarker || a.backgroundColor !== b.backgroundColor))
+          throw new Error("共享与私有归档索引归属冲突，保留照片待核对");
+      }
+    }
     return Object.assign({}, shared, local || {});
   }
 
@@ -390,7 +399,7 @@
       }
       return parsed;
     }
-    return backgroundOnly ? { backgroundColor: backgroundOnly[1].toLowerCase() } : null;
+    return getIndexedVariant(name, identityIndex) || (backgroundOnly ? { backgroundColor: backgroundOnly[1].toLowerCase() } : null);
   }
 
   function belongsToBackgroundGroup(existingVariant, currentVariant) {
@@ -497,7 +506,7 @@
     return largest;
   }
 
-  async function deleteCandidateFiles(candidates, keepFile) {
+  async function deleteCandidateFiles(candidates, keepFile, folder, identityIndex) {
     var deletedCount = 0;
     var index;
     for (index = 0; index < candidates.length; index += 1) {
@@ -505,6 +514,8 @@
         continue;
       }
       try {
+        if (window.IDPhotoArchiveNamingService && folder)
+          await window.IDPhotoArchiveNamingService.retire(folder, identityIndex[candidates[index].file.name]);
         await deleteCreatedFile(candidates[index].file);
         deletedCount += 1;
       } catch (cleanupError) {
@@ -647,22 +658,50 @@
 
     rootResult = await getOutputRootFolder(nasArchive);
     dateFolder = await getDatedOutputFolder(rootResult.folder);
+    async function saveInDirectory() {
     try {
-      identityIndex = await readJpgIdentityIndex(dateFolder);
+      identityIndex = await readJpgIdentityIndex(dateFolder, Boolean(options.deliveryTask));
+      if (options.deliveryTask && window.IDPhotoArchiveNamingService &&
+          await window.IDPhotoArchiveNamingService.recoverIndex(options.deliveryTask, dateFolder, identityIndex))
+        await writePrivateIndex(dateFolder, identityIndex);
     } catch (readError) {
+      if (options.deliveryTask) throw readError;
       indexError = readError;
       identityIndex = {};
     }
     aspectGroup = getAspectGroup(template.widthPx, template.heightPx);
     currentArea = getPixelArea(template.widthPx, template.heightPx);
     existingExports = indexError ? [] : await findSourceGroupExports(dateFolder, template, variant, identityIndex);
+    // Identical source bytes never authorize joining two explicit customers.
+    if (options.deliveryTask) existingExports = existingExports.filter(function (candidate) {
+      var entry = identityIndex[candidate.file.name];
+      if (entry && entry.deliveryTaskId === options.deliveryTask.id && !entry.archiveId)
+        throw new Error("当前任务归档映射缺失，保留原文件待核对");
+      return entry && entry.archiveId && entry.deliveryTaskId === options.deliveryTask.id;
+    });
+    // Validate every owned candidate before either reuse OR smaller-file
+    // cleanup. An index assertion alone cannot authorize deleting an old JPG.
+    if (options.deliveryTask) {
+      if (!window.IDPhotoArchiveNamingService) throw new Error("交付归档服务未加载");
+      for (var candidate of existingExports) {
+        await window.IDPhotoArchiveNamingService.bind(options.deliveryTask, rootResult.folder, dateFolder,
+          candidate.file, await getPrivateIndex(dateFolder), identityIndex[candidate.file.name],
+          Object.assign({}, template, {
+            name: candidate.file.name.replace(/_\d{3,5}x\d{3,5}_.+$/, ""),
+            widthPx: candidate.widthPx, heightPx: candidate.heightPx }));
+      }
+    }
     largestExisting = getLargestExport(existingExports);
     if (largestExisting && largestExisting.area >= currentArea) {
       // Similarity is not transitive: only remove photos close to the actual keeper.
       existingExports = existingExports.filter(function (entry) {
         return hasSimilarAspect(entry.widthPx, entry.heightPx, largestExisting.widthPx, largestExisting.heightPx);
       });
-      removedCount = await deleteCandidateFiles(existingExports, largestExisting.file);
+      if (options.deliveryTask && window.IDPhotoArchiveNamingService) {
+        await writePrivateIndex(dateFolder, identityIndex);
+        await writeJpgIdentityIndex(dateFolder, identityIndex);
+      }
+      removedCount = await deleteCandidateFiles(existingExports, largestExisting.file, dateFolder, identityIndex);
       return await withHiddenIndex({
         ok: true,
         skipped: true,
@@ -683,11 +722,19 @@
     fileResult = await createAvailableFile(dateFolder, fileName);
     file = fileResult.file;
     fileName = fileResult.fileName;
+    var outputReceipt = null;
     try {
+      if (options.deliveryTask) {
+        if (!window.IDPhotoArchiveNamingService) throw new Error("交付归档服务未加载");
+        outputReceipt = await window.IDPhotoArchiveNamingService.prepareOutput(
+          options.deliveryTask, rootResult.folder, dateFolder, file);
+      }
       await saveDocumentAsJpg(processedDocument, file);
     } catch (saveError) {
       try {
         await deleteCreatedFile(file);
+        if (outputReceipt)
+          await window.IDPhotoArchiveNamingService.discardFailedOutput(dateFolder, outputReceipt);
       } catch (cleanupError) {
         console.warn("[export] failed to remove incomplete JPG", cleanupError);
       }
@@ -697,7 +744,11 @@
     if (!indexError) {
       identityIndex[fileName] = { identityMarker: variant.identityMarker, backgroundColor: variant.backgroundColor };
       try {
-        await writePrivateIndex(dateFolder, identityIndex);
+        try {
+          if (options.deliveryTask && window.IDPhotoArchiveNamingService)
+            await window.IDPhotoArchiveNamingService.bind(options.deliveryTask, rootResult.folder, dateFolder,
+              file, await getPrivateIndex(dateFolder), identityIndex[fileName], template, outputReceipt);
+        } finally { await writePrivateIndex(dateFolder, identityIndex); }
       } catch (writeError) {
         indexError = writeError;
       }
@@ -720,7 +771,7 @@
       };
     }
     if (replacedSmaller) {
-      removedCount = await deleteCandidateFiles(existingExports, null);
+      removedCount = await deleteCandidateFiles(existingExports, null, dateFolder, identityIndex);
     }
 
     return {
@@ -743,6 +794,9 @@
         (rootResult.picked ? " · 已选择输出根目录" : "") +
         (indexSyncError ? " · 本机去重记录已保存，目录索引同步失败：" + (indexSyncError.message || String(indexSyncError)) : "")
     };
+    }
+    return window.IDPhotoArchiveNamingService ?
+      await window.IDPhotoArchiveNamingService.withDirectory(dateFolder, saveInDirectory) : await saveInDirectory();
   }
 
   function exportSingleJpg(processedDocument, options) {

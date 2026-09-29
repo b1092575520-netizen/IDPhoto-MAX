@@ -58,6 +58,18 @@
             <div class="settings-note">开启后，本店当天新拍照片先取码再排版；外来、旧片重印和日期不明照片仅排版，信息条留白。旧片需要上传时请明确选择下方交付入口。</div>
             <button class="run-button" id="runButton" type="button" data-icon="rocket"><span class="btn-label">开始排版</span></button>
             <p id="deliveryConnectionStatus" class="settings-note">交接尚未核对；不影响普通排版</p>
+            <button class="panel-btn wide-btn" id="reviewCurrentCustomer" type="button">当前顾客 · 重拼／补印／开始下一位</button>
+            <div id="currentCustomerPanel" class="delivery-draft-panel" style="display: none;">
+              <p id="currentCustomerDescription" class="settings-note"></p>
+              <img id="currentCustomerPreview" class="delivery-target-preview" alt="原任务已保存的照片，供核对顾客" />
+              <p class="settings-note">重拼使用已交付的原成片和原输出选项。修改过照片或需要新规格，请使用原交付的修订／多规格流程。</p>
+              <label><input id="currentCustomerConfirmed" type="checkbox" />我已核对上方原照片，确认主动重拼／补印</label>
+              <button class="run-button" id="reprintCurrentCustomer" type="button">重拼／补印原成片 · 重新核对取件码</button>
+              <button class="outline-button" id="retryCurrentArchives" type="button" style="display: none;">重试本批本地归档</button>
+              <button class="panel-btn wide-btn" id="nextDeliveryCustomer" type="button">开始下一位 · 保留当前顾客记录</button>
+              <button class="panel-btn wide-btn" id="chooseOriginalCustomer" type="button">选择历史原任务目录</button>
+              <button class="panel-btn wide-btn" id="closeCurrentCustomer" type="button">返回</button>
+            </div>
             <button class="panel-btn wide-btn" id="reviewPendingDelivery" type="button">交付连接与恢复 · 处理未完成交付</button>
             <button class="panel-btn wide-btn" id="stopDeliveryWait" type="button" style="display: none;">停止本次取码等待</button>
             <div id="pendingDeliveryPanel" class="delivery-draft-panel" style="display: none;">
@@ -146,6 +158,12 @@
                   <input id="shopTip" type="text" value="[请妥善保管此单据]" placeholder="请输入温馨提示语" />
                 </label>
                 <button class="panel-btn purple-btn wide-btn" id="saveSettings" type="button" data-icon="save"><span class="btn-label">保存店铺信息</span></button>
+                <div class="settings-note" id="entryCodeStatus">未配置小程序入口码；成品不显示扫码提示。</div>
+                <label><input id="entryCodeVerified" type="checkbox" />我已用微信核实图片进入本店小程序，且保留完整码图和留白</label>
+                <div class="settings-actions">
+                  <button class="panel-btn" id="chooseEntryCode" type="button">选择入口码图片</button>
+                  <button class="panel-btn" id="clearEntryCode" type="button">移除入口码</button>
+                </div>
               </div>
             </div>
           </section>
@@ -235,6 +253,7 @@
     <script src="src/core/errorService.js"></script>
     <script src="src/core/deliveryProtocol.js"></script>
     <script src="src/core/deliverySpecifications.js"></script>
+    <script src="src/core/pickupStripLayout.js"></script>
     <script src="src/core/templateRegistry.js"></script>
     <script src="src/core/templateSelectionService.js"></script>
     <script src="src/core/ratioChecker.js"></script>
@@ -260,7 +279,9 @@
     <script src="src/photoshop/cropService.js"></script>
     <script src="src/photoshop/canvasService.js"></script>
     <script src="src/photoshop/layerService.js"></script>
+    <script src="src/photoshop/entryCodeService.js"></script>
     <script src="src/photoshop/infoBarRenderer.js"></script>
+    <script src="src/photoshop/archiveNamingService.js"></script>
     <script src="src/photoshop/exportService.js"></script>
     <script src="src/photoshop/deliveryService.js"></script>
     <script src="src/ui/settingsViewController.js"></script>

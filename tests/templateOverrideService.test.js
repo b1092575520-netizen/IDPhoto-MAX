@@ -44,3 +44,13 @@ test("stage5 retains old overrides without applying them and restores saved code
   const result=service.getEffectiveTemplate(template);
   assert.deepEqual(JSON.parse(JSON.stringify(result.infoBar.texts)).map(t=>[t.key,t.x,t.y,t.width,t.height,t.fontSize]),[['pickupCode',35,45,500,120,14],['shopContact',35,180,450,90,9]]);
 });
+test("v5 debug rectangles cannot extend into photos or exceed the six-centimeter strip",()=>{
+ const {service,storedOverrides}=loadService();
+ const template={id:'one',deliveryArea:{x:0,y:1800,width:3600,height:555},
+   infoBar:{layoutVersion:7,pickupLayout:'v5',x:0,y:1800,width:1417,height:555}};
+ for(const infoBar of [{width:1653},{y:1700},{height:600},{x:-1}]){
+   storedOverrides.one={layoutVersion:7,infoBar};assert.throws(()=>service.getEffectiveTemplate(template),/超出/);
+ }
+ storedOverrides.one={layoutVersion:7,infoBar:{x:30,width:1300}};
+ assert.equal(service.getEffectiveTemplate(template).infoBar.safeMargin,24);
+});

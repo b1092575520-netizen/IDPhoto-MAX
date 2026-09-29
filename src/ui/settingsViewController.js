@@ -351,9 +351,27 @@
       refreshNasAuthorization();
       refreshQuickPrintPreference();
       refreshRegisteredCameras();
+      refreshEntryCode();
       await refreshCurrentCamera();
     }
 
+    function refreshEntryCode() {
+      var element = one("#entryCodeStatus"), service = window.IDPhotoEntryCodeService;
+      if (element && service) {
+        try { element.textContent = service.label(); }
+        catch (error) { element.textContent = formatError(error); }
+      }
+    }
+    async function chooseEntryCode() {
+      try {
+        await window.IDPhotoEntryCodeService.configure(Boolean(one("#entryCodeVerified") && one("#entryCodeVerified").checked));
+        refreshEntryCode();
+      } catch (error) { onStatus(formatError(error)); }
+    }
+    function clearEntryCode() {
+      window.IDPhotoEntryCodeService.clear();
+      refreshEntryCode();
+    }
     function init() {
       if (initialized) {
         return refresh();
@@ -362,6 +380,8 @@
       refreshProfileFields();
       initSettingsNavigation();
       bindClick("#saveSettings", saveSettings);
+      bindClick("#chooseEntryCode", chooseEntryCode);
+      bindClick("#clearEntryCode", clearEntryCode);
       bindClick("#backupSettings", backupSettings);
       bindClick("#restoreSettings", restoreSettings);
       bindClick("#authorizeNasFolder", chooseNasFolder);

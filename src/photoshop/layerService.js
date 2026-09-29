@@ -66,7 +66,7 @@
   }
 
   function getLayerBounds(layer) {
-    var bounds = layer.boundsNoEffects || layer.bounds;
+    var bounds = layer.bounds || layer.boundsNoEffects;
     if (!bounds) {
       return { left: 0, top: 0, right: 0, bottom: 0 };
     }
@@ -338,6 +338,11 @@
       return bounds;
     }
 
+    // Photoshop 27 can apply a text-layer transform to the active selection
+    // even when a retained DOM Layer is passed. Select the verified target
+    // before transforming an earlier text layer in the same document.
+    var app = getPhotoshopModule().app;
+    if (app && app.activeDocument) app.activeDocument.activeLayers = [layer];
     try {
       await moveLayerWithDom(layer, deltaX, deltaY);
       finalBounds = getLayerBounds(layer);

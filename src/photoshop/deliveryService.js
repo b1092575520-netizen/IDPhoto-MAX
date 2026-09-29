@@ -2,6 +2,8 @@
   "use strict";
   var TOKEN = "idphoto-delivery-root-v1";
   var PENDING = "idphoto-delivery-pending-v1";
+  var CURRENT = "idphoto-delivery-current-v1";
+  var CURRENT_MIGRATION = "idphoto-delivery-current-migrated-v1";
   var CONNECTION_PROTOCOL = "pickup-handoff-compat-1";
   // The measured test-cloud confirmation was 3.003s. Allow one missed
   // filesystem event (10s rescan) and one 45s HTTP request, with bounded margin.
@@ -75,6 +77,79 @@
     await status({ id: item.id, folder: item.folder, status: previous }, {
       deferredByOperator: true, message: "店员明确开始另一位顾客；此任务保留未完成，不代表云端取消" });
     window.localStorage.setItem(PENDING, "");
+    if (window.localStorage.getItem(CURRENT) === item.token) window.localStorage.setItem(CURRENT, "");
+  }
+  async function current() {
+    if (window.localStorage.getItem(CURRENT_MIGRATION) !== "1") {
+      var previous = window.localStorage.getItem(PENDING) || window.localStorage.getItem("idphoto-delivery-last-v1");
+      if (previous && !window.localStorage.getItem(CURRENT)) window.localStorage.setItem(CURRENT, previous);
+      window.localStorage.setItem(CURRENT_MIGRATION, "1");
+    }
+    var token = window.localStorage.getItem(CURRENT);
+    if (!token) return null;
+    var folder = await fs().getEntryForPersistentToken(token);
+    if (!folder) throw new Error("当前顾客的原任务目录不可用，请恢复目录或明确开始下一位");
+    var context = JSON.parse(await (await folder.getEntry("context.json")).read({ format: format(false) }));
+    if (context.version !== 1 || context.id !== folder.name || !/^[a-f0-9]{32}$/.test(context.id))
+      throw new Error("当前顾客绑定损坏，保留资料，请核对原任务");
+    var requestFile = await optionalEntry(folder, "request.json");
+    var batch = requestFile ? JSON.parse(await requestFile.read({ format: format(false) })).version === 2 : false;
+    return { id: context.id, name: context.docInfo && context.docInfo.name || "原照片", mode: context.mode, batch: batch,
+      token: token, folder: folder, completed: Boolean(await optionalEntry(folder, "complete.json")) };
+  }
+  async function nextCustomer(expectedId) {
+    if (creatingTask || retryingTask || activeWait) throw new Error("当前交付尚未结束，请先停止等待或完成操作");
+    var item = await current();
+    if (!item || item.id !== expectedId) throw new Error("当前顾客已改变，请重新核对");
+    var unfinished = await pending();
+    if (unfinished && unfinished.id === expectedId) await deferPending(expectedId);
+    window.localStorage.setItem(CURRENT, "");
+    // The original folder, binding and output journals remain intact.
+  }
+  async function chooseCurrent() {
+    if (creatingTask || retryingTask || activeWait) throw new Error("当前交付尚未结束");
+    if (await current() || await pending()) throw new Error("请先明确开始下一位，再选择其他原任务");
+    var folder = await fs().getFolder(); if (!folder) return null;
+    var task = await restoreTask(folder);
+    if (folder.name !== task.id || !task.contextFingerprint || !task.sourceRootToken)
+      throw new Error("所选目录不是可恢复的原交付任务");
+    await originalPhoto(task);
+    window.localStorage.setItem(CURRENT, await fs().createPersistentToken(folder));
+    return await current();
+  }
+  async function originalPhoto(task) {
+    var request = JSON.parse(await (await task.folder.getEntry("request.json")).read({ format: format(false) }));
+    if (request.version !== 1 || request.mode !== task.mode || request.sourceDocumentId !== String(task.docInfo.id) ||
+        !Array.isArray(request.files) || request.files.length !== 1 || request.files[0].role !== "photo" || request.files[0].path !== "photo.jpg")
+      throw new Error("原任务不是可继续的单张交付；多规格和修订请在后台核对原记录");
+    var descriptor = request.files[0], file = await task.folder.getEntry(descriptor.path);
+    var bytes = await file.read({ format: format(true) });
+    if (bytes.byteLength !== descriptor.sizeBytes || protocol().sha256(bytes) !== descriptor.sha256)
+      throw new Error("原任务独立成片已变化，保留文件并停止输出");
+    return { descriptor: descriptor, bytes: bytes };
+  }
+  async function currentPreview(expectedId) {
+    var item = await current();
+    if (!item || item.id !== expectedId) throw new Error("当前顾客已改变，请重新核对");
+    var task = await restoreTask(item.folder), original;
+    if (item.batch) {
+      var request = JSON.parse(await (await task.folder.getEntry("request.json")).read({ format: format(false) }));
+      var first = request.files && request.files[0];
+      if (!first || first.role !== "photo" || !/^variant-\d+\.jpg$/.test(first.path)) throw new Error("多规格原照片记录无效");
+      var data = await (await task.folder.getEntry(first.path)).read({ format: format(true) });
+      if (data.byteLength !== first.sizeBytes || protocol().sha256(data) !== first.sha256) throw new Error("多规格原照片已变化");
+      original = { bytes: data };
+    } else original = await originalPhoto(task);
+    var bytes = new Uint8Array(original.bytes);
+    if (bytes.length > 8388608) throw new Error("原成片过大，请在后台核对");
+    var alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/", chunks = [], part = "";
+    for (var i = 0; i < bytes.length; i += 3) {
+      var value = (bytes[i] << 16) | ((bytes[i + 1] || 0) << 8) | (bytes[i + 2] || 0);
+      part += alphabet[value >>> 18] + alphabet[(value >>> 12) & 63] +
+        (i + 1 < bytes.length ? alphabet[(value >>> 6) & 63] : "=") + (i + 2 < bytes.length ? alphabet[value & 63] : "=");
+      if (part.length >= 16384) { chunks.push(part); part = ""; }
+    }
+    return "data:image/jpeg;base64," + chunks.join("") + part;
   }
   function outputSnapshot(options) {
     if (!options) return null;
@@ -125,6 +200,7 @@
     try {
     var unfinished = await pending();
     if (unfinished) throw new Error("有尚未完成的原任务，请使用“继续原任务”重试；当前若是另一位顾客，请先明确保留旧任务。未新建交付。");
+    if (await current()) throw new Error("当前顾客已有交付，请核对原照片后使用“重拼/补印”；另一位顾客请先点“开始下一位”。照片修订请走后台原交付修订流程，未新建交付。");
     var eligibility = window.IDPhotoSourceEligibilityService.checkSource(docInfo.sourceMetadata, docInfo.name);
     var historical = !eligibility.eligible && window.IDPhotoSourceEligibilityService.historicalIntentMatches &&
       window.IDPhotoSourceEligibilityService.historicalIntentMatches(intent, docInfo);
@@ -148,6 +224,7 @@
     await writeAtomic(folder, "context.json", context);
     var taskToken = await fs().createPersistentToken(folder);
     window.localStorage.setItem(PENDING, taskToken);
+    window.localStorage.setItem(CURRENT, taskToken);
     latestTask = task;
     window.localStorage.setItem("idphoto-delivery-last-v1", taskToken);
     await status(task, { processing: "started", info: "pending" });
@@ -275,14 +352,18 @@
   async function startOutput(task) {
     protocol().requirePickupCode(task.code);
     if (!task.fingerprint) throw new Error("原成片清单尚未确认，不能开始输出");
-    if (await optionalEntry(task.folder, "output-started.json"))
+    var marker = task.outputAttemptId ? "output-started-" + task.outputAttemptId + ".json" : "output-started.json";
+    if (await optionalEntry(task.folder, marker))
       throw new Error("原任务已开始过成品输出，请人工核对原成品与打印状态；不会重复执行");
-    await writeAtomic(task.folder, "output-started.json", JSON.stringify({ version: 1, taskId: task.id,
+    await writeAtomic(task.folder, marker, JSON.stringify({ version: 1, taskId: task.id, outputAttemptId: task.outputAttemptId || "",
       manifestFingerprint: task.fingerprint, requestId: task.confirmationId, at: new Date().toISOString() }), false);
   }
   async function writeCompletion(task, artifacts) {
-    await writeAtomic(task.folder, "complete.json", JSON.stringify({ version: 1, taskId: task.id,
-      manifestFingerprint: task.fingerprint, processingComplete: true, artifacts: artifacts }));
+    var payload = JSON.stringify({ version: 1, taskId: task.id,
+      manifestFingerprint: task.fingerprint, processingComplete: true, artifacts: artifacts });
+    if (task.outputAttemptId) await writeAtomic(task.folder, "output-complete-" + task.outputAttemptId + ".json", payload, false);
+    if (!task.outputAttemptId || !await optionalEntry(task.folder, "complete.json"))
+      await writeAtomic(task.folder, "complete.json", payload, false);
     task.completionWritten = true;
     try { await clearPending(task); }
     catch (error) { task.pendingReleaseError = "完成信号已保存，待处理入口未能清除：" + errorText(error); }
@@ -291,17 +372,26 @@
     protocol().requirePickupCode(task.code);
     if (!task.fingerprint) throw new Error("高清成片尚未可靠交接，未生成发布完成信号。");
     var artifacts = [];
-    if (task.mode === "print") artifacts.push(await saveJpeg(task, targetDocument, "layout.jpg", "layout"));
-    try { artifacts.push(await cropInfo(task, targetDocument, infoBar)); await status(task, { info: "saved" }); }
+    var suffix = task.outputAttemptId ? "-" + task.outputAttemptId : "";
+    if (task.mode === "print") artifacts.push(await saveJpeg(task, targetDocument, "layout" + suffix + ".jpg", "layout"));
+    try { artifacts.push(await cropInfo(task, targetDocument, infoBar, "info" + suffix + ".jpg")); await status(task, { info: "saved" }); }
     catch (error) { await status(task, { info: "failed", infoError: errorText(error) }); }
     await writeCompletion(task, artifacts);
     await status(task, { processing: "complete", message: "处理完成，等待后台确认发布", outputDirectory: task.folder.nativePath });
     return task.status;
   }
+  async function verifyOutput(task, expectedCode) {
+    var code = await confirmCode(task);
+    if (code !== expectedCode) throw protocol().pickupCodeError("排版期间取件码已变化，已停止本次成品输出；请核对后主动重拼原任务");
+    task.code = code;
+    return code;
+  }
   function localInfoBar(template) {
     var bar = JSON.parse(JSON.stringify(template.infoBar)), x = bar.x, y = bar.y;
-    bar.x = 0; bar.y = 0; bar.avatar.x -= x; bar.avatar.y -= y;
-    bar.texts.forEach(function (item) { item.x -= x; item.y -= y; }); return bar;
+    bar.x = 0; bar.y = 0;
+    if (bar.avatar) { bar.avatar.x -= x; bar.avatar.y -= y; }
+    if (Array.isArray(bar.texts)) bar.texts.forEach(function (item) { item.x -= x; item.y -= y; });
+    return bar;
   }
   async function standaloneInfo(task, photoDocument, code) {
     protocol().requirePickupCode(code);
@@ -322,6 +412,7 @@
     // Current processed pixels are the explicit product. No template recrop or
     // six-inch page is part of the electronic-only path.
     var template = window.IDPhotoTemplates.getTemplateById("one-inch");
+    if (window.IDPhotoTemplates.forDelivery) template = window.IDPhotoTemplates.forDelivery(template, true);
     var task, photo, info, failure = null;
     try {
       try { task = await begin(docInfo, "electronic", template, settings, intent); }
@@ -333,6 +424,7 @@
       await startOutput(task);
       try { info = await standaloneInfo(task, photo.document, task.code); }
       catch (error) { await status(task, { info: "failed", infoError: errorText(error) }); }
+      await verifyOutput(task, task.code);
       if (info) await complete(task, info.document, info.infoBar);
       else {
         await writeCompletion(task, []);
@@ -372,8 +464,10 @@
       if (request.version !== 2 || request.informationOnly !== true || !/^[a-f0-9]{32}$/.test(request.taskId || "") || !/^[a-f0-9]{32}$/.test(request.outputId || "") || !/^[a-f0-9]{64}$/.test(request.referenceDeliveryId || "") || !/^[a-f0-9]{64}$/.test(request.referenceContextKey || "") || !Array.isArray(request.files) || request.files.length !== 1) throw new Error("原任务上下文缺失，不能推断照片归属。");
       var referenceBinding = JSON.parse(await (await folder.getEntry("code-binding.json")).read({ format: format(false) }));
       if (referenceBinding.contextKey !== request.referenceContextKey || referenceBinding.deliveryId !== request.referenceDeliveryId || referenceBinding.manifestFingerprint !== protocol().sha256(payload)) throw new Error("信息条引用与原连接不匹配。");
+      var referenceTemplate = window.IDPhotoTemplates.getTemplateById("one-inch");
+      if (window.IDPhotoTemplates.forDelivery) referenceTemplate = window.IDPhotoTemplates.forDelivery(referenceTemplate, true);
       await writeAtomic(folder, "context.json", JSON.stringify({ version: 1, id: request.taskId, outputId: request.outputId, mode: "electronic",
-        docInfo: { id: request.sourceDocumentId, name: request.title }, template: window.IDPhotoTemplates.getTemplateById("one-inch"),
+        docInfo: { id: request.sourceDocumentId, name: request.title }, template: referenceTemplate,
         settings: window.IDPhotoSettingsStore.load(), dateText: "" }));
       contextFile = await folder.getEntry("context.json");
     }
@@ -395,12 +489,12 @@
     }
     return task;
   }
-  async function retryPending(expectedId) {
+  async function retryPending(expectedId, reprint) {
     if (creatingTask || retryingTask || activeWait) throw new Error("当前交付尚未结束，请勿重复重试");
     retryingTask = true;
     var task, temporaryFile, photo, info, failure = null;
     try {
-      var item = await pending();
+      var item = reprint ? await current() : await pending();
       if (!item || item.id !== expectedId) throw new Error("原任务已改变或已有完成信号，请重新核对；未自动重印");
       if (!await optionalEntry(item.folder, "request.json")) {
         var preparedFile = await optionalEntry(item.folder, "photo-prepared.json");
@@ -422,14 +516,14 @@
       task = await restoreTask(item.folder); latestTask = task;
       if (!task.contextFingerprint || !task.sourceRootToken || !task.consumerId || !task.sourceIdentity)
         throw new Error("原任务缺少可靠的快照或连接绑定，请人工核对；未自动重建交付");
-      if (await optionalEntry(task.folder, "output-started.json") || await optionalEntry(task.folder, "layout.jpg") ||
-          await optionalEntry(task.folder, "info.jpg"))
+      if (!reprint && (await optionalEntry(task.folder, "output-started.json") || await optionalEntry(task.folder, "layout.jpg") ||
+          await optionalEntry(task.folder, "info.jpg")))
         throw new Error("原任务已有成品输出痕迹，请人工核对，避免重复输出或打印");
       var request = JSON.parse(await (await task.folder.getEntry("request.json")).read({ format: format(false) }));
       if (request.version !== 1 || request.mode !== task.mode || request.sourceDocumentId !== String(task.docInfo.id) ||
           !Array.isArray(request.files) || request.files.length !== 1 || request.files[0].role !== "photo" || request.files[0].path !== "photo.jpg")
         throw new Error("原任务不是可继续的单张交付，请在后台核对原记录");
-      if (!["started", "awaiting-code", "blocked-code", "prepared", "retrying-code"].includes(task.status.processing))
+      if (!reprint && !["started", "awaiting-code", "blocked-code", "prepared", "retrying-code"].includes(task.status.processing))
         throw new Error("原任务尚未形成可确认的成片副本，请核对文件准备结果，未新建交付");
       var descriptor = request.files[0], file = await task.folder.getEntry(descriptor.path), bytes = await file.read({ format: format(true) });
       if (bytes.byteLength !== descriptor.sizeBytes || protocol().sha256(bytes) !== descriptor.sha256)
@@ -438,6 +532,12 @@
       if (connected.sourceIdentity !== task.sourceIdentity) throw new Error("原交接目录身份已变化，请恢复原目录");
       await status(task, { processing: "retrying-code", codeState: "unconfirmed" });
       task.code = await confirmCode(task); protocol().requirePickupCode(task.code);
+      if (reprint) task.outputAttemptId = protocol().id();
+      if (window.IDPhotoTemplates.forDelivery && task.template && task.template.id) {
+        var currentTemplate = window.IDPhotoTemplates.getTemplateById(task.template.id);
+        if (!currentTemplate) throw new Error("原模板已不存在，请人工核对");
+        task.template = window.IDPhotoTemplates.forDelivery(currentTemplate, true);
+      }
       await status(task, { processing: "prepared", codeState: "confirmed" });
       // Open an owned byte-for-byte copy, never an already-open/edited original.
       var temporaryRoot = await child(await fs().getDataFolder(), "delivery-retry-temporary");
@@ -465,6 +565,7 @@
         await startOutput(task);
         try { info = await standaloneInfo(task, photo, task.code); }
         catch (error) { await status(task, { info: "failed", infoError: errorText(error) }); }
+        await verifyOutput(task, task.code);
         if (info) await complete(task, info.document, info.infoBar);
         else {
           await writeCompletion(task, []);
@@ -491,6 +592,10 @@
       if (cleanupError && !failure) { cleanupError.completed = Boolean(task && task.completionWritten); throw cleanupError; }
     }
   }
+  async function reprintCurrent(expectedId, confirmedOriginal) {
+    if (confirmedOriginal !== true) throw new Error("请核对原照片并确认补印；不会采用当前活动照片替换原成片");
+    return await retryPending(expectedId, true);
+  }
   async function regenerate(folder) {
     if (!folder) {
       var token = window.localStorage.getItem("idphoto-delivery-last-v1");
@@ -498,6 +603,8 @@
       folder = await fs().getEntryForPersistentToken(token);
     }
     var task = await restoreTask(folder), code = await confirmCode(task), photo, info;
+    if (window.IDPhotoTemplates.forDelivery && task.template && task.template.id)
+      task.template = window.IDPhotoTemplates.forDelivery(window.IDPhotoTemplates.getTemplateById(task.template.id), true);
     if (!code) throw new Error("本次取件码待核对：后台未确认有效码，或交付已取消/撤回；请核对原连接与管理结果。");
     var request = JSON.parse(await (await folder.getEntry("request.json")).read({ format: format(false) }));
     if (!Array.isArray(request.files) || !request.files.length || !/^[A-Za-z0-9_-]{1,80}\.jpg$/.test(request.files[0].path)) throw new Error("原任务成片路径无效，拒绝补码。");
@@ -535,11 +642,68 @@
     } catch (error) { await status(task, { info: "failed", infoError: errorText(error) }); throw error; }
     finally { if (info) await window.IDPhotoDocumentService.closeWithoutSaving(info.document); if (photo) await window.IDPhotoDocumentService.closeWithoutSaving(photo); }
   }
-  async function multi(sourceDocument, docInfo, settings, specifications, chosenTarget) {
+  async function archiveBatch(task, request) {
+    if (!task.outputOptions || !task.outputOptions.exportJpg) return [];
+    var execution = window.IDPhotoPhotoshopExecution, results = [];
+    if (!window.IDPhotoExportService) throw new Error("本地归档服务未加载");
+    // Existing largest-per-source/color/aspect policy remains authoritative.
+    // This does not create an all-version archive or alter immutable handoff JPGs.
+    for (var index = 0; index < request.files.length; index++) {
+      var descriptor = request.files[index], photo = null, temporary = null;
+      if (descriptor.role !== "photo" || !/^variant-\d+\.jpg$/.test(descriptor.path)) throw new Error("多规格归档来源无效");
+      var bytes = await (await task.folder.getEntry(descriptor.path)).read({ format: format(true) });
+      if (bytes.byteLength !== descriptor.sizeBytes || protocol().sha256(bytes) !== descriptor.sha256)
+        throw new Error("多规格交接照片变化，停止归档");
+      var temporaryRoot = await child(await fs().getDataFolder(), "delivery-retry-temporary");
+      try {
+        temporary = await temporaryRoot.createFile("archive-" + protocol().id() + ".jpg", { overwrite: false });
+        await temporary.write(bytes, { format: format(true) });
+        await execution.executeAsModal(async function () {
+          var app = execution.getPhotoshop().app, before = Array.from(app.documents).map(function (d) { return d.id; });
+          await app.open(temporary);
+          var created = Array.from(app.documents).filter(function (d) { return !before.includes(d.id); });
+          if (created.length !== 1) throw new Error("无法独立打开归档副本，原文档保留");
+          photo = created[0];
+        }, "核对本批本地归档副本");
+        if (pixels(photo.width) !== descriptor.width || pixels(photo.height) !== descriptor.height)
+          throw new Error("归档副本像素不符合原批次");
+        var result = await window.IDPhotoExportService.exportSingleJpg(photo, {
+          template: { name: descriptor.purpose || descriptor.filename.replace(/\.jpe?g$/i, ""),
+            widthPx: descriptor.width, heightPx: descriptor.height },
+          docInfo: task.docInfo, nasArchive: Boolean(task.outputOptions.nasArchive),
+          deliveryTask: Object.assign({}, task, { archiveOrdinal: index })
+        });
+        results.push(result);
+        if (result.indexUnavailable) throw new Error(result.message);
+      } finally {
+        try { if (photo) await window.IDPhotoDocumentService.closeWithoutSaving(photo); }
+        finally { if (temporary) await temporary.delete(); }
+      }
+    }
+    return results;
+  }
+  async function retryCurrentArchives(expectedId) {
+    if (creatingTask || retryingTask || activeWait) throw new Error("当前交付尚未结束");
+    retryingTask = true;
+    try {
+      var item = await current();
+      if (!item || item.id !== expectedId || !item.batch) throw new Error("请核对当前多规格原任务");
+      var task = await restoreTask(item.folder);
+      if (!task.contextFingerprint) throw new Error("原批次缺少归档设置快照，不能猜测历史归属");
+      var request = JSON.parse(await (await task.folder.getEntry("request.json")).read({ format: format(false) }));
+      var results = await archiveBatch(task, request);
+      await status(task, { archive: "saved", archiveError: "", message: "本地归档已核对；对应文件发布后由后台同步名称" });
+      return results;
+    } finally { retryingTask = false; }
+  }
+  async function multi(sourceDocument, docInfo, settings, specifications, chosenTarget, outputOptions) {
     var rules = window.IDPhotoDeliverySpecifications;
     var specs = rules.normalize(specifications, { width: pixels(sourceDocument.width), height: pixels(sourceDocument.height) });
     var target = chosenTarget ? rules.target(chosenTarget) : null;
-    var task = await begin(docInfo, "electronic", window.IDPhotoTemplates.getTemplateById("one-inch"), settings);
+    if (outputOptions && outputOptions.exportJpg && window.IDPhotoVariantService) {
+      docInfo = Object.assign({}, docInfo, { sourceVariant: await window.IDPhotoVariantService.analyzeDocument(sourceDocument) });
+    }
+    var task = await begin(docInfo, "electronic", window.IDPhotoTemplates.getTemplateById("one-inch"), settings, null, outputOptions);
     var execution = window.IDPhotoPhotoshopExecution, copy = null, originalId = sourceDocument.id;
     try {
       // Retain a full quality independent copy before attempting constrained encodes.
@@ -573,18 +737,26 @@
         } finally { if (copy) { await window.IDPhotoDocumentService.closeWithoutSaving(copy); copy = null; } }
       }
       var request = { version: 2, taskId: task.id, outputId: task.outputId, sourceDocumentId: String(docInfo.id), mode: "electronic",
-        title: String(docInfo.name || "多规格照片").slice(0, 120), eligible: true, testOnly: true, files: files };
+        title: String(docInfo.name || "多规格照片").slice(0, 120), eligible: true, testOnly: true, files: files,
+        contextFingerprint: task.contextFingerprint };
       if (target) { request.targetDeliveryId = target.deliveryId; request.targetContextKey = target.contextKey; request.targetGroupVersion = target.groupVersion; request.newMember = true; }
       var payload = JSON.stringify(request); task.fingerprint = protocol().sha256(payload);
       await writeAtomic(task.folder, "request.json", payload);
+      var archiveError = "";
+      try { await archiveBatch(task, request); }
+      catch (error) { archiveError = errorText(error); }
       await writeCompletion(task, []);
-      await status(task, { processing: "draft", info: "pending-confirmation", message: "多规格草稿已交接，请在后台核对并点击完成交付；之后可补出同款信息条。", outputDirectory: task.folder.nativePath });
+      await status(task, { processing: "draft", info: "pending-confirmation", archive: archiveError ? "pending" : "saved",
+        archiveError: archiveError, message: "多规格草稿已交接，请在后台核对并点击完成交付；之后可补出同款信息条。" +
+          (archiveError ? "本地归档待重试：" + archiveError : ""), outputDirectory: task.folder.nativePath });
       return task;
     } catch (error) { await status(task, { processing: "failed", error: errorText(error), message: "原件与独立副本保留，失败的整批不会交付。" }); throw error; }
     finally { await execution.activateDocument(sourceDocument); }
   }
   window.IDPhotoDeliveryService = { begin: begin, prepare: prepare, complete: complete, electronic: electronic, multi: multi, regenerate: regenerate,
-    pending: pending, retryPending: retryPending, deferPending: deferPending, startOutput: startOutput,
+    pending: pending, retryPending: function (id) { return retryPending(id, false); }, deferPending: deferPending, startOutput: startOutput,
+    current: current, currentPreview: currentPreview, nextCustomer: nextCustomer, chooseCurrent: chooseCurrent,
+    reprintCurrent: reprintCurrent, verifyOutput: verifyOutput, retryCurrentArchives: retryCurrentArchives,
     stopWaiting: function () { if (!activeWait) return false; activeWait.cancelled = true; return true; },
     configure: configure, root: root, connection: connection, onProgress: function (handler) { progress = typeof handler === "function" ? handler : function () {}; },
     onWaitingChanged: function (handler) { waitingChanged = typeof handler === "function" ? handler : function () {}; },

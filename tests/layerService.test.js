@@ -255,6 +255,18 @@ test("moveLayerTo skips Photoshop work when the layer is already positioned", as
   assert.equal(bounds.left, 100);
   assert.equal(bounds.top, 60);
 });
+test("moving an earlier text layer selects that layer before Photoshop transforms", async () => {
+  const earlier=makeLayer(1,10,20,100,30),latest=makeLayer(2,50,80,100,30);
+  const doc={layers:[latest,earlier],activeLayers:[latest]};
+  earlier.translate=async function(x,y){
+    const selected=doc.activeLayers[0];
+    selected.bounds.left+=x;selected.bounds.right+=x;
+    selected.bounds.top+=y;selected.bounds.bottom+=y;
+  };
+  const service=loadLayerService({app:{activeDocument:doc},action:{async batchPlay(){throw Error('unexpected fallback');}}});
+  await service.moveLayerTo(earlier,10,120,'earlier text');
+  assert.equal(earlier.bounds.top,120);assert.equal(latest.bounds.top,80);
+});
 
 test("duplicateLayerToDocument does not reactivate the active target document", async () => {
   let activateCount = 0;

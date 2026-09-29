@@ -147,7 +147,8 @@ function loadWorkflow(options = {}) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/core/sourceEligibilityService.js"), "utf8"), context);
   }
   if (options.delivery) context.window.IDPhotoDeliveryService = Object.assign({
-    startOutput: async () => { calls.push("output-started"); }
+    startOutput: async () => { calls.push("output-started"); },
+    verifyOutput: async (_task, code) => { calls.push("verify-code"); return code; }
   }, options.delivery);
   if (options.analyzeDocument) context.window.IDPhotoVariantService = { analyzeDocument: options.analyzeDocument };
   vm.runInContext(fs.readFileSync(workflowPath, "utf8"), context, { filename: workflowPath });
