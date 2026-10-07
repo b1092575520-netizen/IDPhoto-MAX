@@ -49,10 +49,23 @@
             <div class="toggle-btn pickup-toggle" role="button" tabindex="0" data-key="pickupCodeMode" aria-pressed="false" title="开启后，本店当天新拍先取码再排版；外来、旧片和日期不明的照片只排版，信息条留白">
               <span class="toggle-name">取件码</span><span class="toggle-state">关</span>
             </div>
+            <div class="toggle-btn group-toggle" id="groupToggle" role="button" tabindex="0" aria-pressed="false" style="display: none;" title="一行人一起来时打开：开着期间排版的所有人共用一个取件码；做完这一行人再关掉">
+              <span class="toggle-name">同行</span><span class="toggle-state">关</span>
+            </div>
           </div>
 
           <div class="run-button" id="runButton" role="button" tabindex="0"><span class="btn-label">排版</span></div>
+          <p id="groupStatus" class="group-status" style="display: none;"></p>
           <p id="deliveryPlanHint" class="plan-hint" style="display: none;"></p>
+          <div id="groupPicker" class="delivery-draft-panel" style="display: none;">
+            <p class="panel-title">最近的顾客也是同行吗？</p>
+            <p class="hint">勾上的人并入这一组，全组沿用最早那位的取件码；已印出的信息条照常有效。</p>
+            <div id="groupPickerList" class="picker-list"></div>
+            <div class="pair-row">
+              <button class="panel-btn primary" id="groupPickerConfirm" type="button">并入所选</button>
+              <button class="panel-btn" id="groupPickerSkip" type="button">都不并入</button>
+            </div>
+          </div>
           <div id="deliveryRecoveryBar" class="recovery-bar" style="display: none;">
             <p id="deliveryRecoveryText" class="recovery-text"></p>
             <button class="panel-btn primary" id="deliveryRecoveryPrint" type="button">打印</button>
@@ -68,18 +81,12 @@
             <button class="panel-btn wide-btn" id="cancelHistoricalDelivery" type="button">取消</button>
           </div>
 
-          <div class="tools-toggle" id="deliveryToolsToggle" role="button" tabindex="0" aria-expanded="false">
-            <span class="tools-caret">▸</span><span>交付工具</span>
+          <div class="tool-grid" aria-label="交付">
+            <div class="panel-btn tool-btn wide-btn" id="electronicDeliveryButton" role="button" tabindex="0" title="不排版、不打印，只给当前照片取码并上传电子版；不是本店当天新拍的会先确认是否旧片补交">电子交付/旧片补交</div>
+            <div class="panel-btn tool-btn" id="reviewCurrentCustomer" role="button" tabindex="0" title="重拼、补印当前顾客，或开始下一位">当前顾客</div>
+            <div class="panel-btn tool-btn" id="reviewPendingDelivery" role="button" tabindex="0" title="继续没完成的交付，或检测后台连接">未完成交付</div>
           </div>
-          <div class="tools-body" id="deliveryToolsBody" style="display: none;">
-            <div class="tool-grid">
-              <button class="panel-btn wide-btn" id="electronicDeliveryButton" type="button" title="不排版、不打印，只给当前照片取码并上传电子版；不是本店当天新拍的会先确认是否旧片补交">电子交付 / 旧片补交</button>
-              <button class="panel-btn" id="reviewCurrentCustomer" type="button" title="重拼、补印当前顾客，或开始下一位">当前顾客</button>
-              <button class="panel-btn" id="reviewPendingDelivery" type="button" title="继续没完成的交付，或检测后台连接">未完成交付</button>
-              <button class="panel-btn wide-btn" id="multiDeliveryButton" type="button" title="一张照片出多个规格，或加入同行共领；先暂存，在电脑后台核对后统一发布">多规格 / 同行共领</button>
-            </div>
-            <p id="deliveryConnectionStatus" class="hint">交接未检测，不影响普通排版</p>
-          </div>
+          <p id="deliveryConnectionStatus" class="hint" style="display: none;"></p>
 
           <div id="currentCustomerPanel" class="delivery-draft-panel" style="display: none;">
             <p class="panel-title">当前顾客</p>
@@ -104,21 +111,6 @@
             <button class="panel-btn wide-btn" id="closePendingDelivery" type="button">返回</button>
           </div>
 
-          <div id="multiDeliveryPanel" class="delivery-draft-panel" style="display: none;">
-            <p class="panel-title">多规格 / 同行共领</p>
-            <p class="hint">只生成电子照片，不打印。不放大、不自动裁切，比例不同请先裁好；单张最大 8MB / 2000 万像素。</p>
-            <p id="deliveryTargetText" class="hint">独立交付 · 不加入上一位顾客</p>
-            <img id="deliveryTargetPreview" class="delivery-target-preview" alt="本次共同交付目标照片" />
-            <div class="pair-row">
-              <button class="panel-btn" id="chooseDeliveryTarget" type="button">选择共领目标</button>
-              <button class="panel-btn" id="clearDeliveryTarget" type="button">清除目标</button>
-            </div>
-            <div id="deliverySpecRows"></div>
-            <button class="panel-btn wide-btn" id="addDeliverySpec" type="button">＋ 添加规格</button>
-            <button class="panel-btn wide-btn primary" id="generateDeliveryDraft" type="button">生成待核对草稿</button>
-            <button class="panel-btn wide-btn" id="closeMultiDelivery" type="button">关闭</button>
-            <p id="multiDeliveryStatus" class="hint">用途、底色和报名要求由店员确认，留空即未标注。</p>
-          </div>
         </section>
 
         <section class="view settings-view" id="settingsView" style="display: none;">
@@ -289,7 +281,6 @@
     <script src="src/photoshop/exportService.js"></script>
     <script src="src/photoshop/deliveryService.js"></script>
     <script src="src/ui/settingsViewController.js"></script>
-    <script src="src/ui/deliveryDraftView.js"></script>
     <script src="src/ui/deliveryStatusView.js"></script>
     <script src="src/core/layoutWorkflow.js"></script>
     <script src="src/main.js"></script>

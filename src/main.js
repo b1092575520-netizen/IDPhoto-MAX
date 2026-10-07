@@ -314,7 +314,6 @@
   function switchView(targetId, message) {
     var tabs = all(".tab-button");
     var views = all(".view");
-    var viewLabel = "排版";
 
     tabs.forEach(function (item) {
       var active = item.getAttribute("data-view") === targetId;
@@ -339,7 +338,6 @@
     }
 
     if (targetId === "settingsView") {
-      viewLabel = "设置";
       refreshDebugStatus();
       if (settingsViewController && settingsViewController.showHome) {
         settingsViewController.showHome();
@@ -351,7 +349,7 @@
       }
     }
 
-    setStatus(message || "打开" + viewLabel);
+    setStatus(message || "");
   }
 
   function syncTemplateButtons() {
@@ -1161,38 +1159,11 @@
     });
   }
 
-  function bindDeliveryTools() {
-    var toggle = one("#deliveryToolsToggle");
-    var body = one("#deliveryToolsBody");
-    var storageKey = "idphoto-max-delivery-tools-open";
-    if (!toggle || !body) {
-      return;
-    }
-    function apply(open) {
-      var caret = one(".tools-caret", toggle);
-      body.style.display = open ? "block" : "none";
-      toggle.setAttribute("aria-expanded", String(open));
-      toggle.classList.toggle("open", open);
-      if (caret) {
-        caret.textContent = open ? "▾" : "▸";
-      }
-    }
-    var open = false;
-    try {
-      open = window.localStorage.getItem(storageKey) === "1";
-    } catch (error) {
-      open = false;
-    }
-    apply(open);
-    toggle.addEventListener("click", function () {
-      open = !open;
-      apply(open);
-      try {
-        window.localStorage.setItem(storageKey, open ? "1" : "0");
-      } catch (error) {
-        // Remembering the fold state is only a convenience.
-      }
-    });
+  function showConnectionStatus(message) {
+    var line = one("#deliveryConnectionStatus");
+    if (!line) return;
+    line.textContent = message || "";
+    line.style.display = message ? "block" : "none";
   }
 
   function bindModifierTracking() {
@@ -1377,20 +1348,10 @@
       checkConnection.disabled = true;
       try {
         await window.IDPhotoDeliveryService.connection();
-        one("#deliveryConnectionStatus").textContent = "交接已连通；云端将在实际交付时核对";
-      } catch (error) { one("#deliveryConnectionStatus").textContent = errorToText(error); }
+        showConnectionStatus("交接已连通；云端将在实际交付时核对");
+      } catch (error) { showConnectionStatus(errorToText(error)); }
       finally { checkConnection.disabled = false; }
     });
-    if (window.IDPhotoDeliveryDraftView) window.IDPhotoDeliveryDraftView.create({ currentDocumentId: function () { var doc = getCurrentDocumentObject(); return doc && doc.id; }, generate: async function (specs, target) {
-      if (!beginPhotoshopOperation("delivery")) throw new Error("当前任务尚未完成，请稍候。");
-      try {
-        var info = await readActiveDocumentForStatus("多规格草稿"), sourceDoc = getCurrentDocumentObject();
-        if (!info || !sourceDoc || sourceDoc.id !== info.id) throw new Error("活动照片已改变，请重新核对。");
-        var task = await window.IDPhotoDeliveryService.multi(sourceDoc, info, window.IDPhotoSettingsStore.load(), specs, target,
-          { exportJpg: state.exportJpg, nasArchive: state.nasArchive });
-        setStatus(task.status.message); return task;
-      } finally { endPhotoshopOperation("delivery"); }
-    } });
     if (configureDelivery) configureDelivery.addEventListener("click", async function () {
       try { var path = await window.IDPhotoDeliveryService.configure(); if (path) setStatus("本机交接目录：" + path + "；请在后台选择同一目录，仅需配置一次"); }
       catch (error) { setStatus(errorToText(error)); }
@@ -1512,8 +1473,7 @@
       });
     if (window.IDPhotoDeliveryService && window.IDPhotoDeliveryService.onProgress)
       window.IDPhotoDeliveryService.onProgress(function (message) {
-        var connectionStatus = one("#deliveryConnectionStatus");
-        if (connectionStatus) connectionStatus.textContent = message;
+        showConnectionStatus(message);
         setStatus(message);
       });
     loadQuickPrintPreference();
@@ -1523,7 +1483,6 @@
     bindTabs();
     bindSizeButtons();
     bindToggleButtons();
-    bindDeliveryTools();
     bindModifierTracking();
     bindMainActions();
     bindShortcuts();

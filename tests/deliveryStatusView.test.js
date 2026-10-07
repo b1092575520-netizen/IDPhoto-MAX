@@ -5,20 +5,30 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-function element() {
-  const listeners = {}, classes = new Set();
-  return {
-    textContent: "", style: {}, disabled: false,
+function element(tag) {
+  const listeners = {}, classes = new Set(), children = [], attributes = {};
+  const node = {
+    tagName: tag || "div", textContent: "", style: {}, disabled: false, checked: false, children,
+    get firstChild() { return children[0] || null; },
     classList: { toggle: (key, value) => value ? classes.add(key) : classes.delete(key), contains: key => classes.has(key) },
+    setAttribute: (key, value) => { attributes[key] = String(value); },
+    getAttribute: key => attributes[key],
+    appendChild: child => { children.push(child); return child; },
+    removeChild: child => { children.splice(children.indexOf(child), 1); return child; },
+    querySelector: selector => selector === ".toggle-state" ? node.label : null,
+    querySelectorAll: () => children.flatMap(row => row.children.filter(child => child.tagName === "input")),
     addEventListener: (type, callback) => { listeners[type] = callback; },
     fire: type => listeners[type || "click"] && listeners[type || "click"]()
   };
+  return node;
 }
 
 function load() {
-  const ids = ["deliveryPlanHint", "deliveryRecoveryBar", "deliveryRecoveryText", "deliveryRecoveryPrint", "multiDeliveryButton"];
+  const ids = ["deliveryPlanHint", "deliveryRecoveryBar", "deliveryRecoveryText", "deliveryRecoveryPrint",
+    "groupToggle", "groupStatus", "groupPicker", "groupPickerList", "groupPickerConfirm", "groupPickerSkip"];
   const nodes = Object.fromEntries(ids.map(id => [id, element()]));
-  const root = { querySelector: selector => nodes[selector.slice(1)] || null };
+  nodes.groupToggle.label = element("span");
+  const root = { querySelector: selector => nodes[selector.slice(1)] || null, createElement: tag => element(tag) };
   const window = {};
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/ui/deliveryStatusView.js"), "utf8"), vm.createContext({ window, Promise }));
   return { view: window.IDPhotoDeliveryStatusView.create({ root }), nodes };
@@ -54,10 +64,44 @@ test("a recovered task only prints after the operator clicks print", async () =>
   assert.equal(nodes.deliveryRecoveryBar.style.display, "none");
 });
 
-test("the draft count appears on the multi-spec button and clears at zero", () => {
+test("the 同行 switch stays hidden until the delivery logic enables it, and only changes through showGroup", async () => {
   const { view, nodes } = load();
-  view.showDraftCount(2);
-  assert.equal(nodes.multiDeliveryButton.textContent, "多规格 / 同行共领 · 暂存 2");
-  view.showDraftCount(0);
-  assert.equal(nodes.multiDeliveryButton.textContent, "多规格 / 同行共领");
+  assert.equal(nodes.groupToggle.style.display, undefined);
+  nodes.groupToggle.fire();
+  const wanted = [];
+  view.enableGroup(async wantOn => { wanted.push(wantOn); });
+  assert.equal(nodes.groupToggle.style.display, "flex");
+  nodes.groupToggle.fire();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(wanted, [true]);
+  assert.equal(nodes.groupToggle.classList.contains("active"), false, "the switch waits for the real state");
+  view.showGroup({ on: true, count: 3, code: "A7K3P9" });
+  assert.equal(nodes.groupToggle.label.textContent, "开");
+  assert.equal(nodes.groupStatus.textContent, "同行中 · 已 3 人 · 码 A7K3P9");
+  nodes.groupToggle.fire();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(wanted, [true, false]);
+  view.showGroup(null);
+  assert.equal(nodes.groupStatus.style.display, "none");
+  view.showPlan({ kind: "group", code: "A7K3P9" });
+  assert.equal(nodes.deliveryPlanHint.textContent, "同行 · 并入 A7K3P9");
+});
+
+test("the recent-customer picker returns only the ticked customers, or none", () => {
+  const { view, nodes } = load();
+  const chosen = [];
+  view.showGroupPicker([{ id: "a", name: "1M9A5480.JPG", time: "10:32", code: "K9F4T6" }, { id: "b", name: "1M9A5481.JPG", time: "10:40" }],
+    ids => chosen.push(JSON.parse(JSON.stringify(ids))));
+  assert.equal(nodes.groupPicker.style.display, "block");
+  assert.equal(nodes.groupPickerList.children.length, 2);
+  assert.match(nodes.groupPickerList.children[0].children.at(-1).textContent, /10:32 · 1M9A5480\.JPG · 码 K9F4T6/);
+  nodes.groupPickerList.children[0].children[0].checked = true;
+  nodes.groupPickerConfirm.fire();
+  assert.deepEqual(chosen, [["a"]]);
+  assert.equal(nodes.groupPicker.style.display, "none");
+  nodes.groupPickerConfirm.fire();
+  assert.equal(chosen.length, 1, "a closed picker cannot answer twice");
+  view.showGroupPicker([{ id: "c", name: "x" }], ids => chosen.push(JSON.parse(JSON.stringify(ids))));
+  nodes.groupPickerSkip.fire();
+  assert.deepEqual(chosen[1], []);
 });

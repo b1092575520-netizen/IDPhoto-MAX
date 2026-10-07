@@ -159,9 +159,12 @@ p {
   color: var(--group-special);
 }
 
+/* Each group is exactly one row. Tiles share the row with flex instead of
+   percentage widths, so a narrower panel (or a scrollbar) never pushes a
+   tile onto a new line. */
 .size-grid {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   margin: -2px;
 }
 
@@ -170,7 +173,8 @@ p {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: calc(25% - 4px);
+  flex: 1 1 0;
+  min-width: 0;
   height: 38px;
   margin: 2px;
   padding: 0 2px;
@@ -206,15 +210,6 @@ p {
 
 .group-special .size-btn:hover {
   background: rgba(201, 155, 94, 0.29);
-}
-
-/* Each group fills exactly one row: regular 4, visa 5, special 2. */
-.group-visa .size-btn {
-  width: calc(20% - 4px);
-}
-
-.group-special .size-btn {
-  width: calc(50% - 4px);
 }
 
 .size-grid .size-btn.active {
@@ -322,6 +317,49 @@ p {
 
 .pickup-toggle.active .toggle-state {
   background: var(--ok);
+}
+
+.group-toggle.active {
+  border-color: var(--group-regular);
+  background: rgba(143, 132, 214, 0.22);
+}
+
+.group-toggle.active .toggle-state {
+  background: var(--group-regular);
+}
+
+.group-status {
+  margin: 5px 0 0;
+  color: #c9c2f0;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+}
+
+.picker-list {
+  margin: 6px 0 0;
+}
+
+.picker-row {
+  display: flex;
+  align-items: center;
+  margin: 0 0 4px;
+  color: var(--text);
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.picker-row input {
+  margin: 0 6px 0 0;
+}
+
+.picker-thumb {
+  width: 28px;
+  height: 36px;
+  margin: 0 6px 0 0;
+  object-fit: cover;
+  border-radius: 2px;
 }
 
 /* ---------- Primary action ---------- */
@@ -440,43 +478,31 @@ p {
 
 /* ---------- Delivery tools ---------- */
 
-.tools-toggle {
-  display: flex;
-  align-items: center;
-  height: 26px;
-  margin: 8px 0 0;
-  padding: 0 2px;
-  border-top: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.tools-toggle:hover,
-.tools-toggle.open {
-  color: var(--text);
-}
-
-.tools-caret {
-  display: block;
-  width: 14px;
-  font-size: 11px;
-}
-
 .tool-grid {
   display: flex;
   flex-wrap: wrap;
-  margin: -4px -2px 0;
+  margin: 6px -2px 0;
 }
 
 .tool-grid .panel-btn {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
   width: calc(50% - 4px);
+  height: 26px;
   margin: 4px 2px 0;
+  padding: 0 4px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 24px;
 }
 
 .tool-grid .panel-btn.wide-btn {
   width: calc(100% - 4px);
+}
+
+.tool-grid .panel-btn:hover {
+  color: var(--text);
 }
 
 .hint {
@@ -525,40 +551,6 @@ p {
   max-height: 120px;
   margin: 6px 0 0;
   object-fit: contain;
-}
-
-.delivery-spec-row {
-  padding: 6px 0;
-  border-bottom: 1px solid var(--line);
-}
-
-.delivery-spec-row label {
-  display: flex;
-  flex-direction: column;
-  margin: 3px 0;
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.delivery-spec-row input {
-  width: 100%;
-  min-width: 0;
-  height: 24px;
-  padding: 2px 6px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--surface);
-  color: var(--text);
-}
-
-.delivery-spec-grid {
-  display: flex;
-  flex-wrap: wrap;
-}
-
-.delivery-spec-grid label {
-  width: 48%;
-  margin-right: 2%;
 }
 
 /* ---------- Settings ---------- */
