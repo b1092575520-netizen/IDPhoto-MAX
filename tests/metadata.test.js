@@ -114,13 +114,20 @@ test("quick print is fixed to DS-RX1 and loads before the layout workflow", () =
 
 test("the compact layout keeps every template visible and groups visa two-inch correctly", () => {
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-  const regularSection = html.slice(html.indexOf("常规排版"), html.indexOf("签证排版"));
-  const visaSection = html.slice(html.indexOf("签证排版"), html.indexOf("特种尺寸"));
+  const tiles = html.match(/<div class="size-btn[^>]*>/g) || [];
+  const groupOf = name => {
+    const tile = tiles.find(item => item.includes('data-template="' + name));
+    return tile && (tile.match(/data-group="([^"]+)"/) || [])[1];
+  };
 
-  assert.doesNotMatch(regularSection, /签证2寸/);
-  assert.match(visaSection, /签证2寸/);
   assert.equal((html.match(/class="[^"]*size-btn/g) || []).length, 11);
-  assert.match(html, /class="section-body output-options"/);
+  assert.equal(tiles.length, 11, "size tiles are divs so UXP can show name and size on two lines");
+  assert.equal(groupOf("1寸"), "regular");
+  assert.equal(groupOf("签证2寸"), "visa");
+  assert.equal(groupOf("美签 5.1x5.1"), "visa");
+  assert.equal(groupOf("毕业证"), "special");
+  assert.match(html, /class="output-options"/);
+  assert.doesNotMatch(html, /data-key="exportJpg"|data-key="nasArchive"/, "JPG and NAS saving are always on");
   assert.doesNotMatch(html, /quick-print-note/);
 });
 

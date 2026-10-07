@@ -8,103 +8,117 @@
   </head>
   <body>
     <div class="plugin-root">
+      <nav class="tab-row" aria-label="面板导航">
+        <div class="tab-button active" role="button" tabindex="0" data-view="mainView">排版</div>
+        <div class="tab-button" role="button" tabindex="0" data-view="settingsView">设置</div>
+      </nav>
+
       <main class="content-scroll">
         <section class="view active" id="mainView" style="display: block;">
-          <section class="section-block">
-            <div class="section-title"><span><span class="section-caret" data-icon="caret-down"></span>常规排版（自动加信息条）</span></div>
-            <div class="section-body two-columns">
-              <button class="panel-btn purple-btn size-btn" type="button" data-template="1寸 2.7x3.8" data-icon="photo"><span class="btn-label"><span class="size-name">1寸</span><br aria-hidden="true" /><span class="size-dim">2.7x3.8</span></span></button>
-              <button class="panel-btn purple-btn size-btn" type="button" data-template="标准2寸 3.5x4.9" data-icon="photo"><span class="btn-label"><span class="size-name">标准2寸</span><br aria-hidden="true" /><span class="size-dim">3.5x4.9</span></span></button>
-              <button class="panel-btn purple-btn size-btn" type="button" data-template="小2寸 3.3x4.8" data-icon="photo"><span class="btn-label"><span class="size-name">小2寸</span><br aria-hidden="true" /><span class="size-dim">3.3x4.8</span></span></button>
-              <button class="panel-btn purple-btn size-btn" type="button" data-template="香港台湾 3.0x4.0" data-icon="id-card"><span class="btn-label"><span class="size-name">香港台湾</span><br aria-hidden="true" /><span class="size-dim">3.0x4.0</span></span></button>
+          <div class="size-group group-regular">
+            <p class="group-label">常规</p>
+            <div class="size-grid">
+              <div class="size-btn" role="button" tabindex="0" data-group="regular" data-template="1寸 2.7x3.8" title="常规 · 1寸 2.7×3.8cm"><span class="size-name">1寸</span><span class="size-dim">2.7×3.8</span></div>
+              <div class="size-btn" role="button" tabindex="0" data-group="regular" data-template="标准2寸 3.5x4.9" title="常规 · 标准2寸 3.5×4.9cm"><span class="size-name">标准2寸</span><span class="size-dim">3.5×4.9</span></div>
+              <div class="size-btn" role="button" tabindex="0" data-group="regular" data-template="小2寸 3.3x4.8" title="常规 · 小2寸 3.3×4.8cm"><span class="size-name">小2寸</span><span class="size-dim">3.3×4.8</span></div>
+              <div class="size-btn" role="button" tabindex="0" data-group="regular" data-template="香港台湾 3.0x4.0" title="常规 · 香港台湾 3.0×4.0cm"><span class="size-name">香港台湾</span><span class="size-dim">3.0×4.0</span></div>
             </div>
-          </section>
+          </div>
+          <div class="size-group group-visa">
+            <p class="group-label">签证</p>
+            <div class="size-grid">
+              <div class="size-btn" role="button" tabindex="0" data-group="visa" data-template="签证2寸 3.5x4.5" title="签证 · 签证2寸 3.5×4.5cm"><span class="size-name">签证2寸</span><span class="size-dim">3.5×4.5</span></div>
+              <div class="size-btn" role="button" tabindex="0" data-group="visa" data-template="巴西 4.0x5.0" title="签证 · 巴西 4.0×5.0cm"><span class="size-name">巴西</span><span class="size-dim">4.0×5.0</span></div>
+              <div class="size-btn" role="button" tabindex="0" data-group="visa" data-template="阿根廷 4.0x4.0" title="签证 · 阿根廷 4.0×4.0cm"><span class="size-name">阿根廷</span><span class="size-dim">4.0×4.0</span></div>
+              <div class="size-btn" role="button" tabindex="0" data-group="visa" data-template="美签 5.0x5.0" title="签证 · 美签 5.0×5.0cm"><span class="size-name">美签</span><span class="size-dim">5.0×5.0</span></div>
+              <div class="size-btn" role="button" tabindex="0" data-group="visa" data-template="美签 5.1x5.1" title="签证 · 美签 5.1×5.1cm"><span class="size-name">美签</span><span class="size-dim">5.1×5.1</span></div>
+            </div>
+          </div>
+          <div class="size-group group-special">
+            <p class="group-label">特种 · 可旋转排法</p>
+            <div class="size-grid">
+              <div class="size-btn" role="button" tabindex="0" data-group="special" data-template="毕业证 4.0x5.5" title="特种（允许旋转排法）· 毕业证 4.0×5.5cm"><span class="size-name">毕业证</span><span class="size-dim">4.0×5.5</span></div>
+              <div class="size-btn" role="button" tabindex="0" data-group="special" data-template="结婚照 5.3x3.5" title="特种（允许旋转排法）· 结婚照 5.3×3.5cm"><span class="size-name">结婚照</span><span class="size-dim">5.3×3.5</span></div>
+            </div>
+          </div>
 
-          <section class="section-block">
-            <div class="section-title"><span><span class="section-caret" data-icon="caret-down"></span>签证排版</span></div>
-            <div class="section-body two-columns">
-              <button class="panel-btn green-btn size-btn" type="button" data-template="签证2寸 3.5x4.5" data-icon="passport"><span class="btn-label"><span class="size-name">签证2寸</span><br aria-hidden="true" /><span class="size-dim">3.5x4.5</span></span></button>
-              <button class="panel-btn green-btn size-btn" type="button" data-template="巴西 4.0x5.0" data-icon="flag-brazil"><span class="btn-label"><span class="size-name">巴西</span><br aria-hidden="true" /><span class="size-dim">4.0x5.0</span></span></button>
-              <button class="panel-btn green-btn size-btn" type="button" data-template="阿根廷 4.0x4.0" data-icon="flag-argentina"><span class="btn-label"><span class="size-name">阿根廷</span><br aria-hidden="true" /><span class="size-dim">4.0x4.0</span></span></button>
-              <button class="panel-btn green-btn size-btn" type="button" data-template="美签 5.0x5.0" data-icon="flag-usa"><span class="btn-label"><span class="size-name">美签</span><br aria-hidden="true" /><span class="size-dim">5.0x5.0</span></span></button>
-              <button class="panel-btn green-btn size-btn" type="button" data-template="美签 5.1x5.1" data-icon="flag-usa-alt"><span class="btn-label"><span class="size-name">美签</span><br aria-hidden="true" /><span class="size-dim">5.1x5.1</span></span></button>
+          <div class="output-options">
+            <div class="toggle-btn quick-print-toggle" role="button" tabindex="0" data-key="quickPrint" aria-pressed="false" title="每个版面发送一张到 DS-RX1">
+              <span class="toggle-name">打印</span><span class="toggle-state">关</span>
             </div>
-          </section>
+            <div class="toggle-btn pickup-toggle" role="button" tabindex="0" data-key="pickupCodeMode" aria-pressed="false" title="开启后，本店当天新拍先取码再排版；外来、旧片和日期不明的照片只排版，信息条留白">
+              <span class="toggle-name">取件码</span><span class="toggle-state">关</span>
+            </div>
+          </div>
 
-          <section class="section-block">
-            <div class="section-title"><span><span class="section-caret" data-icon="caret-down"></span>特种尺寸（允许旋转排法）</span></div>
-            <div class="section-body two-columns">
-              <button class="panel-btn brown-btn size-btn" type="button" data-template="毕业证 4.0x5.5" data-icon="graduation"><span class="btn-label"><span class="size-name">毕业证</span><br aria-hidden="true" /><span class="size-dim">4.0x5.5</span></span></button>
-              <button class="panel-btn brown-btn size-btn" type="button" data-template="结婚照 5.3x3.5" data-icon="wedding"><span class="btn-label"><span class="size-name">结婚照</span><br aria-hidden="true" /><span class="size-dim">5.3x3.5</span></span></button>
-            </div>
-          </section>
+          <div class="run-button" id="runButton" role="button" tabindex="0"><span class="btn-label">排版</span></div>
+          <p id="deliveryPlanHint" class="plan-hint" style="display: none;"></p>
+          <div id="deliveryRecoveryBar" class="recovery-bar" style="display: none;">
+            <p id="deliveryRecoveryText" class="recovery-text"></p>
+            <button class="panel-btn primary" id="deliveryRecoveryPrint" type="button">打印</button>
+          </div>
+          <button class="panel-btn wide-btn warn-btn" id="stopDeliveryWait" type="button" style="display: none;">停止等待取码</button>
 
-          <section class="section-block">
-            <div class="section-title"><span><span class="section-caret" data-icon="caret-down"></span>输出选项</span></div>
-            <div class="section-body output-options">
-              <button class="toggle-btn switch-btn active" type="button" data-key="exportJpg" data-icon="image">
-                <span class="toggle-name">JPG</span><span class="toggle-state">开</span>
-              </button>
-              <button class="toggle-btn switch-btn active" type="button" data-key="nasArchive" data-icon="folder">
-                <span class="toggle-name">NAS</span><span class="toggle-state">开</span>
-              </button>
-              <button class="toggle-btn switch-btn quick-print-toggle" type="button" data-key="quickPrint" data-icon="printer">
-                <span class="toggle-name">打印</span><span class="toggle-state">关</span>
-              </button>
+          <div id="historicalDeliveryPanel" class="delivery-draft-panel" style="display: none;">
+            <p class="panel-title">旧片交付确认</p>
+            <p id="historicalDeliveryPhoto" class="hint"></p>
+            <p class="hint">这张不是本店当天新拍。确认是本店旧片且要交付，才会取码并上传。</p>
+            <button class="panel-btn wide-btn primary" id="confirmHistoricalDelivery" type="button">确认旧片，取码上传</button>
+            <button class="panel-btn wide-btn" id="existingHistoricalDelivery" type="button">已交付过，重导信息条</button>
+            <button class="panel-btn wide-btn" id="cancelHistoricalDelivery" type="button">取消</button>
+          </div>
+
+          <div class="tools-toggle" id="deliveryToolsToggle" role="button" tabindex="0" aria-expanded="false">
+            <span class="tools-caret">▸</span><span>交付工具</span>
+          </div>
+          <div class="tools-body" id="deliveryToolsBody" style="display: none;">
+            <div class="tool-grid">
+              <button class="panel-btn wide-btn" id="electronicDeliveryButton" type="button" title="不排版、不打印，只给当前照片取码并上传电子版；不是本店当天新拍的会先确认是否旧片补交">电子交付 / 旧片补交</button>
+              <button class="panel-btn" id="reviewCurrentCustomer" type="button" title="重拼、补印当前顾客，或开始下一位">当前顾客</button>
+              <button class="panel-btn" id="reviewPendingDelivery" type="button" title="继续没完成的交付，或检测后台连接">未完成交付</button>
+              <button class="panel-btn wide-btn" id="multiDeliveryButton" type="button" title="一张照片出多个规格，或加入同行共领；先暂存，在电脑后台核对后统一发布">多规格 / 同行共领</button>
             </div>
-            <button class="toggle-btn switch-btn wide-btn" type="button" data-key="pickupCodeMode" aria-pressed="false">
-              <span class="toggle-name">取件码模式</span><span class="toggle-state">关</span>
-            </button>
-            <div class="settings-note">开启后，本店当天新拍照片先取码再排版；外来、旧片重印和日期不明照片仅排版，信息条留白。旧片需要上传时请明确选择下方交付入口。</div>
-            <button class="run-button" id="runButton" type="button" data-icon="rocket"><span class="btn-label">开始排版</span></button>
-            <p id="deliveryConnectionStatus" class="settings-note">交接尚未核对；不影响普通排版</p>
-            <button class="panel-btn wide-btn" id="reviewCurrentCustomer" type="button">当前顾客 · 重拼／补印／开始下一位</button>
-            <div id="currentCustomerPanel" class="delivery-draft-panel" style="display: none;">
-              <p id="currentCustomerDescription" class="settings-note"></p>
-              <img id="currentCustomerPreview" class="delivery-target-preview" alt="原任务已保存的照片，供核对顾客" />
-              <p class="settings-note">重拼使用已交付的原成片和原输出选项。修改过照片或需要新规格，请使用原交付的修订／多规格流程。</p>
-              <label><input id="currentCustomerConfirmed" type="checkbox" />我已核对上方原照片，确认主动重拼／补印</label>
-              <button class="run-button" id="reprintCurrentCustomer" type="button">重拼／补印原成片 · 重新核对取件码</button>
-              <button class="outline-button" id="retryCurrentArchives" type="button" style="display: none;">重试本批本地归档</button>
-              <button class="panel-btn wide-btn" id="nextDeliveryCustomer" type="button">开始下一位 · 保留当前顾客记录</button>
-              <button class="panel-btn wide-btn" id="chooseOriginalCustomer" type="button">选择历史原任务目录</button>
-              <button class="panel-btn wide-btn" id="closeCurrentCustomer" type="button">返回</button>
+            <p id="deliveryConnectionStatus" class="hint">交接未检测，不影响普通排版</p>
+          </div>
+
+          <div id="currentCustomerPanel" class="delivery-draft-panel" style="display: none;">
+            <p class="panel-title">当前顾客</p>
+            <p id="currentCustomerDescription" class="hint"></p>
+            <img id="currentCustomerPreview" class="delivery-target-preview" alt="原任务已保存的照片，供核对顾客" />
+            <p class="hint">重拼用原成片和原输出选项。改过照片或要新规格，请在后台修订。</p>
+            <label class="check-row"><input id="currentCustomerConfirmed" type="checkbox" />已核对照片，确认重拼／补印</label>
+            <button class="panel-btn wide-btn primary" id="reprintCurrentCustomer" type="button">重拼／补印（重新核对取件码）</button>
+            <button class="panel-btn wide-btn" id="retryCurrentArchives" type="button" style="display: none;">重试本批本地归档</button>
+            <button class="panel-btn wide-btn" id="nextDeliveryCustomer" type="button">开始下一位（保留当前记录）</button>
+            <button class="panel-btn wide-btn" id="chooseOriginalCustomer" type="button">选择历史任务</button>
+            <button class="panel-btn wide-btn" id="closeCurrentCustomer" type="button">返回</button>
+          </div>
+
+          <div id="pendingDeliveryPanel" class="delivery-draft-panel" style="display: none;">
+            <p class="panel-title">未完成交付</p>
+            <p id="pendingDeliveryDescription" class="hint"></p>
+            <p class="hint">继续的是原任务保存的照片，不是当前照片；停止等待不等于云端取消。</p>
+            <button class="panel-btn wide-btn primary" id="retryPendingDelivery" type="button">继续原任务</button>
+            <button class="panel-btn wide-btn" id="deferPendingDelivery" type="button">这是另一位顾客，保留旧任务</button>
+            <button class="panel-btn wide-btn" id="checkDeliveryConnection" type="button">检测后台连接</button>
+            <button class="panel-btn wide-btn" id="closePendingDelivery" type="button">返回</button>
+          </div>
+
+          <div id="multiDeliveryPanel" class="delivery-draft-panel" style="display: none;">
+            <p class="panel-title">多规格 / 同行共领</p>
+            <p class="hint">只生成电子照片，不打印。不放大、不自动裁切，比例不同请先裁好；单张最大 8MB / 2000 万像素。</p>
+            <p id="deliveryTargetText" class="hint">独立交付 · 不加入上一位顾客</p>
+            <img id="deliveryTargetPreview" class="delivery-target-preview" alt="本次共同交付目标照片" />
+            <div class="pair-row">
+              <button class="panel-btn" id="chooseDeliveryTarget" type="button">选择共领目标</button>
+              <button class="panel-btn" id="clearDeliveryTarget" type="button">清除目标</button>
             </div>
-            <button class="panel-btn wide-btn" id="reviewPendingDelivery" type="button">交付连接与恢复 · 处理未完成交付</button>
-            <button class="panel-btn wide-btn" id="stopDeliveryWait" type="button" style="display: none;">停止本次取码等待</button>
-            <div id="pendingDeliveryPanel" class="delivery-draft-panel" style="display: none;">
-              <p id="pendingDeliveryDescription" class="settings-note"></p>
-              <button class="panel-btn wide-btn" id="checkDeliveryConnection" type="button">检测照片交付后台连接</button>
-              <p class="settings-note">继续的是原任务已保存的照片，不是当前活动照片。会重新核对取件码并沿用原输出选项；停止等待不等于云端取消。</p>
-              <button class="run-button" id="retryPendingDelivery" type="button">继续原任务 · 沿用原输出选项</button>
-              <button class="panel-btn wide-btn" id="deferPendingDelivery" type="button">当前是另一位顾客 · 保留旧任务</button>
-              <button class="panel-btn wide-btn" id="closePendingDelivery" type="button">返回，不改变原任务</button>
-            </div>
-            <button class="run-button" id="deliverLayoutButton" type="button"><span class="btn-label">排版并交付 · 沿用打印开关</span></button>
-            <button class="panel-btn green-btn wide-btn" id="electronicDeliveryButton" type="button"><span class="btn-label">仅电子交付 · 当前照片</span></button>
-            <div id="historicalDeliveryPanel" class="delivery-draft-panel" style="display: none;">
-              <p id="historicalDeliveryPhoto" class="settings-note"></p>
-              <p class="settings-note">这张照片不符合本店当天新拍规则。只有确认是本店旧片并需要本次补交，才会生成独立成片、取码并上传。拍摄日期缺失时保持未知，不改变普通保存资格。</p>
-              <button class="run-button" id="confirmHistoricalDelivery" type="button">确认本店旧片 · 尚未交付，本次取码上传</button>
-              <button class="panel-btn wide-btn" id="existingHistoricalDelivery" type="button">已经交付 · 选择原任务重导信息条</button>
-              <p class="settings-note">已有交付需要修改照片时，请在后台选择原交付补交／修订，不重复新建。</p>
-              <button class="panel-btn wide-btn" id="cancelHistoricalDelivery" type="button">取消本次交付</button>
-            </div>
-            <button class="panel-btn green-btn wide-btn" id="multiDeliveryButton" type="button">多规格草稿 / 同行共领</button>
-            <div class="settings-note">仅电子不打印。多规格先生成独立 JPG，再在后台核对并完成；不同底色请先完成处理，再明确补交对应版本。</div>
-            <div id="multiDeliveryPanel" class="delivery-draft-panel" style="display: none;">
-              <div class="settings-note">不放大、不自动裁切；比例不同请先裁切。最大 8 MiB / 2000 万像素。大小单位 KB=1024 字节，品质只在指定范围内调整。</div>
-              <p id="deliveryTargetText">独立交付 · 不加入上一位顾客</p>
-              <img id="deliveryTargetPreview" class="delivery-target-preview" alt="本次共同交付目标照片" />
-              <button class="panel-btn wide-btn" id="chooseDeliveryTarget" type="button">选择后台导出的共领目标</button>
-              <button class="panel-btn wide-btn" id="clearDeliveryTarget" type="button">清除目标，独立交付</button>
-              <div id="deliverySpecRows"></div>
-              <button class="panel-btn wide-btn" id="addDeliverySpec" type="button">添加一个规格</button>
-              <button class="run-button" id="generateDeliveryDraft" type="button">确认规格，生成待核对草稿</button>
-              <button class="panel-btn wide-btn" id="closeMultiDelivery" type="button">关闭并清除共领目标</button>
-              <p id="multiDeliveryStatus" class="settings-note">用途、底色和报名要求由店员确认，留空即未标注。</p>
-            </div>
-          </section>
+            <div id="deliverySpecRows"></div>
+            <button class="panel-btn wide-btn" id="addDeliverySpec" type="button">＋ 添加规格</button>
+            <button class="panel-btn wide-btn primary" id="generateDeliveryDraft" type="button">生成待核对草稿</button>
+            <button class="panel-btn wide-btn" id="closeMultiDelivery" type="button">关闭</button>
+            <p id="multiDeliveryStatus" class="hint">用途、底色和报名要求由店员确认，留空即未标注。</p>
+          </div>
         </section>
 
         <section class="view settings-view" id="settingsView" style="display: none;">
@@ -181,9 +195,9 @@
                   </select>
                 </label>
                 <div class="settings-note">仅保存在当前电脑，不随设置备份迁移。</div>
-                <button class="toggle-btn switch-btn" id="closeAfterPrintToggle" type="button" data-icon="printer">
+                <div class="toggle-btn" id="closeAfterPrintToggle" role="button" tabindex="0">
                   <span class="toggle-name">打印成功后关闭拼版</span><span class="toggle-state">关</span>
-                </button>
+                </div>
                 <div class="settings-note">仅在打印机确认成功后关闭，并且不保存拼版文档；打印失败时文档会保留。</div>
                 <label class="field-row" for="nasFolderStatus">
                   <span>授权目录</span>
@@ -211,9 +225,9 @@
           <section class="section-block settings-card">
             <button class="section-title settings-card-toggle" type="button" aria-expanded="false"><span><span class="section-caret" data-icon="caret-down"></span>高级与调试</span></button>
             <div class="settings-card-body">
-              <button class="toggle-btn debug-toggle" id="debugModeToggle" type="button">
+              <div class="toggle-btn debug-toggle" id="debugModeToggle" role="button" tabindex="0">
                 <span class="toggle-name">开发者调试模式</span><span class="toggle-state">关</span>
-              </button>
+              </div>
               <div class="debug-panel" id="debugPanel" style="display: none;">
                 <div class="debug-status" id="debugOverrideStatus">当前模板调试覆盖：无</div>
                 <div class="debug-help">开启后请单独执行一个模板；可拖动或缩放画布中的 DEBUG 图层，保存后只覆盖当前模板。</div>
@@ -233,19 +247,8 @@
         </section>
       </main>
 
-      <nav class="tab-row" aria-label="面板导航">
-        <button class="tab-button active" type="button" data-view="mainView">
-          <span class="tab-icon" data-icon="caret-down"></span>
-          <span>排版</span>
-        </button>
-        <button class="tab-button" type="button" data-view="settingsView">
-          <span class="tab-icon" data-icon="caret-right"></span>
-          <span>设置</span>
-        </button>
-      </nav>
-
       <footer class="status-bar">
-        <span id="statusText">当前：标准2寸｜JPG 开｜NAS 开｜快印 关｜调试关</span>
+        <span id="statusText">未选尺寸</span>
       </footer>
     </div>
 
@@ -286,6 +289,7 @@
     <script src="src/photoshop/deliveryService.js"></script>
     <script src="src/ui/settingsViewController.js"></script>
     <script src="src/ui/deliveryDraftView.js"></script>
+    <script src="src/ui/deliveryStatusView.js"></script>
     <script src="src/core/layoutWorkflow.js"></script>
     <script src="src/main.js"></script>
   </body>

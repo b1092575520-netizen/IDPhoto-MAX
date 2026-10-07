@@ -20,13 +20,13 @@ function element(attributes = {}) {
 
 function harness(options = {}) {
   const memory = options.memory || new Map(), runs = [], alerts = [];
-  const buttons = Object.fromEntries(["runButton", "deliverLayoutButton", "electronicDeliveryButton", "runVisualAcceptance", "statusText",
+  const buttons = Object.fromEntries(["runButton", "electronicDeliveryButton", "runVisualAcceptance", "statusText",
     "historicalDeliveryPanel", "historicalDeliveryPhoto", "confirmHistoricalDelivery", "existingHistoricalDelivery", "cancelHistoricalDelivery",
     "reviewPendingDelivery", "pendingDeliveryPanel", "pendingDeliveryDescription", "retryPendingDelivery",
     "deferPendingDelivery", "closePendingDelivery", "checkDeliveryConnection", "deliveryConnectionStatus", "stopDeliveryWait"]
     .map(id => [id, element()]));
   const toggle = element({ "data-key": "pickupCodeMode" }), size = element({ "data-template": "模板一" });
-  let shortcuts, electronicCalls = 0, retryCalls = [], deferCalls = [];
+  let shortcuts, electronicCalls = 0, electronicIntents = [], retryCalls = [], deferCalls = [];
   const source = { id: 10 }, template = { id: "one", name: "模板一", infoBar: {} };
   const today = new Date();
   const date = [today.getFullYear(), String(today.getMonth() + 1).padStart(2, "0"), String(today.getDate()).padStart(2, "0")].join("-");
@@ -69,8 +69,9 @@ function harness(options = {}) {
       deferPending: async id => { deferCalls.push(id);if(!options.pending||options.pending.id!==id)throw Error("原任务已改变");options.pending=null; },
       connection: async () => ({}),
       stopWaiting: () => false,
-      electronic: async () => {
+      electronic: async (sourceDocument, info, settings, intent) => {
       electronicCalls++;
+      electronicIntents.push(intent || null);
       if (options.electronicFailure) throw Object.assign(Error("后台未确认取件码"), { code: "PICKUP_CODE_REQUIRED" });
       return { code: "A2B3C4", status: { info: "saved" } };
     } }
@@ -84,7 +85,7 @@ function harness(options = {}) {
     assert.ok(html.includes('src="' + "src/" + module + '.js"'), "runtime module must ship in index.html");
     vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/" + module + ".js"), "utf8"), context);
   }
-  return { options, memory, runs, alerts, buttons, toggle, size, shortcuts, photo, date, retryCalls, deferCalls, get electronicCalls() { return electronicCalls; },
+  return { options, memory, runs, alerts, buttons, toggle, size, shortcuts, photo, date, retryCalls, deferCalls, get electronicCalls() { return electronicCalls; }, electronicIntents,
     advance: () => { tick += 1000; }, select: () => shortcuts.selectTemplate("模板一") };
 }
 const flush = async () => { await new Promise(resolve => setImmediate(resolve)); };
@@ -142,15 +143,15 @@ for (const entry of ["button", "doubleClick", "shortcut"]) {
 }
 
 test("an exported photo stays ordinary and an explicit delivery never silently downgrades", async () => {
-  const h = harness();
+  const h = harness({ electronicFailure: true });
   h.toggle.fire();
   h.photo.name = "证件照排版_旧照片.jpg";
   h.select(); await h.shortcuts.execute();
   assert.equal(h.runs.at(-1).delivery, false);
-  h.options.fail = true;
-  h.select(); h.buttons.deliverLayoutButton.fire(); await flush();
-  h.buttons.confirmHistoricalDelivery.fire(); await flush();
-  assert.equal(h.runs.at(-1).delivery, true);
+  const running = h.buttons.electronicDeliveryButton.fire(); await flush();
+  h.buttons.confirmHistoricalDelivery.fire(); await running;
+  assert.equal(h.electronicCalls, 1);
+  assert.equal(h.electronicIntents[0].type, "historical-shop");
   assert.equal(h.alerts.length, 1);
 });
 
@@ -158,19 +159,19 @@ test("historical confirmation is explicit, cancellable and limited to this photo
   const h = harness();
   h.toggle.fire();
   h.photo.sourceMetadata.captureDate = "2000-01-02";
-  h.select(); h.buttons.deliverLayoutButton.fire(); await flush();
-  assert.equal(h.runs.length, 0, "no delivery before explicit confirmation");
-  h.buttons.cancelHistoricalDelivery.fire(); await flush();
-  assert.equal(h.runs.length, 0);
-  h.select(); h.buttons.deliverLayoutButton.fire(); await flush();
-  h.buttons.confirmHistoricalDelivery.fire(); await flush();
-  assert.equal(h.runs.length, 1);
-  assert.equal(h.runs[0].deliveryIntent.type, "historical-shop");
-  assert.equal(h.runs[0].deliveryIntent.sourceDocumentId, "10");
+  let running = h.buttons.electronicDeliveryButton.fire(); await flush();
+  assert.equal(h.electronicCalls, 0, "no delivery before explicit confirmation");
+  h.buttons.cancelHistoricalDelivery.fire(); await running;
+  assert.equal(h.electronicCalls, 0);
+  running = h.buttons.electronicDeliveryButton.fire(); await flush();
+  h.buttons.confirmHistoricalDelivery.fire(); await running;
+  assert.equal(h.electronicCalls, 1);
+  assert.equal(h.electronicIntents[0].type, "historical-shop");
+  assert.equal(h.electronicIntents[0].sourceDocumentId, "10");
   h.photo.name = "next-historical.jpg";
   h.select(); await h.shortcuts.execute();
-  assert.equal(h.runs[1].delivery, false);
-  assert.equal(h.runs[1].deliveryIntent, null);
+  assert.equal(h.runs.at(-1).delivery, false);
+  assert.equal(h.runs.at(-1).deliveryIntent, null);
   assert.equal(h.toggle.label.textContent, "开");
 });
 
@@ -198,10 +199,8 @@ test("ordinary button, double click and shortcut honor the persisted pickup swit
   assert.equal(reloaded.runs.at(-1).delivery, false);
 });
 
-test("explicit layout and electronic delivery still require pickup confirmation with the switch off", async () => {
+test("electronic delivery still requires a confirmed pickup code with the switch off", async () => {
   const h = harness({ electronicFailure: true });
-  h.select(); h.buttons.deliverLayoutButton.fire(); await flush();
-  assert.equal(h.runs.at(-1).delivery, true);
   await h.buttons.electronicDeliveryButton.fire();
   assert.equal(h.electronicCalls, 1);
   assert.equal(h.alerts.length, 1);

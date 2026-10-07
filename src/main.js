@@ -148,23 +148,23 @@
     }
 
 
-    selectionText = names.length ? "当前：" + getSelectedTemplateSummary() : "请选择尺寸";
+    // Switch states are visible on the panel itself; the status line only
+    // carries the selection and the latest message.
+    selectionText = names.length ? "已选 " + getSelectedTemplateSummary() : "未选尺寸";
     if (names.length > 1) {
-      selectionText += "｜共 " + names.length + " 个版面";
+      selectionText += "（" + names.length + " 个版面）";
     }
 
     parts.push(selectionText);
-    parts.push("JPG " + (state.exportJpg ? "开" : "关"));
-    parts.push("NAS " + (state.nasArchive ? "开" : "关"));
-    parts.push("快印 " + (state.quickPrint ? "开" : "关"));
-    parts.push("取件码 " + (state.pickupCodeMode ? "开" : "关"));
-    parts.push("调试" + (isDebugModeEnabled() ? "开" : "关"));
+    if (isDebugModeEnabled()) {
+      parts.push("调试开");
+    }
 
     if (actionText) {
       parts.push(shortenStatusMessage(actionText));
     }
 
-    statusText.textContent = parts.join("｜");
+    statusText.textContent = parts.join(" · ");
   }
 
   function shortenStatusMessage(message) {
@@ -376,7 +376,8 @@
     syncTemplateButtons();
     refreshDebugPanel();
     if (!preserveStatus) {
-      setStatus(message || (ids.length ? "已选：" + ids.map(getTemplateShortNameById).join("、") : "已取消选择尺寸"));
+      // The status line already starts with the current selection.
+      setStatus(message || (ids.length ? "" : "已取消选择尺寸"));
     }
   }
 
@@ -558,10 +559,9 @@
   function toggleOption(key, message) {
     var button = one('.toggle-btn[data-key="' + key + '"]');
     var stateText;
+    // JPG and NAS saving are always on; only printing and pickup codes are switchable.
     var optionLabels = {
-      exportJpg: "JPG",
-      nasArchive: "NAS",
-      quickPrint: "DS-RX1 快速打印",
+      quickPrint: "打印",
       pickupCodeMode: "取件码模式"
     };
     var runButtonLabel;
@@ -599,7 +599,7 @@
       }
       runButtonLabel = one("#runButton .btn-label");
       if (runButtonLabel) {
-        runButtonLabel.textContent = state.quickPrint ? "开始排版并打印" : "开始排版";
+        runButtonLabel.textContent = state.quickPrint ? "排版并打印" : "排版";
       }
     }
 
@@ -612,12 +612,13 @@
     var runButtonLabel = one("#runButton .btn-label");
     if (button) {
       button.classList.toggle("active", state.quickPrint);
+      button.setAttribute("aria-pressed", String(state.quickPrint));
     }
     if (stateText) {
       stateText.textContent = state.quickPrint ? "开" : "关";
     }
     if (runButtonLabel) {
-      runButtonLabel.textContent = state.quickPrint ? "开始排版并打印" : "开始排版";
+      runButtonLabel.textContent = state.quickPrint ? "排版并打印" : "排版";
     }
   }
 
@@ -865,7 +866,7 @@
       sourceMetadata: JSON.stringify(docInfo.sourceMetadata || {}) };
     one("#historicalDeliveryPhoto").textContent = "本次照片：" + docInfo.name;
     panel.style.display = "block";
-    setStatus("请核对本次旧片补交；普通重印请取消后使用开始排版");
+    setStatus("请核对本次旧片补交；普通重印请取消后直接排版");
     var choice;
     try {
       choice = await new Promise(function (resolve) {
@@ -1160,6 +1161,40 @@
     });
   }
 
+  function bindDeliveryTools() {
+    var toggle = one("#deliveryToolsToggle");
+    var body = one("#deliveryToolsBody");
+    var storageKey = "idphoto-max-delivery-tools-open";
+    if (!toggle || !body) {
+      return;
+    }
+    function apply(open) {
+      var caret = one(".tools-caret", toggle);
+      body.style.display = open ? "block" : "none";
+      toggle.setAttribute("aria-expanded", String(open));
+      toggle.classList.toggle("open", open);
+      if (caret) {
+        caret.textContent = open ? "▾" : "▸";
+      }
+    }
+    var open = false;
+    try {
+      open = window.localStorage.getItem(storageKey) === "1";
+    } catch (error) {
+      open = false;
+    }
+    apply(open);
+    toggle.addEventListener("click", function () {
+      open = !open;
+      apply(open);
+      try {
+        window.localStorage.setItem(storageKey, open ? "1" : "0");
+      } catch (error) {
+        // Remembering the fold state is only a convenience.
+      }
+    });
+  }
+
   function bindModifierTracking() {
     document.addEventListener("keydown", function (event) {
       if (event.key === "Control") {
@@ -1200,10 +1235,6 @@
         runCurrentTemplateSafely({ source: "点击主执行按钮" });
       });
     }
-    var deliverButton = one("#deliverLayoutButton");
-    if (deliverButton) deliverButton.addEventListener("click", function () {
-      runCurrentTemplateSafely({ source: "排版并交付（沿用打印开关）", delivery: true });
-    });
     var electronicButton = one("#electronicDeliveryButton");
     if (electronicButton) electronicButton.addEventListener("click", async function () {
       if (!beginPhotoshopOperation("delivery")) { setStatus("当前任务尚未完成，请稍候"); return; }
@@ -1492,6 +1523,7 @@
     bindTabs();
     bindSizeButtons();
     bindToggleButtons();
+    bindDeliveryTools();
     bindModifierTracking();
     bindMainActions();
     bindShortcuts();

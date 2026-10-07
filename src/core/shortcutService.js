@@ -54,18 +54,6 @@
         return;
       }
 
-      if (lowerKey === "j") {
-        event.preventDefault();
-        handlers.toggleOption("exportJpg", "快捷键 J：切换导出单张 JPG");
-        return;
-      }
-
-      if (lowerKey === "n") {
-        event.preventDefault();
-        handlers.toggleOption("nasArchive", "快捷键 N：切换 NAS 日期归档");
-        return;
-      }
-
       if (lowerKey === "s") {
         event.preventDefault();
         handlers.switchView("settingsView", "快捷键 S：打开店铺参数设置");
