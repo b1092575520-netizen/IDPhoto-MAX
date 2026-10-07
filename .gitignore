@@ -17,3 +17,9 @@ node_modules/
 .DS_Store
 Thumbs.db
 *.swp
+
+# UXP Developer Tool session file (machine-specific)
+.uxprc
+
+# Reference layouts with a real customer's photos; this repository is public
+示例图片/
