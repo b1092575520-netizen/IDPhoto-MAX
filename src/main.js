@@ -41,6 +41,10 @@
 
   var settingsViewController = null;
   var layoutWorkflow = null;
+  var deliveryStatusView = null;
+  var automaticTickBusy = false;
+  var automaticNotice = null;
+  var planGeneration = 0;
 
   function one(selector, root) {
     return (root || document).querySelector(selector);
@@ -575,6 +579,7 @@
       }
       try {
         state.pickupCodeMode = window.IDPhotoPickupCodeModeStore.setEnabled(!state.pickupCodeMode);
+        if (!state.pickupCodeMode && window.IDPhotoDeliveryAutomationService) window.IDPhotoDeliveryAutomationService.store().setGroup({ on: false });
       } catch (error) {
         setStatus("取件码模式未改变：" + errorToText(error));
         return;
@@ -915,6 +920,7 @@
     var replacedExports;
     var completionMessage;
     var deliveryIntent = null;
+    var forceBlankInfoBar = false;
 
     if (!templateNames.length) {
       setStatus("请选择尺寸");
@@ -953,6 +959,9 @@
         }
         var sourceDecision = eligibilityService.checkSource(docInfo.sourceMetadata, docInfo.name);
         delivery = sourceDecision.eligible === true;
+        if (delivery && window.IDPhotoDeliveryIdentity && !window.IDPhotoDeliveryIdentity.getSourceIdentity(docInfo)) {
+          delivery = false; forceBlankInfoBar = true;
+        }
         if (!delivery) setStatus("本次仅排版，信息条区域留白");
       }
     } catch (documentError) {
@@ -967,12 +976,19 @@
         if (!confirmation.proceed) return;
         deliveryIntent = confirmation.intent;
       }
+      if (deliveryStatusView && window.IDPhotoDeliveryAutomationService && templateNames.length === 1) {
+        if (delivery) {
+          docInfo.sourceVariant = await window.IDPhotoVariantService.analyzeDocument(sourceDocument);
+          showDeliveryPlan(docInfo, getEffectiveTemplateByName(templateNames[0]));
+        } else deliveryStatusView.showPlan(state.pickupCodeMode ? { kind: "plain" } : null);
+      }
       runResult = await getLayoutWorkflow().run({
         templateNames: templateNames,
         sourceDocument: sourceDocument,
         docInfo: docInfo,
         delivery: delivery,
         deliveryIntent: deliveryIntent,
+        forceBlankInfoBar: forceBlankInfoBar,
         cropStrategy: getSelectedCropStrategy(),
         exportJpg: state.exportJpg,
         nasArchive: state.nasArchive,
@@ -1487,7 +1503,107 @@
     bindMainActions();
     bindShortcuts();
     syncQuickPrintControls();
+    initAutomaticDelivery();
     setStatus("");
+  }
+
+  function showDeliveryPlan(info, template) {
+    var plan = window.IDPhotoDeliveryAutomationService.plan(info, "print", template);
+    var previous = window.IDPhotoDeliveryAutomationService.store().source(plan.sourceKey);
+    if (plan.kind === "same" && previous && !previous.specs.some(function (item) { return item.specKey === plan.specKey; }))
+      deliveryStatusView.showPlan({ kind: "plain", text: "同一张原片 · 沿用 " + (plan.code || "原码") + "，追加照片" });
+    else deliveryStatusView.showPlan(plan);
+  }
+
+  async function refreshDeliveryPlan() {
+    if (!deliveryStatusView || !window.IDPhotoDeliveryAutomationService) return;
+    var generation = ++planGeneration;
+    var selected = getSelectedTemplateNames();
+    if (!state.pickupCodeMode || selected.length !== 1) { deliveryStatusView.showPlan(null); return; }
+    var info = await window.IDPhotoDocumentService.getActiveDocumentInfo(), doc = getCurrentDocumentObject();
+    if (!info || !doc || doc.id !== info.id) { deliveryStatusView.showPlan(null); return; }
+    var eligible = window.IDPhotoSourceEligibilityService.checkSource(info.sourceMetadata, info.name);
+    if (!eligible.eligible || !window.IDPhotoDeliveryIdentity.getSourceIdentity(info)) {
+      if (generation === planGeneration) deliveryStatusView.showPlan({ kind: "plain" });
+      return;
+    }
+    info.sourceVariant = await window.IDPhotoVariantService.analyzeDocument(doc);
+    var currentDocument = getCurrentDocumentObject();
+    if (generation !== planGeneration || !state.pickupCodeMode || getSelectedTemplateNames()[0] !== selected[0] || !currentDocument || currentDocument.id !== info.id) return;
+    showDeliveryPlan(info, getEffectiveTemplateByName(selected[0]));
+  }
+
+  function initAutomaticDelivery() {
+    if (!window.IDPhotoDeliveryStatusView || !window.IDPhotoDeliveryAutomationService) return;
+    deliveryStatusView = window.IDPhotoDeliveryStatusView.create({ root: document });
+    async function chooseGroup(wantOn) {
+      if (!beginPhotoshopOperation("choose-group")) { setStatus("当前任务尚未结束，请稍候"); return; }
+      try {
+        if (!state.pickupCodeMode) return;
+        if (!wantOn) {
+          window.IDPhotoDeliveryAutomationService.store().setGroup({ on: false });
+          deliveryStatusView.showGroup(null); return;
+        }
+        var items = await window.IDPhotoDeliveryAutomationService.recent();
+        if (!items.length) await window.IDPhotoDeliveryAutomationService.openGroup([]);
+        else await new Promise(function (resolve) {
+          deliveryStatusView.showGroupPicker(items, function (ids) {
+            window.IDPhotoDeliveryAutomationService.openGroup(ids).then(resolve, function (error) { setStatus(errorToText(error)); resolve(); });
+          });
+        });
+        deliveryStatusView.showGroup(window.IDPhotoDeliveryAutomationService.store().group());
+      } catch (error) { setStatus(errorToText(error)); }
+      finally { endPhotoshopOperation("choose-group"); }
+    }
+    function showAutomaticNotice() {
+      var notice = automaticNotice;
+      deliveryStatusView.showRecovery(notice, async function () {
+        if (!notice || !notice.canPrint || !beginPhotoshopOperation("recovered-print")) return;
+        try {
+          await window.IDPhotoDeliveryService.printRecovered(notice.id);
+          if (automaticNotice === notice) automaticNotice = null;
+          showAutomaticNotice(); setStatus("打印任务已提交");
+        } catch (error) {
+          automaticNotice = { id: notice.id, canPrint: false, text: errorToText(error) };
+          showAutomaticNotice(); setStatus(errorToText(error));
+        } finally { endPhotoshopOperation("recovered-print"); }
+      });
+    }
+    async function tick() {
+      if (automaticTickBusy) return;
+      automaticTickBusy = true;
+      try {
+        var group = window.IDPhotoDeliveryAutomationService.store().group();
+        if (!state.pickupCodeMode && group.on) { window.IDPhotoDeliveryAutomationService.store().setGroup({ on: false }); group = null; }
+        deliveryStatusView.enableGroup(state.pickupCodeMode ? chooseGroup : null);
+        deliveryStatusView.showGroup(group);
+        if (group && group.expired) setStatus("同行已因闲置自动关闭");
+        var mergeIntent = window.IDPhotoDeliveryAutomationService.store().mergeIntent();
+        if (mergeIntent && !state.activePhotoshopOperation) {
+          try { await window.IDPhotoDeliveryAutomationService.openGroup(mergeIntent.taskIds); }
+          catch (error) { setStatus(errorToText(error)); }
+        }
+        if (!state.activePhotoshopOperation) {
+          var pendingRecovery = await window.IDPhotoDeliveryService.primeRecovery();
+          if (pendingRecovery && typeof pendingRecovery === "object") automaticNotice = pendingRecovery;
+          if (typeof pendingRecovery === "string" && beginPhotoshopOperation("auto-recovery")) {
+            try {
+              var recovered = await window.IDPhotoDeliveryService.recoverNext(pendingRecovery);
+              if (recovered) automaticNotice = recovered;
+            } finally { endPhotoshopOperation("auto-recovery"); }
+          }
+          automaticNotice = await window.IDPhotoDeliveryService.recoveredNotice() || automaticNotice;
+          showAutomaticNotice();
+          if (beginPhotoshopOperation("auto-plan")) {
+            try { await refreshDeliveryPlan(); }
+            catch (error) { deliveryStatusView.showPlan(null); setStatus(errorToText(error)); }
+            finally { endPhotoshopOperation("auto-plan"); }
+          }
+        }
+      } catch (error) { setStatus(errorToText(error)); }
+      finally { automaticTickBusy = false; setTimeout(tick, 5000); }
+    }
+    setTimeout(tick, 300);
   }
 
   if (document.readyState === "loading") {

@@ -2,7 +2,7 @@
 
 这是一个 Photoshop UXP 面板插件项目，用于开发证件照排版工具。
 
-当前版本为 v0.6.6（面板与信息条改版）：排版面板改为分组紧凑布局，只保留“打印”“取件码”两个开关，JPG 与 NAS 固定保存；全部尺寸的普通信息条统一为 1 寸样式，最长边不超过 8 厘米，美签 5×5 新增信息条。交付、取码和打印的业务规则与 v0.6.5 相同，需配套 DUI-01 后台。既有规则详见 `docs/store-workflow.md` 与 `docs/pickup-code-mode.md`。
+当前版本为 v0.6.7（源码开发候选）：按可靠原片身份自动新建、沿用码并替换同规格照片，支持不同底色追加、未完成任务自动恢复与同行共码。需配套支持 `pickup-automation-1` 的新后台；日常 External 仍为 0.6.6，未自动安装本候选。面板与信息条保持 cc 的 0.6.6 设计，详细规则见 `docs/delivery-automation.md`，候选及验证见主项目 `review/plugin-automation-20261007/`。
 
 ## 如何加载
 
@@ -14,7 +14,7 @@
 
 ## 更新已安装插件
 
-当前日常插件（v0.6.5）由主项目 `D:\software\yx Applets` 的已审发布包安装，过程见该项目 `review/runtime-upgrade-20261005/升级与协作记录.md`。下面的 EXE 更新器停留在 v0.5.8，仅作旧版参考。
+当前日常插件为 v0.6.6，安装和回退记录见主项目 `D:\software\yx Applets` 的 `review/runtime-upgrade-20261007/插件0.6.6安装记录.md`。下面的 EXE 更新器停留在 v0.5.8，仅作旧版参考。
 
 1. 双击 `IDPhoto-MAX-Setup-v0.5.8.exe`。
 2. 按提示同意 Windows 管理员授权。

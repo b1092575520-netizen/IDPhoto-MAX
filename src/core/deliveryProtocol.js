@@ -47,6 +47,10 @@
     if (reason && reason.code === "PICKUP_CODE_REQUIRED") return reason;
     var error = new Error(reason && reason.message ? reason.message : String(reason || "尚未取得本次交付的有效取件码。"));
     error.code = "PICKUP_CODE_REQUIRED";
+    if (reason && typeof reason === "object") {
+      error.causeCode = reason.code || reason.causeCode || "";
+      if (typeof reason.retryable === "boolean") error.retryable = reason.retryable;
+    }
     return error;
   }
   function requirePickupCode(code) {

@@ -93,6 +93,9 @@
         ])
       ),
       captureDate: captureDate,
+      captureSubsecond: readXmpValue(source, ["exif:SubSecTimeOriginal", "exifEX:SubSecTimeOriginal"]),
+      imageUniqueId: readXmpValue(source, ["exif:ImageUniqueID", "photoshop:ImageUniqueID"]),
+      originalDocumentId: readXmpValue(source, ["xmpMM:OriginalDocumentID"]),
       historical: isHistoricalCaptureDate(captureDate),
       hasXmp: Boolean(source.trim())
     };

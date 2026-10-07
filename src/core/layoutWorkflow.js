@@ -173,6 +173,7 @@
     async function renderInfoBar(targetDocument, layoutPlan, template, docInfo, runOptions) {
       var decision;
       var dateText = "";
+      if (runOptions.forceBlankInfoBar) return { ok: true, createdCount: 0, skipped: true, message: "原片身份不明，信息条留白" };
       if (!layoutPlan.infoBar) {
         return {
           ok: true,
@@ -364,6 +365,8 @@
           await requireMethod("IDPhotoDeliveryService", "startOutput")(deliveryTask);
           deliveryResult = { requested: true, ok: true, taskId: deliveryTask.id, message: "取件码 " + runOptions.pickupCode + "，照片准备中" };
         } catch (deliveryError) {
+          if (deliveryTask && deliveryTask.automation && !deliveryTask.completionWritten)
+            window.IDPhotoDeliveryAutomationService.failure(deliveryTask, deliveryError);
           await closeProcessedDocument(processResult, "pickup code blocked");
           throw window.IDPhotoDeliveryProtocol.pickupCodeError(deliveryError);
         } finally {

@@ -11,6 +11,7 @@
   var CODE_WAIT_MS = 60000;
   var latestTask = null;
   var creatingTask = false, retryingTask = false, activeWait = null;
+  var preparingTask = null;
   var progress = function () {};
   var waitingChanged = function () {};
   function notify(message) { progress(message); }
@@ -119,7 +120,7 @@
   }
   async function originalPhoto(task) {
     var request = JSON.parse(await (await task.folder.getEntry("request.json")).read({ format: format(false) }));
-    if (request.version !== 1 || request.mode !== task.mode || request.sourceDocumentId !== String(task.docInfo.id) ||
+    if (![1, 3].includes(request.version) || request.mode !== task.mode || request.sourceDocumentId !== String(task.docInfo.id) ||
         !Array.isArray(request.files) || request.files.length !== 1 || request.files[0].role !== "photo" || request.files[0].path !== "photo.jpg")
       throw new Error("原任务不是可继续的单张交付；多规格和修订请在后台核对原记录");
     var descriptor = request.files[0], file = await task.folder.getEntry(descriptor.path);
@@ -188,7 +189,8 @@
       }
       await new Promise(function (resolve) { setTimeout(resolve, 200); });
     }
-    throw new Error("交接尚未连通：请打开配套照片交付管理并连接当前插件。尚不能确认是后台未启动还是目录不一致。");
+    var unavailable = new Error("交接尚未连通：请打开配套照片交付管理并连接当前插件。尚不能确认是后台未启动还是目录不一致。");
+    unavailable.code = "CONNECTION_PENDING"; unavailable.retryable = true; throw unavailable;
   }
   async function status(task, values) {
     task.status = Object.assign({}, task.status, values, { taskId: task.id, at: new Date().toISOString() });
@@ -198,14 +200,24 @@
     if (creatingTask || retryingTask) throw new Error("当前交付正在准备，请勿重复执行");
     creatingTask = true;
     try {
-    var unfinished = await pending();
-    if (unfinished) throw new Error("有尚未完成的原任务，请使用“继续原任务”重试；当前若是另一位顾客，请先明确保留旧任务。未新建交付。");
-    if (await current()) throw new Error("当前顾客已有交付，请核对原照片后使用“重拼/补印”；另一位顾客请先点“开始下一位”。照片修订请走后台原交付修订流程，未新建交付。");
+    var automation = window.IDPhotoDeliveryAutomationService;
+    if (!automation) {
+      var unfinished = await pending();
+      if (unfinished) throw new Error("有尚未完成的原任务，请使用“继续原任务”重试；当前若是另一位顾客，请先明确保留旧任务。未新建交付。");
+      if (await current()) throw new Error("当前顾客已有交付，请核对原照片后使用“重拼/补印”；另一位顾客请先点“开始下一位”。照片修订请走后台原交付修订流程，未新建交付。");
+    }
     var eligibility = window.IDPhotoSourceEligibilityService.checkSource(docInfo.sourceMetadata, docInfo.name);
     var historical = !eligibility.eligible && window.IDPhotoSourceEligibilityService.historicalIntentMatches &&
       window.IDPhotoSourceEligibilityService.historicalIntentMatches(intent, docInfo);
     if (!eligibility.eligible && !historical) throw new Error("此照片仅排版；如需补交，请明确确认本次本店旧片：" + eligibility.message);
-    var sourceRoot = await root(), connected = await connection(sourceRoot);
+    var automaticPlan = automation ? automation.plan(docInfo, mode, template, historical) : null;
+    if (automaticPlan && automaticPlan.kind === "plain") throw new Error(automaticPlan.text);
+    if (automaticPlan && automaticPlan.existing) {
+      var existingError = new Error("同一原片已有未完成任务，保留原字节继续处理；完成后可再次排版替换");
+      existingError.code = "AUTO_TASK_PENDING";
+      throw existingError;
+    }
+    var sourceRoot = await root(), connected = automation ? { consumerId: "", sourceIdentity: "" } : await connection(sourceRoot);
     var id = protocol().id(), output = protocol().id(), folders = window.IDPhotoPathService.getDateFolders();
     var folder = await child(await child(await child(sourceRoot, folders.year), folders.month), folders.day);
     folder = await folder.createFolder(id);
@@ -213,16 +225,21 @@
       template: JSON.parse(JSON.stringify(template)), settings: JSON.parse(JSON.stringify(settings)), historical: Boolean(historical),
       consumerId: connected.consumerId, sourceIdentity: connected.sourceIdentity, sourceRoot: sourceRoot.nativePath,
       code: "", fingerprint: "", status: {} };
+    if (automaticPlan) task.automation = automaticPlan;
     task.sourceRootToken = await fs().createPersistentToken(sourceRoot);
     task.outputOptions = outputSnapshot(outputOptions);
     task.dateText = historical ? window.IDPhotoSourceEligibilityService.captureDateText(docInfo.sourceMetadata) : window.IDPhotoDateService.formatDisplayDate();
     var context = JSON.stringify({ version: 1, id: id, outputId: output, docInfo: task.docInfo, mode: mode,
       template: task.template, settings: task.settings, historical: task.historical, dateText: task.dateText,
       consumerId: task.consumerId, sourceIdentity: task.sourceIdentity, sourceRoot: task.sourceRoot,
-      sourceRootToken: task.sourceRootToken, outputOptions: task.outputOptions });
+      sourceRootToken: task.sourceRootToken, outputOptions: task.outputOptions, automation: task.automation || null });
     task.contextFingerprint = protocol().sha256(context);
     await writeAtomic(folder, "context.json", context);
     var taskToken = await fs().createPersistentToken(folder);
+    if (automation) {
+      automation.created(task, taskToken);
+      if (automation.store().group().on) automation.store().touchGroup();
+    }
     window.localStorage.setItem(PENDING, taskToken);
     window.localStorage.setItem(CURRENT, taskToken);
     latestTask = task;
@@ -250,7 +267,16 @@
       confirmed: true, noExistingDelivery: true, captureDate: task.dateText };
     return JSON.stringify(request);
   }
+  async function preparedPayload(task, photo) {
+    if (!task.automation) return requestPayload(task, photo);
+    var request = await window.IDPhotoDeliveryAutomationService.resolve(task, photo);
+    await writeAtomic(task.folder, "automation-connection.json", JSON.stringify({ version: 1, taskId: task.id,
+      contextFingerprint: task.contextFingerprint, consumerId: task.consumerId, sourceIdentity: task.sourceIdentity }));
+    return JSON.stringify(request);
+  }
   async function prepare(task, documentRef) {
+    preparingTask = task;
+    try {
     var photo = await saveJpeg(task, documentRef, "photo.jpg", "photo");
     // Do not silently shrink a high-resolution result to satisfy cloud limits.
     if (photo.sizeBytes > 8388608 || photo.width * photo.height > 20000000) {
@@ -259,7 +285,7 @@
     }
     await writeAtomic(task.folder, "photo-prepared.json", JSON.stringify({ version: 1, taskId: task.id,
       outputId: task.outputId, contextFingerprint: task.contextFingerprint, photo: photo }), false);
-    var payload = requestPayload(task, photo); task.fingerprint = protocol().sha256(payload);
+    var payload = await preparedPayload(task, photo); task.fingerprint = protocol().sha256(payload);
     await writeAtomic(task.folder, "request.json", payload, false);
     await status(task, { processing: "awaiting-code", manifestFingerprint: task.fingerprint });
     // Network confirmation never holds a Photoshop modal lock. An unconfirmed
@@ -276,6 +302,7 @@
       catch (statusError) { addDiagnostic(blocked, "取码失败状态未能写入", statusError); }
       throw blocked;
     }
+    } finally { if (preparingTask === task) preparingTask = null; }
   }
   async function readCode(task) {
     var receipt;
@@ -284,7 +311,11 @@
     }
     catch (e) { return ""; }
     var code = protocol().confirmedCode(receipt, task);
-    if (code) { task.contextKey = receipt.contextKey; task.deliveryId = receipt.deliveryId; return code; }
+    if (code) {
+      task.contextKey = receipt.contextKey; task.deliveryId = receipt.deliveryId; task.code = code;
+      if (task.automation) window.IDPhotoDeliveryAutomationService.confirmed(task);
+      return code;
+    }
     // Only diagnostics bound to this attempt and immutable request can describe
     // its failure. Foreign/stale receipts cannot supply even an error message.
     if (receipt && receipt.version === 2 && receipt.requestId === task.confirmationId &&
@@ -313,7 +344,7 @@
     if (activeWait) throw new Error("已有取码请求正在等待，请勿重复重试");
     notify("正在等待后台核对云端并获取取件码，最多 60 秒；可停止等待并保留原任务");
     task.code = ""; task.confirmationId = protocol().id(); task.confirmationFailure = "";
-    var attempt = { cancelled: false, requestId: task.confirmationId };
+    var attempt = { cancelled: false, requestId: task.confirmationId, taskId: task.id, automation: Boolean(task.automation) };
     activeWait = attempt;
     waitingChanged(true);
     try {
@@ -365,6 +396,10 @@
     if (!task.outputAttemptId || !await optionalEntry(task.folder, "complete.json"))
       await writeAtomic(task.folder, "complete.json", payload, false);
     task.completionWritten = true;
+    if (task.automation) {
+      try { window.IDPhotoDeliveryAutomationService.completed(task); }
+      catch (error) { task.pendingReleaseError = "完成信号已保存，自动任务索引待核对：" + errorText(error); }
+    }
     try { await clearPending(task); }
     catch (error) { task.pendingReleaseError = "完成信号已保存，待处理入口未能清除：" + errorText(error); }
   }
@@ -413,6 +448,8 @@
     // six-inch page is part of the electronic-only path.
     var template = window.IDPhotoTemplates.getTemplateById("one-inch");
     if (window.IDPhotoTemplates.forDelivery) template = window.IDPhotoTemplates.forDelivery(template, true);
+    if (window.IDPhotoDeliveryAutomationService && window.IDPhotoVariantService)
+      docInfo = Object.assign({}, docInfo, { sourceVariant: await window.IDPhotoVariantService.analyzeDocument(sourceDocument) });
     var task, photo, info, failure = null;
     try {
       try { task = await begin(docInfo, "electronic", template, settings, intent); }
@@ -435,6 +472,7 @@
       failure = error && typeof error === "object" ? error : new Error(errorText(error));
       if (task && task.completionWritten) failure.completed = true;
       if (task) {
+        if (task.automation && !task.completionWritten) window.IDPhotoDeliveryAutomationService.failure(task, failure);
         try { await status(task, { error: errorText(failure) }); }
         catch (statusError) { addDiagnostic(failure, "错误记录未能写入", statusError); }
       }
@@ -480,6 +518,12 @@
     try { previousStatus = JSON.parse(await (await folder.getEntry("plugin-status.json")).read({ format: format(false) })); } catch (e) { /* Context and request remain the authority for identity. */ }
     var task = Object.assign(saved, { folder: folder, fingerprint: protocol().sha256(payload), status: previousStatus,
       contextFingerprint: request.contextFingerprint || "" });
+    if (task.automation) {
+      var automaticConnection = JSON.parse(await (await folder.getEntry("automation-connection.json")).read({ format: format(false) }));
+      if (automaticConnection.version !== 1 || automaticConnection.taskId !== task.id || automaticConnection.contextFingerprint !== task.contextFingerprint)
+        throw new Error("自动交付原连接绑定已改变");
+      task.consumerId = automaticConnection.consumerId; task.sourceIdentity = automaticConnection.sourceIdentity;
+    }
     var binding;
     try { binding = await folder.getEntry("code-binding.json"); } catch (e) { /* Legacy tasks require a fresh backend confirmation. */ }
     if (binding) {
@@ -489,12 +533,13 @@
     }
     return task;
   }
-  async function retryPending(expectedId, reprint) {
+  async function retryPending(expectedId, reprint, recovery) {
     if (creatingTask || retryingTask || activeWait) throw new Error("当前交付尚未结束，请勿重复重试");
     retryingTask = true;
     var task, temporaryFile, photo, info, failure = null;
     try {
-      var item = reprint ? await current() : await pending();
+      var indexed = recovery && window.IDPhotoDeliveryAutomationService.store().tasks().find(function (record) { return record.id === expectedId; });
+      var item = indexed ? { id: indexed.id, folder: await fs().getEntryForPersistentToken(indexed.token) } : reprint ? await current() : await pending();
       if (!item || item.id !== expectedId) throw new Error("原任务已改变或已有完成信号，请重新核对；未自动重印");
       if (!await optionalEntry(item.folder, "request.json")) {
         var preparedFile = await optionalEntry(item.folder, "photo-prepared.json");
@@ -511,7 +556,8 @@
             prepared.photo.sizeBytes > 8388608 || prepared.photo.width * prepared.photo.height > 20000000)
           throw new Error("原任务独立成片已变化或超出上限，停止恢复");
         saved.contextFingerprint = prepared.contextFingerprint;
-        await writeAtomic(item.folder, "request.json", requestPayload(saved, prepared.photo), false);
+        saved.folder = item.folder;
+        await writeAtomic(item.folder, "request.json", await preparedPayload(saved, prepared.photo), false);
       }
       task = await restoreTask(item.folder); latestTask = task;
       if (!task.contextFingerprint || !task.sourceRootToken || !task.consumerId || !task.sourceIdentity)
@@ -520,7 +566,7 @@
           await optionalEntry(task.folder, "info.jpg")))
         throw new Error("原任务已有成品输出痕迹，请人工核对，避免重复输出或打印");
       var request = JSON.parse(await (await task.folder.getEntry("request.json")).read({ format: format(false) }));
-      if (request.version !== 1 || request.mode !== task.mode || request.sourceDocumentId !== String(task.docInfo.id) ||
+      if (![1, 3].includes(request.version) || request.mode !== task.mode || request.sourceDocumentId !== String(task.docInfo.id) ||
           !Array.isArray(request.files) || request.files.length !== 1 || request.files[0].role !== "photo" || request.files[0].path !== "photo.jpg")
         throw new Error("原任务不是可继续的单张交付，请在后台核对原记录");
       if (!reprint && !["started", "awaiting-code", "blocked-code", "prepared", "retrying-code"].includes(task.status.processing))
@@ -531,7 +577,10 @@
       var connected = await connection(await fs().getEntryForPersistentToken(task.sourceRootToken), task.consumerId);
       if (connected.sourceIdentity !== task.sourceIdentity) throw new Error("原交接目录身份已变化，请恢复原目录");
       await status(task, { processing: "retrying-code", codeState: "unconfirmed" });
-      task.code = await confirmCode(task); protocol().requirePickupCode(task.code);
+      if (recovery && recovery.confirmedTask && recovery.confirmedTask.id === task.id && recovery.confirmedTask.fingerprint === task.fingerprint)
+        task = Object.assign(task, { code: recovery.confirmedTask.code, confirmationId: recovery.confirmedTask.confirmationId });
+      else task.code = await confirmCode(task);
+      protocol().requirePickupCode(task.code);
       if (reprint) task.outputAttemptId = protocol().id();
       if (window.IDPhotoTemplates.forDelivery && task.template && task.template.id) {
         var currentTemplate = window.IDPhotoTemplates.getTemplateById(task.template.id);
@@ -554,7 +603,8 @@
         throw new Error("原任务图片解码尺寸不符，停止输出");
       if (task.mode === "print") {
         if (!task.template || !task.template.name || !task.outputOptions) throw new Error("原排版选项快照不完整，请人工核对");
-        var result = await window.IDPhotoLayoutWorkflow.create({ onStatus: notify }).run(Object.assign({}, task.outputOptions, {
+        var recoveredOptions = recovery && !recovery.manualPrint ? { quickPrint: false, skipPrint: true, closeAfterPrint: false } : {};
+        var result = await window.IDPhotoLayoutWorkflow.create({ onStatus: notify }).run(Object.assign({}, task.outputOptions, recoveredOptions, {
           templateNames: [task.template.name], sourceDocument: photo,
           docInfo: Object.assign({}, task.docInfo, { id: photo.id, widthPx: descriptor.width, heightPx: descriptor.height }),
           delivery: true, resumeDeliveryTask: task
@@ -576,6 +626,7 @@
     } catch (error) {
       failure = error && typeof error === "object" ? error : new Error(errorText(error));
       if (task && task.completionWritten) failure.completed = true;
+      if (task && task.automation && !task.completionWritten) window.IDPhotoDeliveryAutomationService.failure(task, failure);
       throw failure;
     } finally {
       var cleanupError = null, photoClosed = !photo;
@@ -595,6 +646,165 @@
   async function reprintCurrent(expectedId, confirmedOriginal) {
     if (confirmedOriginal !== true) throw new Error("请核对原照片并确认补印；不会采用当前活动照片替换原成片");
     return await retryPending(expectedId, true);
+  }
+  async function previewTask(expectedId, token) {
+    var folder = await fs().getEntryForPersistentToken(token), task = await restoreTask(folder);
+    if (task.id !== expectedId) throw new Error("所选原任务身份已变化");
+    var photo = await originalPhoto(task), bytes = new Uint8Array(photo.bytes), alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/", chunks = [], part = "";
+    for (var i = 0; i < bytes.length; i += 3) {
+      var value = bytes[i] << 16 | (bytes[i + 1] || 0) << 8 | (bytes[i + 2] || 0);
+      part += alphabet[value >>> 18] + alphabet[value >>> 12 & 63] + (i + 1 < bytes.length ? alphabet[value >>> 6 & 63] : "=") + (i + 2 < bytes.length ? alphabet[value & 63] : "=");
+      if (part.length >= 16384) { chunks.push(part); part = ""; }
+    }
+    return "data:image/jpeg;base64," + chunks.join("") + part;
+  }
+  var primedTask = null;
+  async function primeRecovery() {
+    if (creatingTask || retryingTask || activeWait) return null;
+    var automation = window.IDPhotoDeliveryAutomationService;
+    var item = automation.store().pendingTasks().sort(function (a, b) { return a.updatedAt - b.updatedAt; })[0];
+    if (!item) return null;
+    var folder, task;
+    try {
+      try { folder = await fs().getEntryForPersistentToken(item.token); }
+      catch (_) { var missing = new Error("原任务目录不可用，保留记录，请恢复原目录后人工核对"); missing.retryable = false; throw missing; }
+      if (!folder) { var invalid = new Error("原任务目录不可用，保留记录，请恢复原目录后人工核对"); invalid.retryable = false; throw invalid; }
+      if (!await optionalEntry(folder, "request.json")) {
+        var contextPayload = await (await folder.getEntry("context.json")).read({ format: format(false) });
+        var saved = JSON.parse(contextPayload);
+        var prepared = JSON.parse(await (await folder.getEntry("photo-prepared.json")).read({ format: format(false) }));
+        if (saved.id !== item.id || prepared.taskId !== item.id || prepared.outputId !== saved.outputId ||
+            prepared.contextFingerprint !== protocol().sha256(contextPayload) || !prepared.photo || prepared.photo.path !== "photo.jpg")
+          throw new Error("原任务准备记录已变化，停止自动恢复");
+        var bytes = await (await folder.getEntry("photo.jpg")).read({ format: format(true) });
+        if (bytes.byteLength !== prepared.photo.sizeBytes || protocol().sha256(bytes) !== prepared.photo.sha256)
+          throw new Error("原任务成片已变化，停止自动恢复");
+        saved.folder = folder; saved.contextFingerprint = prepared.contextFingerprint;
+        await writeAtomic(folder, "request.json", await preparedPayload(saved, prepared.photo), false);
+      }
+      task = await restoreTask(folder);
+      if (await optionalEntry(folder, "complete.json")) {
+        var completion = JSON.parse(await (await folder.getEntry("complete.json")).read({ format: format(false) }));
+        if (!completion.processingComplete || completion.taskId !== item.id || completion.manifestFingerprint !== task.fingerprint)
+          throw new Error("原任务完成信号不匹配，停止自动恢复");
+        automation.completed(task); return null;
+      }
+      if (await optionalEntry(folder, "output-started.json")) throw new Error("原任务已有输出痕迹，请人工核对，避免重复打印");
+      await originalPhoto(task);
+      var codeRequest = await optionalEntry(folder, "code-request.json"), existing;
+      if (codeRequest) existing = JSON.parse(await codeRequest.read({ format: format(false) }));
+      var automaticWaitFile = await optionalEntry(folder, "automatic-code-wait.json"), automaticWait;
+      if (automaticWaitFile) automaticWait = JSON.parse(await automaticWaitFile.read({ format: format(false) }));
+      if (!existing || existing.taskId !== task.id || existing.manifestFingerprint !== task.fingerprint ||
+          !automaticWait || automaticWait.requestId !== existing.requestId || !Number.isFinite(automaticWait.at) ||
+          Date.now() < automaticWait.at || Date.now() - automaticWait.at >= CODE_WAIT_MS) {
+        task.confirmationId = protocol().id();
+        await writeAtomic(folder, "code-request.json", JSON.stringify({ version: 2, taskId: task.id, manifestFingerprint: task.fingerprint,
+          requestId: task.confirmationId, contextKey: task.contextKey || "", deliveryId: task.deliveryId || "" }));
+        await writeAtomic(folder, "automatic-code-wait.json", JSON.stringify({ version: 1, taskId: task.id, requestId: task.confirmationId, at: Date.now() }));
+      } else task.confirmationId = existing.requestId;
+      task.code = await readCode(task);
+      if (!task.code) {
+        if (task.confirmationFailure) {
+          var response = JSON.parse(await (await folder.getEntry("code-response.json")).read({ format: format(false) }));
+          if (["NETWORK", "TIMEOUT"].includes(response.errorCode)) {
+            await writeAtomic(folder, "code-request.json", JSON.stringify({ version: 2, taskId: task.id, manifestFingerprint: task.fingerprint,
+              requestId: protocol().id(), contextKey: task.contextKey || "", deliveryId: task.deliveryId || "" }));
+          } else throw new Error(task.confirmationFailure);
+        }
+        automation.store().markTask(task.id, { state: "retryable" }); return null;
+      }
+      primedTask = task;
+      return task.id;
+    } catch (error) {
+      automation.failure(task || { id: item.id, automation: true }, error);
+      return { id: item.id, text: errorText(error), canPrint: false };
+    }
+  }
+  async function recoverNext(expectedId) {
+    if (creatingTask || retryingTask || activeWait || !primedTask || primedTask.id !== expectedId) return null;
+    var taskToResume = primedTask; primedTask = null;
+    var automation = window.IDPhotoDeliveryAutomationService, item = automation.store().tasks().find(function (record) { return record.id === expectedId; });
+    if (!item || !["pending", "retryable"].includes(item.state)) return null;
+    var sourceDocument = window.IDPhotoDocumentService.getActiveDocument && window.IDPhotoDocumentService.getActiveDocument();
+    try {
+      var task = await retryPending(item.id, false, { confirmedTask: taskToResume });
+      await writeAtomic(task.folder, "automatic-recovery.json", JSON.stringify({ version: 1, taskId: task.id,
+        manifestFingerprint: task.fingerprint, code: task.code, printAvailable: task.mode === "print" && Boolean(task.outputOptions && task.outputOptions.quickPrint) }));
+      return { id: task.id, code: task.code, canPrint: task.mode === "print" && Boolean(task.outputOptions && task.outputOptions.quickPrint), text: task.code + " 已补好，可以打印" };
+    } catch (error) {
+      var record = automation.store().tasks().find(function (value) { return value.id === item.id; });
+      if (record && ["pending", "retryable"].includes(record.state)) automation.failure({ id: item.id, automation: true }, error);
+      return { id: item.id, canPrint: false, text: errorText(error) };
+    } finally {
+      if (sourceDocument) await window.IDPhotoPhotoshopExecution.activateDocument(sourceDocument);
+    }
+  }
+  function recoveryPrintText(error) { return ("恢复打印需人工核对：" + errorText(error)).slice(0, 900); }
+  function recordPrintNoticeIssue(record, error) {
+    var text = recoveryPrintText(error), diagnostic = "printNoticeBlocked: " + text;
+    if (record.error !== diagnostic) window.IDPhotoDeliveryAutomationService.store().markTask(record.id, { error: diagnostic });
+    return { id: record.id, canPrint: false, text: text };
+  }
+  async function recoveredNotice() {
+    var records = window.IDPhotoDeliveryAutomationService.store().tasks().filter(function (item) { return item.state === "completed" && item.mode === "print"; });
+    var issue = null;
+    for (var record of records) {
+      try {
+        var folder = await fs().getEntryForPersistentToken(record.token), file = await optionalEntry(folder, "automatic-recovery.json");
+        if (!file) continue;
+        var value = JSON.parse(await file.read({ format: format(false) }));
+        var task = await restoreTask(folder);
+        if (value.version !== 1 || value.taskId !== record.id || value.manifestFingerprint !== task.fingerprint || !protocol().isPickupCode(value.code))
+          throw new Error("恢复打印记录身份不匹配");
+        if (value.printStarted && value.printState !== "submitted" && !value.printError)
+          throw new Error("原恢复打印已开始但结果未确认，请人工核对，避免重复出纸");
+        if (value.printAvailable) return { id: record.id, code: value.code, canPrint: true, text: value.code + " 已补好，可以打印" };
+        if (value.printError) {
+          var printIssue = recordPrintNoticeIssue(record, new Error(value.printError));
+          issue = issue || printIssue;
+        }
+      } catch (error) {
+        var recordIssue = recordPrintNoticeIssue(record, error);
+        issue = issue || recordIssue;
+      }
+    }
+    return issue;
+  }
+  var printingRecovered = false;
+  async function printRecovered(id) {
+    if (printingRecovered) throw new Error("恢复打印正在处理中，请勿重复点击");
+    printingRecovered = true;
+    var folder, value, consumed = false;
+    try {
+    var item = window.IDPhotoDeliveryAutomationService.store().tasks().find(function (record) { return record.id === id; });
+    if (!item || item.state !== "completed") throw new Error("恢复任务尚未完成，不能打印");
+    folder = await fs().getEntryForPersistentToken(item.token); value = JSON.parse(await (await folder.getEntry("automatic-recovery.json")).read({ format: format(false) }));
+    var task = await restoreTask(folder);
+    if (value.version !== 1 || value.taskId !== id || value.manifestFingerprint !== task.fingerprint || !protocol().isPickupCode(value.code))
+      throw new Error("恢复打印记录身份不匹配");
+    if (!value.printAvailable || value.printStarted) throw new Error("此恢复打印已开始，请人工核对打印状态，避免重复出纸");
+    value = Object.assign({}, value, { printAvailable: false, printStarted: new Date().toISOString(), printState: "started" });
+    await writeAtomic(folder, "automatic-recovery.json", JSON.stringify(value)); consumed = true;
+    var result = await retryPending(id, true, { manualPrint: true }), outcome = result && result.retryResult;
+    if (!outcome || !Array.isArray(outcome.printFailures) || !Array.isArray(outcome.printedResults) ||
+        outcome.printFailures.length || outcome.printedResults.length !== 1) {
+      var failed = outcome && outcome.printFailures && outcome.printFailures[0];
+      var details = failed && failed.result && failed.result.printResult;
+      throw new Error(details && details.message || "恢复打印未确认提交，请人工核对打印状态；不会自动重试打印");
+    }
+    await writeAtomic(folder, "automatic-recovery.json", JSON.stringify(Object.assign({}, value, { printState: "submitted", printError: "" })));
+    return result;
+    } catch (error) {
+      if (consumed) {
+        try { await writeAtomic(folder, "automatic-recovery.json", JSON.stringify(Object.assign({}, value, {
+          printAvailable: false, printState: "unconfirmed", printError: errorText(error).slice(0, 900) }))); }
+        catch (recordError) { addDiagnostic(error, "打印结果记录未能写入", recordError); }
+        try { recordPrintNoticeIssue(item, error); }
+        catch (indexError) { addDiagnostic(error, "打印诊断未能保存", indexError); }
+      }
+      throw error;
+    } finally { printingRecovered = false; }
   }
   async function regenerate(folder, informationInput) {
     if (!folder) {
@@ -832,7 +1042,21 @@
     pending: pending, retryPending: function (id) { return retryPending(id, false); }, deferPending: deferPending, startOutput: startOutput,
     current: current, currentPreview: currentPreview, nextCustomer: nextCustomer, chooseCurrent: chooseCurrent,
     reprintCurrent: reprintCurrent, verifyOutput: verifyOutput, retryCurrentArchives: retryCurrentArchives,
-    stopWaiting: function () { if (!activeWait) return false; activeWait.cancelled = true; return true; },
+    previewTask: previewTask, primeRecovery: primeRecovery, recoverNext: recoverNext, recoveredNotice: recoveredNotice,
+    printRecovered: printRecovered,
+    stopWaiting: function () {
+      if (!activeWait) {
+        var stopped = Boolean(window.IDPhotoDeliveryAutomationService && window.IDPhotoDeliveryAutomationService.stopWaiting());
+        if (preparingTask && preparingTask.automation) {
+          window.IDPhotoDeliveryAutomationService.store().markTask(preparingTask.id, { state: "stopped", error: "店员停止等待，原任务保留" });
+          stopped = true;
+        }
+        return stopped;
+      }
+      activeWait.cancelled = true;
+      if (activeWait.automation) window.IDPhotoDeliveryAutomationService.store().markTask(activeWait.taskId, { state: "stopped", error: "店员停止等待，原任务保留" });
+      return true;
+    },
     configure: configure, root: root, connection: connection, onProgress: function (handler) { progress = typeof handler === "function" ? handler : function () {}; },
     onWaitingChanged: function (handler) { waitingChanged = typeof handler === "function" ? handler : function () {}; },
     status: status, readCode: readCode, latest: function () { return latestTask; } };
