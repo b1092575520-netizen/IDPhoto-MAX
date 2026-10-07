@@ -96,14 +96,18 @@ test('all eleven delivery bars fit 60mm, preserve photos and contain safe nonove
     assert.match(t.referencePath,/示例图片/);
   }
 });
-test('ordinary templates match the v0.5.8 reference; US 5x5 remains five photos with no bar',()=>{
+test('ordinary bars use the one-inch style on every template; US 5x5 keeps five photos and an upright corner strip',()=>{
   const fixture=JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures','ordinary-v058-bars.json'),'utf8'));
   const templates=loadTemplateModules().IDPhotoTemplates;
   for(const raw of templates.getAllTemplates()) {
-    const ordinary=templates.forDelivery(raw,false);
-    assert.deepEqual(JSON.parse(JSON.stringify(ordinary.infoBar)),fixture.bars[raw.id],raw.id);
+    const ordinary=templates.forDelivery(raw,false).infoBar;
+    assert.equal(ordinary.enabled,true,raw.id);
+    assert.equal(ordinary.ordinaryLayout,'classic',raw.id);
+    const area=raw.id==='us-visa'?{position:'right',orientation:'vertical',x:2420,y:1200,width:360,height:1181}:fixture.bars[raw.id];
+    for(const key of ['position','orientation','x','y','width','height']) assert.equal(ordinary[key],area[key],raw.id+' '+key);
     const delivery=templates.forDelivery(raw,true);
-    assert.deepEqual(JSON.parse(JSON.stringify(templates.forDelivery(delivery,false).infoBar)),fixture.bars[raw.id]);
+    assert.equal(delivery.infoBar.ordinaryLayout,undefined,'delivery strips keep their own layout');
+    assert.deepEqual(JSON.parse(JSON.stringify(templates.forDelivery(delivery,false).infoBar)),JSON.parse(JSON.stringify(ordinary)));
   }
   assert.equal(templates.getTemplateById('us-visa').photoSlots.length,5);
 });
@@ -115,4 +119,15 @@ test('only US 5x5 loses its lower-right photo; all other slots match the frozen 
   }
   const t=loadTemplateModules().IDPhotoTemplates.getTemplateById('us-visa-51');
   assert.equal(t.widthCm,5.1); assert.equal(t.heightCm,5.1);
+});
+
+test('the layout plan Photoshop actually draws keeps the one-inch style marker for every ordinary bar',()=>{
+  const modules=loadTemplateModules(), templates=modules.IDPhotoTemplates;
+  for(const raw of templates.getAllTemplates()) {
+    const ordinary=templates.forDelivery(raw,false);
+    const plan=modules.IDPhotoLayoutEngine.createLayoutPlan({template:ordinary});
+    assert.equal(plan.infoBar.ordinaryLayout,'classic',raw.id);
+    const delivery=modules.IDPhotoLayoutEngine.createLayoutPlan({template:templates.forDelivery(raw,true)});
+    assert.equal(delivery.infoBar.ordinaryLayout,undefined,raw.id+' delivery');
+  }
 });

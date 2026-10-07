@@ -27,7 +27,8 @@
       height: round(infoBar.height),
       source: "reference-template"
     };
-    ["background", "textColor", "avatar", "texts", "layoutVersion", "pickupLayout", "safeMargin"].forEach(function (key) {
+    ["background", "textColor", "avatar", "texts", "layoutVersion", "pickupLayout", "safeMargin",
+      "ordinaryLayout"].forEach(function (key) {
       if (infoBar[key]) {
         cloned[key] = JSON.parse(JSON.stringify(infoBar[key]));
       }

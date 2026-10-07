@@ -150,6 +150,7 @@ function makeRendererHarness(options) {
   loadPhotoshopExecution(context);
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/core/deliveryProtocol.js"), "utf8"), context);
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/core/pickupStripLayout.js"), "utf8"), context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/core/classicStripLayout.js"), "utf8"), context);
   vm.runInContext(fs.readFileSync(rendererPath, "utf8"), context, { filename: rendererPath });
 
   return {
@@ -231,7 +232,7 @@ test("information bar avatar reuses a named photo layer from the target canvas",
 });
 
 for (const templateName of ["香港台湾 3.0x4.0", "阿根廷 4.0x4.0"]) {
-  test(`${templateName} keeps its configured horizontal text positions`, async () => {
+  test(`${templateName} places each one-inch style line with a single move`, async () => {
     const templates = loadTemplates();
     const template = templates.getTemplateByName(templateName);
     const harness = makeRendererHarness({ maxTextMoves: 2 });
@@ -282,8 +283,7 @@ test('ordinary mode never renders a pickup code, including one left in caller op
     await harness.renderer.renderInfoBar(harness.targetDocument,template.infoBar,{},
       {pickupCodeMode:false,pickupCode:'A2B3C4',template,sourceDocument:harness.sourceDocument});
     assert.equal(harness.textCommands.some(c=>/取件码|待补码/.test(c.using.textKey)),false,template.id);
-    if(template.id==='us-visa') assert.equal(harness.targetDocument.layers.length,0);
-    else assert.ok(harness.textCommands.some(c=>c.using.textKey.includes('电话未填写')));
+    assert.ok(harness.textCommands.some(c=>c.using.textKey.includes('电话未填写')),template.id);
   }
 });
 
@@ -305,21 +305,22 @@ test("debug mode gives v5 layers unique DEBUG names", async () => {
   );
 });
 
-test("a saved free-transform target is reapplied to the next text layer", async () => {
+test("every ordinary strip stays inside its bar, and vertical strips turn the whole block", async () => {
   const templates = loadTemplates();
-  const template = templates.getTemplateById("standard-two-inch");
-  const harness = makeRendererHarness();
-  template.infoBar.textLayers = {
-    phone: { x: 3300, y: 280, width: 480, height: 120, fontSize: 6.4 }
-  };
-
-  await harness.renderer.renderInfoBar(
-    harness.targetDocument,
-    template.infoBar,
-    { shopName: "\u798f\u6e05\u5370\u8c61\u7167\u76f8\u9986", shopPhone: "13003825982" },
-    { dateText: "2026. 1.", template, sourceDocument: harness.sourceDocument, debugMode:true }
-  );
-
-  const phoneLayer = harness.targetDocument.layers.find((layer) => layer.name === "DEBUG_text_phone");
-  assert.deepEqual(phoneLayer.bounds, { left: 3300, top: 280, right: 3780, bottom: 400 });
+  for (const raw of templates.getAllTemplates()) {
+    const template = templates.forDelivery(raw, false);
+    const bar = template.infoBar;
+    const harness = makeRendererHarness();
+    const result = await harness.renderer.renderInfoBar(harness.targetDocument, bar,
+      { shopName: "福清印象照相馆", shopPhone: "13003825982" },
+      { dateText: "2026.10.7", template, sourceDocument: harness.sourceDocument });
+    assert.ok(result.createdCount >= 2, raw.id);
+    const drawn = harness.targetDocument.layers.filter((layer) => layer.kind === "text" || layer.name === "信息条小头像");
+    for (const layer of drawn) {
+      const b = layer.bounds;
+      assert.ok(b.left >= bar.x + 24 && b.top >= bar.y + 24 && b.right <= bar.x + bar.width - 24 && b.bottom <= bar.y + bar.height - 24,
+        raw.id + " " + (layer.name || layer.id) + " " + JSON.stringify(b));
+      assert.equal(Boolean(layer.rotated), bar.orientation === "vertical", raw.id);
+    }
+  }
 });

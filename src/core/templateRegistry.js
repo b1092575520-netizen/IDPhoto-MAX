@@ -605,7 +605,13 @@
   };
   templates.forEach(function (template) {
     template.deliveryArea = cloneObject(template.infoBar);
-    if (template.id === "us-visa") template.infoBar = info("none");
+    // Ordinary strips all use the one-inch style (portrait + shop lines),
+    // scaled to each template's free area. Delivery strips keep their own
+    // layout from deliveryArea.
+    // The US visa 5×5 strip stands upright on the left of the free corner
+    // (5 cm long); the rest of the corner stays white and is cut away.
+    if (template.id === "us-visa") template.infoBar = info("right", 2420, 1200, 360, 1181, infoStyle());
+    template.infoBar.ordinaryLayout = "classic";
     template.ordinaryInfoBar = cloneObject(template.infoBar);
     template.referenceFile = referenceFiles[template.id];
     template.referencePath = referencePath(template.referenceFile);

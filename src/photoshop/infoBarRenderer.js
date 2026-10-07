@@ -1142,7 +1142,7 @@
     if (Math.abs(bounds.left - rectangle.x) < 0.001 && Math.abs(bounds.top - rectangle.y) < 0.001) return bounds;
     return await getLayerService().moveLayerTo(layer, rectangle.x, rectangle.y, label);
   }
-  async function turnReadingLayer(layer, rectangle, reading, label) {
+  async function turnReadingLayer(layer, rectangle, reading, label, align) {
     var size = getLayerSize(layer);
     var scale = Math.min(1, (reading.vertical ? rectangle.height : rectangle.width) / size.width,
       (reading.vertical ? rectangle.width : rectangle.height) / size.height);
@@ -1165,7 +1165,13 @@
     // physical right edge. Align measured glyphs there, not at the slot's left
     // edge, otherwise short third lines sink to the end of a tall slot.
     var alignedX = reading.vertical ? rectangle.x + rectangle.width - getLayerSize(layer).width : rectangle.x;
-    var bounds = await getLayerService().moveLayerTo(layer, alignedX, rectangle.y, label);
+    var alignedY = rectangle.y;
+    if (align === "center") {
+      var turned = getLayerSize(layer);
+      if (reading.vertical) alignedY = rectangle.y + Math.floor((rectangle.height - turned.height) / 2);
+      else alignedX = rectangle.x + Math.floor((rectangle.width - turned.width) / 2);
+    }
+    var bounds = await getLayerService().moveLayerTo(layer, alignedX, alignedY, label);
     if (!isBoundsInsideRect(bounds, rectangle)) throw new Error("信息条内容超出安全位置：" + label);
     return bounds;
   }
@@ -1209,6 +1215,38 @@
       entryCodeShown: reading.entryCodeShown, message: "电子照片领取信息条已生成" +
         (reading.entryCodeShown ? "" : "；入口码未使用，请从已提供的小程序入口领取") };
   }
+  // One-inch style ordinary strip for every template (no pickup code).
+  async function renderClassicStrip(targetDocument, bar, settings, options) {
+    var planner = window.IDPhotoClassicStripLayout;
+    if (!planner) throw new Error("普通信息条布局模块未加载");
+    var source = options.sourceLayer;
+    if (!source && options.sourceLayerName) source = getLayerService().findLayerByName(options.sourceDocument.layers, options.sourceLayerName);
+    if (!source) source = getSourceLayer(options.sourceDocument);
+    var size = getLayerSize(source), reading = planner.plan(bar, settings, options, size.width / size.height);
+    var evidence = [];
+    await window.IDPhotoPhotoshopExecution.executeAsModal(async function () {
+      await activateDocument(targetDocument);
+      await createInfoBarBackground(Object.assign({}, bar, reading.strip), options);
+      for (var region of reading.regions) {
+        var layer = await duplicateSourceLayerToTarget(options.sourceDocument, targetDocument, source);
+        await activateDocument(targetDocument);
+        layer.name = isDebugRender(options) ? DEBUG_LAYER_NAMES.avatar : "信息条小头像";
+        await moveLayerToFront(layer, targetDocument);
+        var rectangle = window.IDPhotoPickupStripLayout.placed(bar, reading, region);
+        evidence.push({ key: region.key, bounds: formatBounds(await turnReadingLayer(layer, rectangle, reading, layer.name, "center")), slot: rectangle });
+      }
+      var ids = getLayerService().getDocumentLayerIds(targetDocument);
+      for (var item of reading.items) {
+        var textLayer = await createTextLayer(targetDocument, item.text, 0, 0, item.fontSize,
+          isDebugRender(options) ? "DEBUG_text_" + item.key : item.key, item.color, "horizontal", ids);
+        var box = window.IDPhotoPickupStripLayout.placed(bar, reading, item);
+        evidence.push({ key: item.key, text: item.text, bounds: formatBounds(await turnReadingLayer(textLayer, box, reading, item.key, item.align)), slot: box });
+      }
+    }, "绘制证件照信息条");
+    return { ok: true, createdCount: reading.items.length, evidence: evidence,
+      message: (bar.orientation === "vertical" ? "右侧" : "底部") + "信息条已生成：" + reading.items.length + " 行" };
+  }
+
   async function renderInfoBar(targetDocument, infoBar, settings, options) {
     if (options && options.pickupCodeMode) {
       window.IDPhotoDeliveryProtocol.requirePickupCode(options.pickupCode);
@@ -1243,6 +1281,9 @@
         });
       }
       return await renderPickupStrip(targetDocument, infoBar, settings || {}, options);
+    }
+    if (infoBar.ordinaryLayout === "classic" && !(options && options.pickupCodeMode)) {
+      return await renderClassicStrip(targetDocument, infoBar, settings || {}, options || {});
     }
     layout = getLineLayout(infoBar);
     hasConfiguredHorizontalTextBlock = Boolean(infoBar.texts && !Array.isArray(infoBar.texts) && infoBar.texts.mode === "horizontalBlock");
