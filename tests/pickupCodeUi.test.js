@@ -204,7 +204,7 @@ test("electronic delivery still requires a confirmed pickup code with the switch
   await h.buttons.electronicDeliveryButton.fire();
   assert.equal(h.electronicCalls, 1);
   assert.equal(h.alerts.length, 1);
-  assert.match(h.alerts[0], /未输出成品、未提交打印/);
+  assert.match(h.alerts[0], /没有出成品，也没有打印/);
   assert.doesNotMatch(h.buttons.statusText.textContent, /电子成片已交接/);
 });
 

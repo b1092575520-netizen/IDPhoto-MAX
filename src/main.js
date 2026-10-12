@@ -217,16 +217,17 @@
   }
 
   async function showPickupCodeFailure(error) {
-    var message = "取件码模式已中止\n\n" + errorToText(error) +
-      "\n\n本次未输出成品、未提交打印。请检查交付后台是否运行、网络及交接目录是否一致。" +
-      "\n若已生成独立交接副本，会保留待处理；本次未提交交付完成，网络恢复不会自动打印或发布。" +
-      "\n已有独立副本请使用“处理未完成交付”继续原任务；不要重复新建同一交付。";
-    setStatus(message);
+    // Short on purpose (2026-10-11): what happened, why, and the one thing to check.
+    var reason = errorToText(error);
+    var message = "取件码没拿到，这次没出片\n\n" + reason +
+      "\n\n没有出成品，也没有打印；网络恢复后也不会自动打印。" +
+      "\n请看看交付管理开着没有、网络通不通。已存下的交接副本会保留，到“未完成交付”里继续，不要重新做一份。";
+    setStatus("取件码没拿到，这次没出片：" + reason);
     try {
       await window.IDPhotoPhotoshopExecution.getPhotoshop().app.showAlert(message);
     } catch (alertError) {
       logStepError("pickup-code-alert", alertError);
-      setStatus(message + "；提示窗口未能打开：" + errorToText(alertError));
+      setStatus("取件码没拿到，这次没出片：" + reason + "（提示窗口没打开：" + errorToText(alertError) + "）");
     }
   }
 
