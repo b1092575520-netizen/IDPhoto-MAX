@@ -161,3 +161,29 @@ test("invalid jobs receive a result before any printer lookup or submission", { 
     fs.rmdirSync(directory);
   }
 });
+
+test("archive records publish hidden without overwriting identities or accepting photos", { skip: process.platform !== "win32" }, () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "idphoto-hidden-records-"));
+  let sequence = 0;
+  function run(operation, target) {
+    const id = 'record-' + (++sequence), job = path.join(directory, id + '.idprint');
+    fs.writeFileSync(job, JSON.stringify({schemaVersion:1,jobId:id,operation,indexPath:target}));
+    spawnSync('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',bridgePath,job],{encoding:'utf8'});
+    return JSON.parse(fs.readFileSync(path.join(directory,id+'.result.json'),'utf8'));
+  }
+  try {
+    for (const name of ['.idphoto-archive-root.json','.idphoto-output-'+ 'a'.repeat(32)+'.json', '.idphoto-archive-'+ 'a'.repeat(32)+'.json', '.idphoto-archive-retired-'+ 'a'.repeat(32)+'.json','.idphoto-archive-sync.json']) {
+      const stage = path.join(directory,name+'.'+'b'.repeat(32)+'.tmp'), destination = path.join(directory,name);
+      const content = JSON.stringify({version:1,id:'kept'});fs.writeFileSync(stage,content);
+      assert.equal(run('commit-archive-record',stage).hidden,true);
+      assert.equal(fs.readFileSync(destination,'utf8'),content);
+      assert.equal(run('hide-archive-record',destination).hidden,true);
+      const attrib = spawnSync('attrib.exe',[destination],{encoding:'utf8'});assert.match(attrib.stdout,/H/);
+      fs.writeFileSync(stage,JSON.stringify({version:1,id:'conflict'}));
+      assert.equal(run('commit-archive-record',stage).ok,false);
+      assert.equal(fs.readFileSync(destination,'utf8'),content);
+    }
+    const photo = path.join(directory,'photo.jpg');fs.writeFileSync(photo,'untouched');
+    assert.equal(run('hide-archive-record',photo).ok,false);assert.equal(fs.readFileSync(photo,'utf8'),'untouched');
+  } finally {fs.rmSync(directory,{recursive:true,force:true});}
+});

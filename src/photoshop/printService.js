@@ -275,9 +275,13 @@
   // Reuse the installed Windows bridge; this operation never exports or prints a photo.
   async function archiveIndexOperation(file, operation, options) {
     options = options || {};
-    var validName = file && (operation === "commit-archive-index"
-      ? /^\.idphoto-jpg-index\.json\.[a-z0-9]+-[a-z0-9.]+\.tmp$/.test(file.name)
-      : file.name === ".idphoto-jpg-index.json");
+    var record = /^\.idphoto-(?:output-[a-f0-9]{32}|archive(?:-(?:retired-)?[a-f0-9]{32}|-root|-sync)?)\.json$/;
+    var stagedRecord = /^\.idphoto-(?:output-[a-f0-9]{32}|archive(?:-(?:retired-)?[a-f0-9]{32}|-root|-sync)?)\.json\.[a-f0-9]{32}\.tmp$/;
+    var validName = file && (operation === "commit-archive-record" ? stagedRecord.test(file.name)
+      : operation === "hide-archive-record" ? record.test(file.name)
+      : operation === "commit-archive-index"
+        ? /^\.idphoto-jpg-index\.json\.[a-z0-9]+-[a-z0-9.]+\.tmp$/.test(file.name)
+        : file.name === ".idphoto-jpg-index.json");
     if (!validName || !file.nativePath) {
       throw new Error("无效的存档索引路径");
     }
@@ -323,6 +327,8 @@
   }
 
   window.IDPhotoPrintService = {
+    hideArchiveRecord: function (file, options) { return archiveIndexOperation(file, "hide-archive-record", options); },
+    commitArchiveRecord: function (file, options) { return archiveIndexOperation(file, "commit-archive-record", options); },
     hideArchiveIndex: function (file, options) { return archiveIndexOperation(file, "hide-archive-index", options); },
     commitArchiveIndex: function (file, options) { return archiveIndexOperation(file, "commit-archive-index", options); },
     EXPECTED_PRINTER_NAME: EXPECTED_PRINTER_NAME,

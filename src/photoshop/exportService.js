@@ -729,7 +729,10 @@
         outputReceipt = await window.IDPhotoArchiveNamingService.prepareOutput(
           options.deliveryTask, rootResult.folder, dateFolder, file);
       }
-      await saveDocumentAsJpg(processedDocument, file);
+      var deliveryBytes = options.deliveryTask
+        ? await window.IDPhotoDeliveryService.archivePhoto(options.deliveryTask, template) : null;
+      if (deliveryBytes) await file.write(deliveryBytes, { format: require("uxp").storage.formats.binary });
+      else await saveDocumentAsJpg(processedDocument, file);
     } catch (saveError) {
       try {
         await deleteCreatedFile(file);

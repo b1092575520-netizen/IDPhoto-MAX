@@ -1,0 +1,44 @@
+{
+  "handoffToReadyMs": 30344.25,
+  "layoutStartToReadyMs": 31071,
+  "photo": {
+    "path": "photo.jpg",
+    "role": "photo",
+    "sha256": "cd1ebba783992adf0a88896bdee8039f92af276bee0d8330de4dcb101898507a",
+    "sizeBytes": 605143,
+    "width": 827,
+    "height": 1157,
+    "filename": "photo-8ee4b9541043.jpg",
+    "purpose": "标准2寸 3.5x4.9",
+    "background": "blue"
+  },
+  "archive": [
+    {
+      "sizeBytes": 605143,
+      "sha256": "cd1ebba783992adf0a88896bdee8039f92af276bee0d8330de4dcb101898507a"
+    }
+  ],
+  "cloudFunctionCalls": 22,
+  "actions": {
+    "staffDetail": 5,
+    "createGroup": 1,
+    "prepareChunks": 1,
+    "uploadChunk": 13,
+    "completeChunks": 1,
+    "publish": 1
+  },
+  "definition": "request.json creation to publish response; one real-cloud sample",
+  "behaviorPassed": true,
+  "latencyTargetPassed": false,
+  "databaseOperations": {
+    "sameWindowTotal": 215,
+    "functionWindowTotal": 23,
+    "instrumentedOwnFunctions": 22,
+    "attribution": "window upper bound includes one unrelated invocation; not an exact per-task count"
+  },
+  "firstFailure": "Host03 retained false due one-inch white-pixel assertion on red/gold standard-two-inch strip; host cleanup passed. Artifact supplement verifies actual template color variation, no second upload.",
+  "tests": 371,
+  "releaseVerificationPassed": true,
+  "parent": "934c90d1db178154e2042f763218840deaac7321",
+  "packageSha256": "fe1380dd4a390e523b68e13e41edbc76c2c306c5d6bf83f1e5e17e9413679aac"
+}

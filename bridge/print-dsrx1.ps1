@@ -1,4 +1,4 @@
-param(
+﻿param(
   [Parameter(Position = 0)]
   [string]$JobPath = "",
   [switch]$ValidateOnly,
@@ -190,7 +190,7 @@ public static class IDPhotoArchiveView {
 
 function Invoke-ArchiveIndexOperation {
   param($request)
-  if ([string]$request.operation -cne 'hide-archive-index' -and [string]$request.operation -cne 'commit-archive-index') {
+  if ([string]$request.operation -cnotin @('hide-archive-index', 'commit-archive-index', 'hide-archive-record', 'commit-archive-record')) {
     Throw-BridgeError 'invalid-operation' 'Unsupported bridge operation'
   }
   $indexPath = [string]$request.indexPath
@@ -199,14 +199,33 @@ function Invoke-ArchiveIndexOperation {
   }
   $indexPath = [System.IO.Path]::GetFullPath($indexPath)
   $commitIndex = [string]$request.operation -ceq 'commit-archive-index'
+  $recordOperation = [string]$request.operation -cmatch '-archive-record$'
+  $commitRecord = [string]$request.operation -ceq 'commit-archive-record'
   $indexName = [System.IO.Path]::GetFileName($indexPath)
-  if (($commitIndex -and $indexName -cnotmatch '^\.idphoto-jpg-index\.json\.[a-z0-9]+-[a-z0-9.]+\.tmp$') -or
-      (-not $commitIndex -and $indexName -cne '.idphoto-jpg-index.json')) {
+  $recordPattern = '^\.idphoto-(?:output-[a-f0-9]{32}|archive(?:-(?:retired-)?[a-f0-9]{32}|-root|-sync)?)\.json'
+  if ($recordOperation) {
+    $pattern = if ($commitRecord) { $recordPattern + '\.[a-f0-9]{32}\.tmp$' } else { $recordPattern + '$' }
+    if ($indexName -cnotmatch $pattern) { Throw-BridgeError 'invalid-record-path' 'Unsupported archive record path' }
+  }
+  if (-not $recordOperation -and (($commitIndex -and $indexName -cnotmatch '^\.idphoto-jpg-index\.json\.[a-z0-9]+-[a-z0-9.]+\.tmp$') -or
+      (-not $commitIndex -and $indexName -cne '.idphoto-jpg-index.json'))) {
     Throw-BridgeError 'invalid-index-path' 'Only the IDPhoto archive index can be hidden'
   }
   $indexFile = Get-Item -LiteralPath $indexPath -Force
   if ($indexFile.PSIsContainer -or ($indexFile.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
     Throw-BridgeError 'invalid-index-path' 'The archive index must be a regular file'
+  }
+  if ($recordOperation) {
+    $record = Get-Content -LiteralPath $indexPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($record.version -ne 1) { Throw-BridgeError 'invalid-record-content' 'Unsupported archive record version' }
+    $indexFile.Attributes = $indexFile.Attributes -bor [System.IO.FileAttributes]::Hidden
+    if ($commitRecord) {
+      # Immutable records never replace an existing identity; Hidden is set before publish.
+      $committedPath = Join-Path $indexFile.DirectoryName ($indexName -creplace '\.[a-f0-9]{32}\.tmp$', '')
+      [System.IO.File]::Move($indexPath, $committedPath)
+      $indexPath = $committedPath
+      $indexFile = Get-Item -LiteralPath $indexPath -Force
+    }
   }
   if ($commitIndex) {
     $stagedIndex = Get-Content -LiteralPath $indexPath -Raw -Encoding UTF8 | ConvertFrom-Json

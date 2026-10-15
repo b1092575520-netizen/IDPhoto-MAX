@@ -51,6 +51,7 @@ function makeFolder(name, parentPath = "C:\\Mock") {
         nativePath: this.nativePath + "\\" + entryName,
         isFile: true,
         content: "",
+        _entries: entries,
         async read(options) { checkStorageFormat(options); return this.content; },
         async write(value, options) { checkStorageFormat(options); this.content = value; },
         async commitHiddenIndex() {
@@ -108,7 +109,10 @@ function loadExportService(rootFolder, fileSystemOverrides = {}, sourceEligibili
       };
     },
     window: {
+      IDPhotoDeliveryService: { archivePhoto: async () => null },
       IDPhotoPrintService: {
+        async hideArchiveRecord(file) { file.hidden = true; },
+        async commitArchiveRecord(file) { await file.moveTo({ entries: file._entries }, { newName: file.name.replace(/\.[a-f0-9]{32}\.tmp$/, ""), overwrite: false }); file.hidden = true; },
         async hideArchiveIndex(file) { file.hidden = true; },
         async commitArchiveIndex(file) { await file.commitHiddenIndex(); }
       },

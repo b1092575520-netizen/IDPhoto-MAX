@@ -259,6 +259,19 @@
     var bytes = await file.read({ format: format(true) });
     return { path: name, role: role, sha256: protocol().sha256(bytes), sizeBytes: bytes.byteLength, width: width, height: height };
   }
+  async function archivePhoto(task, template) {
+    // Never resave or reinterpret an in-flight task. Only exact dimensions may
+    // reuse its immutable JPEG; legacy high-resolution tasks use normal export.
+    var payload = await (await task.folder.getEntry("request.json")).read({ format: format(false) });
+    if (protocol().sha256(payload) !== task.fingerprint) throw new Error("原交付清单变化，停止归档");
+    var request = JSON.parse(payload);
+    var descriptor = request.files[task.archiveOrdinal || 0];
+    if (!descriptor || descriptor.role !== "photo") throw new Error("原任务规格照片缺失");
+    var file = await task.folder.getEntry(descriptor.path), bytes = await file.read({ format: format(true) });
+    if (bytes.byteLength !== descriptor.sizeBytes || protocol().sha256(bytes) !== descriptor.sha256)
+      throw new Error("原交付照片变化，停止归档");
+    return descriptor.width === template.widthPx && descriptor.height === template.heightPx ? bytes : null;
+  }
   function requestPayload(task, photo) {
     var request = { version: 1, taskId: task.id, outputId: task.outputId, sourceDocumentId: String(task.docInfo.id), mode: task.mode,
       title: String(task.docInfo.name || "电子成片").slice(0, 120), eligible: true, testOnly: true,
@@ -278,9 +291,9 @@
     preparingTask = task;
     try {
     var photo = await saveJpeg(task, documentRef, "photo.jpg", "photo");
-    // Do not silently shrink a high-resolution result to satisfy cloud limits.
+    // New layout tasks hand off the selected specification JPEG; old tasks retain their original bytes.
     if (photo.sizeBytes > 8388608 || photo.width * photo.height > 20000000) {
-      await status(task, { processing: "retained-over-limit", error: "高清文件超过当前 8 MiB / 20MP 上限，已保留，需人工处理" });
+      await status(task, { processing: "retained-over-limit", error: "成片超过当前 8 MiB / 20MP 上限，已保留，需人工处理" });
       throw new Error(task.status.error);
     }
     await writeAtomic(task.folder, "photo-prepared.json", JSON.stringify({ version: 1, taskId: task.id,
@@ -1037,7 +1050,7 @@
     } catch (error) { await status(task, { processing: "failed", error: errorText(error), message: "原件与独立副本保留，失败的整批不会交付。" }); throw error; }
     finally { await execution.activateDocument(sourceDocument); }
   }
-  window.IDPhotoDeliveryService = { begin: begin, prepare: prepare, complete: complete, electronic: electronic, multi: multi, regenerate: regenerate,
+  window.IDPhotoDeliveryService = { begin: begin, prepare: prepare, archivePhoto: archivePhoto, complete: complete, electronic: electronic, multi: multi, regenerate: regenerate,
     receiveInformationTasks: receiveInformationTasks,
     pending: pending, retryPending: function (id) { return retryPending(id, false); }, deferPending: deferPending, startOutput: startOutput,
     current: current, currentPreview: currentPreview, nextCustomer: nextCustomer, chooseCurrent: chooseCurrent,

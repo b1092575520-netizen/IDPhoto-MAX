@@ -345,7 +345,7 @@
         docInfo,
         template,
         ratioResult,
-        { strategy: runOptions.cropStrategy, keepHighResolution: Boolean(deliveryTask && !runOptions.resumeDeliveryTask) }
+        { strategy: runOptions.cropStrategy, keepHighResolution: false }
       );
       if (!processResult || !processResult.document || sameDocument(processResult.document, sourceDocument)) {
         throw new Error("处理后单张不是独立文档，已停止以保护原片");
@@ -356,10 +356,7 @@
           if (runOptions.resumeDeliveryTask) {
             runOptions.pickupCode = window.IDPhotoDeliveryProtocol.requirePickupCode(deliveryTask.code);
           } else {
-          if (!processResult.highResolutionDocument || sameDocument(processResult.highResolutionDocument, sourceDocument)) {
-            throw new Error("独立高清成片不可用，未请求取件码。");
-          }
-          runOptions.pickupCode = await requireMethod("IDPhotoDeliveryService", "prepare")(deliveryTask, processResult.highResolutionDocument);
+          runOptions.pickupCode = await requireMethod("IDPhotoDeliveryService", "prepare")(deliveryTask, processResult.document);
           window.IDPhotoDeliveryProtocol.requirePickupCode(runOptions.pickupCode);
           }
           await requireMethod("IDPhotoDeliveryService", "startOutput")(deliveryTask);

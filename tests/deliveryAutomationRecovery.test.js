@@ -63,13 +63,14 @@ function harness(options = {}) {
   function doc(width, height, content = bytes(9)) {
     const document = { id: ++sequence, width, height, content, name: "owned-" + sequence,
       activate: async () => { active = document; },
-      saveAs: { jpg: async file => { saves.push(file.nativePath); await file.write(content); } },
+      saveAs: { jpg: async file => { saves.push(file.nativePath); await file.write(new Uint8Array([...new Uint8Array(content), width >> 8, width & 255, height >> 8, height & 255]).buffer); } },
       crop: async () => {}, duplicate: async () => doc(width, height, content) };
     return document;
   }
   const app = { documents: [], open: async file => {
     const content = await file.read(); opened.push({ path: file.nativePath, bytes: new Uint8Array(content).slice() });
-    const document = doc(3000, 4000, content); app.documents.push(document); active = document; return document;
+    const raw = new Uint8Array(content), n = raw.length;
+    const document = doc(raw[n-4]*256+raw[n-3], raw[n-2]*256+raw[n-1], content); app.documents.push(document); active = document; return document;
   } };
   app.documents.add = async settings => { const document = doc(settings.width, settings.height); document.name = settings.name; app.documents.push(document); return document; };
   function source(n = 1) {

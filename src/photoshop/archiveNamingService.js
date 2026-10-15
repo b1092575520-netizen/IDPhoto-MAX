@@ -13,7 +13,10 @@
     var file = await folder.createFile(temporary, { overwrite: false });
     try {
       await file.write(JSON.stringify(value), { format: storage().formats.utf8 });
-      await file.moveTo(folder, { newName: name, overwrite: overwrite === true });
+      if (/^\.idphoto-(?:output-|archive)/.test(name)) {
+        if (overwrite) throw new Error("归档身份记录不允许覆盖");
+        await window.IDPhotoPrintService.commitArchiveRecord(file);
+      } else await file.moveTo(folder, { newName: name, overwrite: overwrite === true });
     } finally {
       var leftover = await optional(folder, temporary);
       if (leftover) await leftover.delete();
@@ -45,6 +48,7 @@
       catch (error) { if (!await optional(root, filename)) throw error; }
       file = await root.getEntry(filename);
     }
+    await window.IDPhotoPrintService.hideArchiveRecord(file);
     value = JSON.parse(await file.read({ format: storage().formats.utf8 }));
     if (value.version !== 1 || !/^[a-f0-9]{32}$/.test(value.id) || value.directory !== key(root.nativePath))
       throw new Error("归档根目录身份不符，照片已保留，不能按取件码改名");

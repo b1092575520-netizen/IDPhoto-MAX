@@ -529,3 +529,18 @@ test('information pickup preserves a failed task for explicit retry and never tr
   const retry=await h.service.receiveInformationTasks();
   assert.equal(retry.completed,1,JSON.stringify(retry));
 });
+
+test('specification archive reuses exact immutable JPEG and legacy dimensions keep normal export', async () => {
+  const h = harness(), task = await h.service.begin(h.info, 'print', {widthPx:827,heightPx:1157}, {});
+  const spec = h.doc(827,1157); await h.service.prepare(task,spec);
+  const original = await (await task.folder.getEntry('photo.jpg')).read();
+  const archived = await h.service.archivePhoto(task,{widthPx:827,heightPx:1157});
+  assert.deepEqual(new Uint8Array(archived),new Uint8Array(original));
+  assert.equal(await h.service.archivePhoto(task,{widthPx:638,heightPx:898}),null);
+  const payload = await (await task.folder.getEntry('request.json')).read();
+  await (await task.folder.getEntry('request.json')).write(payload+' ');
+  await assert.rejects(h.service.archivePhoto(task,{widthPx:827,heightPx:1157}),/清单变化/);
+  await (await task.folder.getEntry('request.json')).write(payload);
+  await (await task.folder.getEntry('photo.jpg')).write(new Uint8Array([9]).buffer);
+  await assert.rejects(h.service.archivePhoto(task,{widthPx:827,heightPx:1157}),/照片变化/);
+});
