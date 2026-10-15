@@ -26,7 +26,7 @@ function capture(overrides = {}) {
 
 test("resaving one original keeps the identity despite new filenames, save IDs, pixels and signatures", () => {
   const { identity } = loadIdentity();
-  const original = { name: "original.jpg", width: 4000, height: 6000, sourceMetadata: capture(), documentId: "first" };
+  const original = { name: "original.jpg", width: 4000, height: 6000, sourceMetadata: capture({ captureOffsetTime: "Z" }), documentId: "first" };
   const edited = { name: "edited.psd", width: 638, height: 898, sourceMetadata: capture({
     serialNumber: " shop-0589 ", captureDate: "2026-10-07T12:34:56.090Z", captureSubsecond: "0900",
     originalDocumentId: "uuid:abcdef01-2345-6789-abcd-ef0123456789"
@@ -35,13 +35,14 @@ test("resaving one original keeps the identity despite new filenames, save IDs, 
   assert.equal(identity.getSourceIdentity(original), identity.getSourceIdentity(edited));
 });
 
-test("burst captures with the same camera and second remain distinct by original identity and subsecond", () => {
+test("capture identity distinguishes cameras and subseconds, without changing when a save ID appears", () => {
   const { identity } = loadIdentity();
   const a = identity.getSourceIdentity(capture());
   const b = identity.getSourceIdentity(capture({ captureSubsecond: "61" }));
   const c = identity.getSourceIdentity(capture({ originalDocumentId: "123456789012345678901234567890ab" }));
   const otherCamera = identity.getSourceIdentity(capture({ serialNumber: "SHOP-0590" }));
-  assert.equal(new Set([a, b, c, otherCamera]).size, 4);
+  assert.equal(new Set([a, b, c, otherCamera]).size, 3);
+  assert.equal(a, c);
 });
 
 test("missing, invalid or contradictory strong identity returns empty instead of filename or visual guesses", () => {
@@ -49,7 +50,7 @@ test("missing, invalid or contradictory strong identity returns empty instead of
   for (const metadata of [
     {}, capture({ serialNumber: "" }), capture({ captureDate: "2026-10-07" }),
     capture({ captureDate: "2026-02-31T12:34:56" }), capture({ captureDate: "2026-10-07T24:00:00" }),
-    capture({ captureDate: "2026-10-07T12:00:60" }), capture({ originalDocumentId: "" }),
+    capture({ captureDate: "2026-10-07T12:00:60" }), capture({ originalDocumentId: "", captureSubsecond: "" }),
     capture({ captureDate: "2026-10-07T12:34:56+15:00" }), capture({ captureDate: "2026-10-07T12:34:56+08:99" }),
     capture({ originalDocumentId: "unknown" }), capture({ originalDocumentId: "00000000000000000000000000000000" }),
     capture({ captureSubsecond: "not-a-number" }), capture({ captureDate: "2026-10-07T12:34:56.61", captureSubsecond: "09" })
@@ -96,4 +97,40 @@ test("same specification and background replace, different sizes or backgrounds 
   ]) {
     assert.equal(identity.makeVariantKey(options), "");
   }
+});
+
+test("fresh camera capture without strong IDs uses subsecond capture identity and keeps it after a Photoshop save", () => {
+  const { identity } = loadIdentity();
+  const fresh = capture({ originalDocumentId: "", captureSubsecond: "53", captureOffsetTime: "+08:00" });
+  const key = identity.getSourceIdentity(fresh);
+  assert.ok(key);
+  assert.match(key, /^source-v2:/);
+  assert.equal(key, identity.getSourceIdentity({ sourceMetadata: { ...fresh,
+    captureDate: "2026-10-07T12:34:56.053+08:00", originalDocumentId: "ABCDEF0123456789ABCDEF0123456789"
+  } }));
+  assert.notEqual(key, identity.getSourceIdentity({ ...fresh, captureSubsecond: "54" }));
+  assert.equal(identity.describeSourceIdentity(fresh).strength, "capture-subsecond");
+  assert.equal(identity.describeSourceIdentity({ ...fresh, originalDocumentId: "ABCDEF0123456789ABCDEF0123456789" }).strength, "original-document-id");
+});
+
+test("capture fallback requires subsecond, preserves a zero subsecond and rejects actual time conflicts", () => {
+  const { identity } = loadIdentity();
+  const fresh = capture({ originalDocumentId: "" });
+  assert.equal(identity.getSourceIdentity({ ...fresh, captureSubsecond: "" }), "");
+  assert.ok(identity.getSourceIdentity({ ...fresh, captureSubsecond: "00" }));
+  assert.equal(identity.getSourceIdentity({ ...fresh, captureDate: "2026-10-07T12:34:56.61" }), "");
+  assert.notEqual(identity.getSourceIdentity({ ...fresh, captureOffsetTime: "+08:00" }),
+    identity.getSourceIdentity({ ...fresh, captureOffsetTime: "+09:00" }));
+  assert.equal(identity.getSourceIdentity({ ...fresh, captureDate: "2026-10-07T12:34:56+08:00", captureOffsetTime: "+09:00" }), "");
+  assert.equal(identity.getSourceIdentity({ ...fresh, captureOffsetTime: "+08:99" }), "");
+});
+
+test("new capture identity recognizes an exact old source-v1 capture and refuses a conflicting strong ID", () => {
+  const { identity } = loadIdentity();
+  const saved = capture();
+  const oldKey = "source-v1:" + JSON.stringify(["SHOP-0589", "2026-10-07T12:34:56.09", "original", saved.originalDocumentId.toLowerCase()]);
+  assert.equal(identity.matchesSourceIdentity(oldKey, saved), true);
+  assert.equal(identity.matchesSourceIdentity(oldKey, { ...saved, originalDocumentId: "" }), true);
+  assert.equal(identity.matchesSourceIdentity(oldKey, { ...saved, originalDocumentId: "123456789012345678901234567890ab" }), false);
+  assert.equal(identity.matchesSourceIdentity(oldKey, { ...saved, captureSubsecond: "61" }), false);
 });

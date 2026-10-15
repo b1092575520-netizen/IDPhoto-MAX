@@ -922,6 +922,7 @@
     var completionMessage;
     var deliveryIntent = null;
     var forceBlankInfoBar = false;
+    var plainSourceMessage = "";
 
     if (!templateNames.length) {
       setStatus("请选择尺寸");
@@ -962,8 +963,12 @@
         delivery = sourceDecision.eligible === true;
         if (delivery && window.IDPhotoDeliveryIdentity && !window.IDPhotoDeliveryIdentity.getSourceIdentity(docInfo)) {
           delivery = false; forceBlankInfoBar = true;
+          plainSourceMessage = "这张照片读不到拍摄编号，本次只排版、不出取件码";
         }
-        if (!delivery) setStatus("本次仅排版，信息条区域留白");
+        if (!delivery) {
+          plainSourceMessage = plainSourceMessage || sourceDecision.message;
+          setStatus(plainSourceMessage);
+        }
       }
     } catch (documentError) {
       logStepError("document", documentError);
@@ -1111,6 +1116,7 @@
     });
     state.lastClickedTemplateId = null;
     if (runResult.cancelled) completionMessage += "；用户已取消，后续模板未执行";
+    if (plainSourceMessage) completionMessage += "；" + plainSourceMessage;
     state.lastTemplateRangeAnchor = null;
     applySelectedTemplateIds(window.IDPhotoTemplateSelectionService.clear(), null, null, true);
     setStatus(completionMessage);

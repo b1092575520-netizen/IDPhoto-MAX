@@ -2,7 +2,7 @@
 
 这是一个 Photoshop UXP 面板插件项目，用于开发证件照排版工具。
 
-当前版本为 v0.6.7（源码开发候选）：按可靠原片身份自动新建、沿用码并替换同规格照片，支持不同底色追加、未完成任务自动恢复与同行共码。需配套支持 `pickup-automation-1` 的新后台；日常 External 仍为 0.6.6，未自动安装本候选。面板与信息条保持 cc 的 0.6.6 设计，详细规则见 `docs/delivery-automation.md`，候选及验证见主项目 `review/plugin-automation-20261007/`。
+当前版本为 v0.6.8（源码）：修复未保存过的新原片缺少强编号时不出取件码，允许机身、完整拍摄时间和亚秒构成稳定身份；保存后补出编号仍沿用同一身份。按原片与规格自动交付、恢复和同行规则不变。需支持 `pickup-automation-1` 的后台；本轮验证和日常External覆盖分别记录在 `review/fresh-capture-identity-20261015/`，版本号本身不代表已安装。详细边界见 `docs/delivery-automation.md`。
 
 ## 如何加载
 

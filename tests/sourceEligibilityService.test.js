@@ -50,6 +50,7 @@ test("Canon XMP camera metadata is parsed from both attributes and elements", ()
     serialNumber: "0123456789",
     captureDate: "",
     captureSubsecond: "",
+    captureOffsetTime: "",
     imageUniqueId: "",
     originalDocumentId: "",
     historical: false,
@@ -163,10 +164,12 @@ test("capture identity fields are kept separately from mutable save metadata", (
   const metadata = service.parseXmp(`<rdf:Description
     aux:SerialNumber="SHOP" exif:DateTimeOriginal="2026-10-07T12:34:56.09"
     exif:SubSecTimeOriginal="090" exif:ImageUniqueID="123456789012345678901234567890ab"
+    exifEX:OffsetTimeOriginal="+08:00"
     xmpMM:OriginalDocumentID="abcdef0123456789abcdef0123456789"
     xmpMM:DocumentID="mutable-save-id" xmp:ModifyDate="2026-10-07T14:00:00" />`);
   assert.equal(metadata.captureDate, "2026-10-07T12:34:56.09");
   assert.equal(metadata.captureSubsecond, "090");
+  assert.equal(metadata.captureOffsetTime, "+08:00");
   assert.equal(metadata.imageUniqueId, "123456789012345678901234567890ab");
   assert.equal(metadata.originalDocumentId, "abcdef0123456789abcdef0123456789");
   assert.equal(service.getStableSourceIdFromXmp(`<rdf:Description xmpMM:OriginalDocumentID="abcdef0123456789abcdef0123456789" />`),

@@ -18,7 +18,14 @@
     await file.write(value, { format: format() });
     await file.moveTo(folder, { newName: name, overwrite: Boolean(overwrite) });
   }
-  function sourceKey(info) { return window.IDPhotoDeliveryIdentity.getSourceIdentity(info); }
+  function sourceKey(info) {
+    var identity = window.IDPhotoDeliveryIdentity, current = identity.getSourceIdentity(info);
+    if (!current || !identity.matchesSourceIdentity) return current;
+    var matches = Array.from(new Set(store().tasks().map(function (item) { return item.sourceKey; })))
+      .filter(function (key) { return identity.matchesSourceIdentity(key, info); });
+    if (matches.length > 1) throw new Error("原片身份对应多份历史记录，请在交付管理中核对");
+    return matches[0] || current;
+  }
   function specKey(info, mode, template) {
     return window.IDPhotoDeliveryIdentity.makeVariantKey({
       widthPx: mode === "electronic" ? info.widthPx : template.widthPx,

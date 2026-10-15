@@ -79,6 +79,9 @@ function harness(options = {}) {
   let tick = Date.now();
   class Clock extends Date { static now() { return tick; } }
   const context = vm.createContext({ window, document, Date: Clock, console: { log() {}, warn() {}, error() {} }, setTimeout, clearTimeout });
+  if (options.realIdentity) {
+    vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/core/deliveryIdentity.js"), "utf8"), context);
+  }
   const html = fs.readFileSync(path.join(__dirname, "../index.html"), "utf8");
   const modules = ["core/sourceEligibilityService", "core/pickupCodeModeStore", "core/templateSelectionService", "main"];
   for (const module of modules) {
@@ -236,4 +239,19 @@ test("a preference write failure cannot make the UI claim the mode changed", () 
   assert.equal(h.toggle.label.textContent, "关");
   assert.equal(h.toggle.attributes["aria-pressed"], "false");
   assert.match(h.buttons.statusText.textContent, /模式未改变/);
+});
+
+test("pickup mode routes an unsaved subsecond camera photo to delivery and retains concrete plain reasons", async () => {
+  const h = harness({ realIdentity: true });h.toggle.fire();
+  h.photo.sourceMetadata = { serialNumber: "SHOP", captureDate: h.date + "T12:34:56", captureSubsecond: "53" };
+  h.select();await h.shortcuts.execute();
+  assert.equal(h.runs.at(-1).delivery, true);
+  assert.equal(h.runs.at(-1).forceBlankInfoBar, false);
+  h.advance();h.photo.sourceMetadata.captureSubsecond = "";h.select();await h.shortcuts.execute();
+  assert.equal(h.runs.at(-1).delivery, false);
+  assert.equal(h.runs.at(-1).forceBlankInfoBar, true);
+  assert.match(h.buttons.statusText.textContent, /这张照片读不到拍摄编号，本次只排版、不出取件码/);
+  h.advance();h.photo.sourceMetadata.serialNumber = "EXTERNAL";h.select();await h.shortcuts.execute();
+  assert.equal(h.runs.at(-1).delivery, false);
+  assert.match(h.buttons.statusText.textContent, /外来相片/);
 });

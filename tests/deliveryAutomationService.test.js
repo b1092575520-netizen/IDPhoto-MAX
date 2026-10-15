@@ -127,8 +127,22 @@ function harness(options = {}) {
     return task;
   }
   return { options, memory, snapshots, requests, root, connected, prior, next, reload: load,
+    identity: window.IDPhotoDeliveryIdentity,
     advance: amount => { clock += amount; }, get service() { return window.IDPhotoDeliveryAutomationService; } };
 }
+
+test("an exact legacy capture key is retained across the identity upgrade, and multiple matches stop", () => {
+  const h = harness();
+  h.prior(1, "old-capture-key");
+  h.identity.matchesSourceIdentity = (key, value) => key === "old-capture-key" && value.sourceKey === "new-capture-key";
+  const plan = h.service.plan(info("new-capture-key"), "print", template);
+  assert.equal(plan.sourceKey, "old-capture-key");
+  assert.equal(plan.kind, "same");
+  assert.deepEqual(plain(plan.previousTaskIds), [id(1)]);
+  h.prior(2, "another-old-key");
+  h.identity.matchesSourceIdentity = () => true;
+  assert.throws(() => h.service.plan(info("new-capture-key"), "print", template), /多份历史记录/);
+});
 
 test("different reliable originals sharing a filename never borrow a previous delivery or member", async () => {
   const h = harness(); h.prior(1, "source-A");
