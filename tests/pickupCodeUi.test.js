@@ -19,11 +19,11 @@ function element(attributes = {}) {
 }
 
 function harness(options = {}) {
-  const memory = options.memory || new Map(), runs = [], alerts = [];
+  const memory = options.memory || new Map(), runs = [], alerts = [], automaticTicks = [];
   const buttons = Object.fromEntries(["runButton", "electronicDeliveryButton", "runVisualAcceptance", "statusText",
     "historicalDeliveryPanel", "historicalDeliveryPhoto", "confirmHistoricalDelivery", "existingHistoricalDelivery", "cancelHistoricalDelivery",
     "reviewPendingDelivery", "pendingDeliveryPanel", "pendingDeliveryDescription", "retryPendingDelivery",
-    "deferPendingDelivery", "closePendingDelivery", "checkDeliveryConnection", "deliveryConnectionStatus", "stopDeliveryWait"]
+    "deferPendingDelivery", "closePendingDelivery", "checkDeliveryConnection", "deliveryConnectionStatus", "stopDeliveryWait", "deliveryPlanHint"]
     .map(id => [id, element()]));
   const toggle = element({ "data-key": "pickupCodeMode" }), size = element({ "data-template": "模板一" });
   let shortcuts, electronicCalls = 0, electronicIntents = [], retryCalls = [], deferCalls = [];
@@ -42,8 +42,9 @@ function harness(options = {}) {
     localStorage: { getItem: key => memory.get(key), setItem: (key, value) => { if (options.writeFail) throw Error("disk"); memory.set(key, value); } },
     IDPhotoTemplates: { getAllTemplates: () => [template], getTemplateByName: () => template, getTemplateById: () => template },
     IDPhotoShortcutService: { register: value => { shortcuts = value; } },
-    IDPhotoDocumentService: { ensureActiveDocument: async () => ({ ok: true, document: photo }), getActiveDocument: () => source },
-    IDPhotoSettingsProfile: { load: () => ({ cameras: [{ serialNumber: "SHOP" }] }) },
+    IDPhotoDocumentService: { ensureActiveDocument: async () => ({ ok: true, document: photo }), getActiveDocument: () => source,
+      getActiveDocumentInfo: async () => photo },
+    IDPhotoSettingsProfile: { load: () => ({ cameras: options.cameras || [{ serialNumber: "SHOP" }] }) },
     IDPhotoSettingsStore: { load: () => ({}) },
     IDPhotoPhotoshopExecution: { getPhotoshop: () => ({ app: { showAlert: async message => {
       alerts.push(message);
@@ -59,6 +60,8 @@ function harness(options = {}) {
         closeAfterPrintFailures: [], duplicateExports: [], replacedExports: [] };
     } }) },
     IDPhotoDeliveryService: {
+      primeRecovery: async () => null,
+      recoveredNotice: async () => null,
       pending: async () => options.pending || null,
       retryPending: async id => {
         retryCalls.push(id);
@@ -78,9 +81,18 @@ function harness(options = {}) {
   };
   let tick = Date.now();
   class Clock extends Date { static now() { return tick; } }
-  const context = vm.createContext({ window, document, Date: Clock, console: { log() {}, warn() {}, error() {} }, setTimeout, clearTimeout });
+  const context = vm.createContext({ window, document, Date: Clock, console: { log() {}, warn() {}, error() {} },
+    setTimeout: options.automatic ? (callback, delay) => { automaticTicks.push(callback); } : setTimeout, clearTimeout });
   if (options.realIdentity) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/core/deliveryIdentity.js"), "utf8"), context);
+  }
+  if (options.automatic) {
+    vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/ui/deliveryStatusView.js"), "utf8"), context);
+    window.IDPhotoVariantService = { analyzeDocument: async () => ({ backgroundColor: "white" }) };
+    window.IDPhotoDeliveryAutomationService = {
+      store: () => ({ group: () => ({ on: false }), mergeIntent: () => null }),
+      plan: () => ({ kind: "new" })
+    };
   }
   const html = fs.readFileSync(path.join(__dirname, "../index.html"), "utf8");
   const modules = ["core/sourceEligibilityService", "core/pickupCodeModeStore", "core/templateSelectionService", "main"];
@@ -89,6 +101,7 @@ function harness(options = {}) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/" + module + ".js"), "utf8"), context);
   }
   return { options, memory, runs, alerts, buttons, toggle, size, shortcuts, photo, date, retryCalls, deferCalls, get electronicCalls() { return electronicCalls; }, electronicIntents,
+    tick: async () => { assert.ok(automaticTicks.length, "automatic plan tick is scheduled"); await automaticTicks.shift()(); },
     advance: () => { tick += 1000; }, select: () => shortcuts.selectTemplate("模板一") };
 }
 const flush = async () => { await new Promise(resolve => setImmediate(resolve)); };
@@ -255,3 +268,38 @@ test("pickup mode routes an unsaved subsecond camera photo to delivery and retai
   assert.equal(h.runs.at(-1).delivery, false);
   assert.match(h.buttons.statusText.textContent, /外来相片/);
 });
+
+for (const [reason, text] of Object.entries({
+  "plugin-export": "排版成品不出码，请打开相机原片",
+  "historical-source": "不是今天拍的，不出码",
+  "missing-serial": "读不到相机序列号，不出码",
+  "no-registered-camera": "未登记本店相机，不出码",
+  "external-camera": "外来照片，不出码",
+  "unverified-capture-date": "读不到拍摄日期，不出码",
+  "missing-source-identity": "读不到拍摄编号，不出码"
+})) {
+  test("plain card gives the same specific reason before and during layout: " + reason, async () => {
+    const h = harness({ realIdentity: true, automatic: true,
+      cameras: reason === "no-registered-camera" ? [] : [{ serialNumber: "SHOP" }] });
+    h.photo.sourceMetadata = { serialNumber: "SHOP", captureDate: h.date + "T12:34:56", captureSubsecond: "53" };
+    if (reason === "plugin-export") h.photo.name = "签证2寸_827x1063_白_UIN75V.jpg";
+    if (reason === "historical-source") h.photo.sourceMetadata.captureDate = "2000-01-02T12:34:56";
+    if (reason === "missing-serial") h.photo.sourceMetadata.serialNumber = "";
+    if (reason === "external-camera") h.photo.sourceMetadata.serialNumber = "EXTERNAL";
+    if (reason === "unverified-capture-date") h.photo.sourceMetadata.captureDate = "";
+    if (reason === "missing-source-identity") h.photo.sourceMetadata.captureSubsecond = "";
+    h.toggle.fire(); h.select(); await h.tick();
+    assert.equal(h.runs.length, 0, "preflight runs before layout");
+    assert.equal(h.buttons.deliveryPlanHint.textContent, "只排版 · " + text);
+    assert.equal(h.buttons.deliveryPlanHint.style.display, "block");
+    await h.shortcuts.execute();
+    assert.equal(h.buttons.deliveryPlanHint.textContent, "只排版 · " + text);
+    assert.equal(h.runs.at(-1).delivery, false);
+    assert.equal(h.electronicCalls, 0);
+    assert.equal(h.alerts.length, 0);
+    if (reason === "plugin-export") assert.match(h.buttons.statusText.textContent,
+      /排版成品：仅排版，不显示信息条且不保存；要出码请打开相机原片/);
+    h.toggle.fire(); h.select(); await h.tick();
+    assert.equal(h.buttons.deliveryPlanHint.style.display, "none", "mode off still hides the card");
+  });
+}

@@ -357,6 +357,25 @@ test("external/history/unknown ordinary multi-template runs never render any str
   assert.equal(loaded.calls.filter(call => call === "print").length, 8);
 });
 
+test("plugin-export reason keeps ordinary layout blank and never starts delivery", async () => {
+  let begins = 0, prepared = 0;
+  const loaded = loadWorkflow({ realEligibility: true, delivery: {
+    begin: async () => { begins++; throw Error("must not start delivery"); },
+    prepare: async () => { prepared++; throw Error("must not prepare handoff"); }
+  } });
+  const result = await loaded.workflow.run({ templateNames: ["模板一", "模板二"], sourceDocument: { id: 101 },
+    docInfo: { id: 101, name: "签证2寸_827x1063_白_UIN75V.jpg", sourceMetadata: { serialNumber: "SHOP" } },
+    delivery: false, exportJpg: true, nasArchive: true });
+  assert.equal(result.ok, true);
+  for (const entry of result.successResults) {
+    assert.equal(entry.result.infoResult.createdCount, 0);
+  }
+  assert.equal(result.successResults[0].result.infoResult.sourceNotOwned, true);
+  assert.equal(begins, 0); assert.equal(prepared, 0);
+  assert.equal(loaded.calls.some(call => call.startsWith("info:")), false);
+  assert.equal(loaded.calls.filter(call => call.startsWith("canvas:")).length, 2);
+});
+
 test("confirmed historical layout shows a coded strip with the real or unknown date and does not change archive metadata", async () => {
   for (const dateText of ["", "2000.01.02"]) {
     const originalMetadata = { historical: true };

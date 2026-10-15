@@ -87,13 +87,18 @@ test("a capture date from a previous day is treated as a historical source", () 
   assert.equal(service.getInfoBarDecision(historical).leaveBlank, true);
 });
 
-test("plugin-generated document names are historical even without XMP date", () => {
+test("plugin-generated document names have a separate ineligible reason even without XMP date", () => {
   const service = loadService();
   const camera = { serialNumber: "0123456789", historical: false };
 
   service.registerCamera(camera);
-  assert.equal(service.checkSource(camera, "2026-08-25_1寸_638x898_红_A7K3M9.jpg").reason, "historical-source");
-  assert.equal(service.checkSource(camera, "2026-08-22_结婚照5.3x3.5_1252.jpg").reason, "historical-source");
+  for (const name of ["2026-08-25_1寸_638x898_红_A7K3M9.jpg", "2026-08-22_结婚照5.3x3.5_1252.jpg"]) {
+    assert.equal(service.checkSource(camera, name).reason, "plugin-export");
+    assert.equal(service.checkSource(camera, name).eligible, false);
+    assert.equal(service.isHistoricalSource(camera, name), true, "existing historical-source classifier is preserved");
+    assert.equal(service.getInfoBarDecision(camera, name).leaveBlank, true);
+    assert.equal(service.getInfoBarDecision(camera, name).showInfoBar, false);
+  }
 });
 
 test("only registered camera serial numbers are eligible for automatic saving", () => {
@@ -148,7 +153,7 @@ test("reopened exports stay historical after Photoshop copy suffix or extension 
   const metadata = { serialNumber: "shop", captureDate: today() };
   service.registerCamera(metadata);
   for (const name of ["1寸_638x898_白_BFP6MY.jpg", "1寸_638x898_白_BFP6MY 副本.psd", "标准2寸_827x1157_蓝_15AJJ4 copy 2.tif", "证件照排版_1寸"]) {
-    assert.equal(service.checkSource(metadata, name).reason, "historical-source", name);
+    assert.equal(service.checkSource(metadata, name).reason, "plugin-export", name);
   }
 });
 

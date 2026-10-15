@@ -205,6 +205,13 @@
     var cameras = loadRegisteredCameras();
     var matched;
 
+    if (isPluginExportName(documentName)) {
+      return {
+        eligible: false,
+        reason: "plugin-export",
+        message: "排版成品：仅排版，不显示信息条且不保存；要出码请打开相机原片"
+      };
+    }
     if (isHistoricalSource(metadata, documentName)) {
       return {
         eligible: false,

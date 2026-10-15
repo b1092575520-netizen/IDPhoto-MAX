@@ -529,6 +529,24 @@ test("historical photos are treated like external photos and never reach JPG or 
   assert.equal(saveCalls, 0);
 });
 
+test("a plugin export with real eligibility still skips all JPG and NAS storage", async () => {
+  const folder = makeFolder("root"); let storageAccessed = false, saved = false;
+  const { service, context } = loadExportService(folder, { getDataFolder: async () => { storageAccessed = true; return folder; } });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/core/sourceEligibilityService.js"), "utf8"), context);
+  const metadata = { serialNumber: "SHOP", captureDate: "2026-10-15T12:34:56", captureSubsecond: "53" };
+  context.window.IDPhotoSourceEligibilityService.registerCamera(metadata);
+  for (const nasArchive of [false, true]) {
+    const result = await service.exportSingleJpg({ saveAs: { jpg: async () => { saved = true; } } }, {
+      template: { name: "签证2寸", widthPx: 827, heightPx: 1063 },
+      docInfo: { name: "签证2寸_827x1063_白_UIN75V.jpg", sourceMetadata: metadata }, nasArchive
+    });
+    assert.equal(result.skipped, true);
+    assert.equal(result.sourceNotOwned, true);
+    assert.equal(result.eligibilityReason, "plugin-export");
+  }
+  assert.equal(storageAccessed, false); assert.equal(saved, false); assert.equal(folder.entries.size, 0);
+});
+
 test("exportSingleJpg recognizes a numbered legacy export with a full matching source identity", async () => {
   const rootFolder = makeFolder("root");
   const yearFolder = await rootFolder.createFolder("2026");

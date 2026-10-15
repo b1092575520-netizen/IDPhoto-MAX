@@ -986,7 +986,7 @@
         if (delivery) {
           docInfo.sourceVariant = await window.IDPhotoVariantService.analyzeDocument(sourceDocument);
           showDeliveryPlan(docInfo, getEffectiveTemplateByName(templateNames[0]));
-        } else deliveryStatusView.showPlan(state.pickupCodeMode ? { kind: "plain" } : null);
+        } else deliveryStatusView.showPlan(state.pickupCodeMode ? plainDeliveryPlan(sourceDecision) : null);
       }
       runResult = await getLayoutWorkflow().run({
         templateNames: templateNames,
@@ -1522,6 +1522,20 @@
     else deliveryStatusView.showPlan(plan);
   }
 
+  function plainDeliveryPlan(sourceDecision) {
+    if (!sourceDecision) return { kind: "plain" };
+    var reasons = {
+      "plugin-export": "排版成品不出码，请打开相机原片",
+      "historical-source": "不是今天拍的，不出码",
+      "missing-serial": "读不到相机序列号，不出码",
+      "no-registered-camera": "未登记本店相机，不出码",
+      "external-camera": "外来照片，不出码",
+      "unverified-capture-date": "读不到拍摄日期，不出码"
+    };
+    return { kind: "plain", text: "只排版 · " +
+      (sourceDecision && reasons[sourceDecision.reason] || "读不到拍摄编号，不出码") };
+  }
+
   async function refreshDeliveryPlan() {
     if (!deliveryStatusView || !window.IDPhotoDeliveryAutomationService) return;
     var generation = ++planGeneration;
@@ -1531,7 +1545,7 @@
     if (!info || !doc || doc.id !== info.id) { deliveryStatusView.showPlan(null); return; }
     var eligible = window.IDPhotoSourceEligibilityService.checkSource(info.sourceMetadata, info.name);
     if (!eligible.eligible || !window.IDPhotoDeliveryIdentity.getSourceIdentity(info)) {
-      if (generation === planGeneration) deliveryStatusView.showPlan({ kind: "plain" });
+      if (generation === planGeneration) deliveryStatusView.showPlan(plainDeliveryPlan(eligible));
       return;
     }
     info.sourceVariant = await window.IDPhotoVariantService.analyzeDocument(doc);
