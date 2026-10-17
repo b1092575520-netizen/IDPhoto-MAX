@@ -441,10 +441,22 @@ test("a rejection written while waiting ends the wait at once with the real reas
 
 test("a failed recovery print reports the real cause instead of a completed-task refusal", async () => {
   const h = harness({ connection: false }), { task } = await recoveredPrint(h);
+  // A record from 0.6.10 has no confirmation time, so the code is asked for again.
+  const saved = await h.json(task.folder, "automatic-recovery.json");
+  delete saved.confirmedAt;
+  task.folder.children.get("automatic-recovery.json").value = JSON.stringify(saved);
   h.options.receipt = false; h.reload();
   await assert.rejects(h.service.printRecovered(task.id), error => /超时/.test(error.message) && !/cannot restart/.test(error.message));
   assert.equal(h.automation.store().tasks().find(item => item.id === task.id).state, "completed");
   assert.equal(h.prints.length, 0);
   const notice = await h.service.recoveredNotice();
   assert.equal(notice.canPrint, false); assert.match(notice.text, /^没打印：/);
+});
+
+test("a recovered print reuses the code its recovery confirmed minutes ago instead of waiting on the delivery manager", async () => {
+  const h = harness({ connection: false }), { task } = await recoveredPrint(h);
+  assert.ok(Number.isFinite((await h.json(task.folder, "automatic-recovery.json")).confirmedAt));
+  h.options.receipt = false; h.reload();
+  const printed = await h.service.printRecovered(task.id);
+  assert.equal(printed.id, task.id); assert.equal(h.prints.length, 1);
 });

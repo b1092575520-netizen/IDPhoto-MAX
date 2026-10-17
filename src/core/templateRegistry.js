@@ -642,6 +642,25 @@
     );
   }
 
+  // Archive and customer photos use the largest pixels among sizes of the same or
+  // nearly the same shape (user 10-17; "nearly" = aspect within 1%): 1寸 and 标准2寸
+  // save at 827x1157, the three squares at 1205x1205. The printed sheet keeps the
+  // selected size.
+  var SAVE_ASPECT_TOLERANCE = 0.01;
+
+  function getSaveSize(template) {
+    var widthPx = Number(template && template.widthPx), heightPx = Number(template && template.heightPx);
+    if (!(widthPx > 0 && heightPx > 0)) return null;
+    var ratio = widthPx / heightPx, best = { widthPx: widthPx, heightPx: heightPx };
+    templates.forEach(function (candidate) {
+      var candidateRatio = candidate.widthPx / candidate.heightPx;
+      if (Math.max(candidateRatio, ratio) / Math.min(candidateRatio, ratio) - 1 <= SAVE_ASPECT_TOLERANCE + 1e-12 &&
+          candidate.widthPx * candidate.heightPx > best.widthPx * best.heightPx)
+        best = { widthPx: candidate.widthPx, heightPx: candidate.heightPx };
+    });
+    return best;
+  }
+
   window.IDPhotoTemplates = {
     PPI: PPI,
     CANVAS_WIDTH_PX: CANVAS_WIDTH_PX,
@@ -650,6 +669,7 @@
     forDelivery: forDelivery,
     getAllTemplates: getAllTemplates,
     getTemplateByName: getTemplateByName,
-    getTemplateById: getTemplateById
+    getTemplateById: getTemplateById,
+    getSaveSize: getSaveSize
   };
 })();

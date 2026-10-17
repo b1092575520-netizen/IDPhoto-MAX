@@ -179,6 +179,21 @@
     };
   }
 
+  // Photoshop has returned from saveAs without writing the file (10-17, 14:33).
+  // Check before launching, so no permission prompt is spent on an empty job.
+  async function hasWrittenImage(folder, file) {
+    var written;
+    try { written = await folder.getEntry(file.name); } catch (missing) { return false; }
+    if (!written) return false;
+    if (typeof written.getMetadata === "function") {
+      try {
+        var metadata = await written.getMetadata();
+        if (metadata && Number.isFinite(metadata.size) && metadata.size <= 0) return false;
+      } catch (unknown) { /* Size is optional evidence; the entry exists. */ }
+    }
+    return true;
+  }
+
   async function safeDelete(entry) {
     try {
       if (entry && typeof entry.delete === "function") {
@@ -225,6 +240,16 @@
       resultName = "idphoto-" + jobId + ".result.json";
 
       await exportLayoutJpeg(documentRef, imageFile);
+      if (!await hasWrittenImage(jobFolder, imageFile)) {
+        await exportLayoutJpeg(documentRef, imageFile);
+        if (!await hasWrittenImage(jobFolder, imageFile)) {
+          completed = true;
+          return { ok: false, printed: false, blocked: true, reason: "image-not-found",
+            message: getBridgeFailureMessage("image-not-found") };
+        }
+      }
+      var archiveOperations = Array.isArray(options.archiveOperations) && options.archiveOperations.length ?
+        options.archiveOperations.map(function (item) { return item.indexPath ? item : archiveRequest(item.file, item.operation); }) : undefined;
       await writeJson(
         jobFile,
         {
@@ -236,7 +261,8 @@
           copies: 1,
           expectedWidthPx: EXPECTED_WIDTH_PX,
           expectedHeightPx: EXPECTED_HEIGHT_PX,
-          archiveIndex: options.archiveIndex || undefined
+          archiveIndex: archiveOperations ? undefined : options.archiveIndex || undefined,
+          archiveOperations: archiveOperations
         },
         uxp.storage.formats
       );
@@ -272,6 +298,14 @@
         ? Math.max(0, options.pollIntervalMs)
         : DEFAULT_POLL_INTERVAL_MS;
       bridgeResponse = await waitForBridgeResult(jobFolder, resultName, jobId, timeoutMs, pollIntervalMs);
+      if (archiveOperations) {
+        try {
+          checkArchiveBatch(bridgeResponse.result.archiveIndexResult, archiveOperations);
+          bridgeResponse.result.archiveBatch = { ok: true };
+        } catch (batchError) {
+          bridgeResponse.result.archiveBatch = { ok: false, message: batchError.message };
+        }
+      }
       if (bridgeResponse.result.ok) {
         completed = true;
         await safeDelete(bridgeResponse.resultFile);
@@ -296,19 +330,24 @@
     }
   }
 
-  // Reuse the installed Windows bridge; this operation never exports or prints a photo.
-  async function archiveIndexOperation(file, operation, options) {
-    options = options || {};
-    var record = /^\.idphoto-(?:output-[a-f0-9]{32}|archive(?:-(?:retired-)?[a-f0-9]{32}|-root|-sync)?)\.json$/;
-    var stagedRecord = /^\.idphoto-(?:output-[a-f0-9]{32}|archive(?:-(?:retired-)?[a-f0-9]{32}|-root|-sync)?)\.json\.[a-f0-9]{32}\.tmp$/;
-    var validName = file && (operation === "commit-archive-record" ? stagedRecord.test(file.name)
-      : operation === "hide-archive-record" ? record.test(file.name)
+  var ARCHIVE_RECORD = /^\.idphoto-(?:output-[a-f0-9]{32}|archive(?:-(?:retired-)?[a-f0-9]{32}|-root|-sync)?)\.json$/;
+  var STAGED_ARCHIVE_RECORD = /^\.idphoto-(?:output-[a-f0-9]{32}|archive(?:-(?:retired-)?[a-f0-9]{32}|-root|-sync)?)\.json\.[a-f0-9]{32}\.tmp$/;
+
+  function archiveRequest(file, operation) {
+    var validName = file && (operation === "commit-archive-record" ? STAGED_ARCHIVE_RECORD.test(file.name)
+      : operation === "hide-archive-record" ? ARCHIVE_RECORD.test(file.name)
       : operation === "commit-archive-index"
         ? /^\.idphoto-jpg-index\.json\.[a-z0-9]+-[a-z0-9.]+\.tmp$/.test(file.name)
-        : file.name === ".idphoto-jpg-index.json");
+        : operation === "hide-archive-index" && file.name === ".idphoto-jpg-index.json");
     if (!validName || !file.nativePath) {
       throw new Error("无效的存档索引路径");
     }
+    return { operation: operation, indexPath: file.nativePath };
+  }
+
+  // Reuse the installed Windows bridge; this job never exports or prints a photo.
+  async function launchArchiveJob(fields, options, checkResult) {
+    options = options || {};
     var uxp = getUxp();
     var folder = await getOrCreateJobFolder(uxp.storage.localFileSystem);
     var jobId = makeJobId();
@@ -318,10 +357,7 @@
     var completed = false;
     var launched = false;
     try {
-      await writeJson(jobFile, {
-        schemaVersion: JOB_SCHEMA_VERSION, jobId: jobId,
-        operation: operation, indexPath: file.nativePath
-      }, uxp.storage.formats);
+      await writeJson(jobFile, Object.assign({ schemaVersion: JOB_SCHEMA_VERSION, jobId: jobId }, fields), uxp.storage.formats);
       launched = true;
       var launchError;
       try {
@@ -341,10 +377,7 @@
             throw new Error("隐藏索引的回执不匹配");
           }
           completed = true;
-          if (result.ok !== true || result.hidden !== true || result.printed !== false || result.operation !== operation) {
-            throw new Error("Windows 未确认索引已隐藏" + (result.message ? "：" + result.message : ""));
-          }
-          return;
+          return checkResult(result);
         }
         await wait(100);
       } while (Date.now() < deadline);
@@ -357,11 +390,42 @@
     }
   }
 
+  async function archiveIndexOperation(file, operation, options) {
+    var request = archiveRequest(file, operation);
+    await launchArchiveJob(request, options, function (result) {
+      if (result.ok !== true || result.hidden !== true || result.printed !== false || result.operation !== operation) {
+        throw new Error("Windows 未确认索引已隐藏" + (result.message ? "：" + result.message : ""));
+      }
+    });
+  }
+
+  // Check a batch receipt from either an archive-only job or a print job.
+  function checkArchiveBatch(result, requests) {
+    var results = result && Array.isArray(result.results) ? result.results : [];
+    if (!result || result.ok !== true || result.printed !== false || results.length !== requests.length ||
+        results.some(function (item, index) { return !item || item.ok !== true || item.hidden !== true || item.operation !== requests[index].operation; })) {
+      throw new Error("Windows 未确认存档记录已保存并隐藏" + (result && result.message ? "：" + result.message : ""));
+    }
+    return result;
+  }
+
+  // Several archive records and the index in one bridge launch: one prompt per save.
+  async function runArchiveOperations(items, options) {
+    var requests = (items || []).map(function (item) { return archiveRequest(item.file, item.operation); });
+    if (!requests.length) return { ok: true, results: [] };
+    return await launchArchiveJob({ operations: requests }, options, function (result) {
+      return checkArchiveBatch(result, requests);
+    });
+  }
+
   window.IDPhotoPrintService = {
     hideArchiveRecord: function (file, options) { return archiveIndexOperation(file, "hide-archive-record", options); },
     commitArchiveRecord: function (file, options) { return archiveIndexOperation(file, "commit-archive-record", options); },
     hideArchiveIndex: function (file, options) { return archiveIndexOperation(file, "hide-archive-index", options); },
     commitArchiveIndex: function (file, options) { return archiveIndexOperation(file, "commit-archive-index", options); },
+    runArchiveOperations: runArchiveOperations,
+    archiveRequest: archiveRequest,
+    checkArchiveBatch: checkArchiveBatch,
     EXPECTED_PRINTER_NAME: EXPECTED_PRINTER_NAME,
     EXPECTED_PAPER_NAME: EXPECTED_PAPER_NAME,
     JOB_SCHEMA_VERSION: JOB_SCHEMA_VERSION,

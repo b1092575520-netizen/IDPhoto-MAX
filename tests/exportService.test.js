@@ -114,7 +114,15 @@ function loadExportService(rootFolder, fileSystemOverrides = {}, sourceEligibili
         async hideArchiveRecord(file) { file.hidden = true; },
         async commitArchiveRecord(file) { await file.moveTo({ entries: file._entries }, { newName: file.name.replace(/\.[a-f0-9]{32}\.tmp$/, ""), overwrite: false }); file.hidden = true; },
         async hideArchiveIndex(file) { file.hidden = true; },
-        async commitArchiveIndex(file) { await file.commitHiddenIndex(); }
+        async commitArchiveIndex(file) { await file.commitHiddenIndex(); },
+        // One bridge launch runs the staged operations in order and stops at the first failure.
+        async runArchiveOperations(items) {
+          this.launches = (this.launches || 0) + 1;
+          const methods = { "commit-archive-record": "commitArchiveRecord", "hide-archive-record": "hideArchiveRecord",
+            "commit-archive-index": "commitArchiveIndex", "hide-archive-index": "hideArchiveIndex" };
+          for (const item of items) await this[methods[item.operation]](item.file);
+          return { ok: true };
+        }
       },
       localStorage: {
         getItem(key) {
@@ -295,7 +303,7 @@ test("managed photo recovers its exact map after private-index and handoff regis
   }
 });
 
-test("SWO-01 ordinary archives never acquire a later delivery, for equal or larger legacy photos", async () => {
+test("SWO-01 ordinary archives never acquire a later delivery; the identical picture saved without a code gives way", async () => {
   for (const legacySize of [[638,898],[827,1157]]) for (const changed of [false,true]) {
     const root=makeFolder('root'), loaded=loadExportService(root);
     for(const module of ['core/deliveryProtocol','photoshop/archiveNamingService'])
@@ -315,7 +323,10 @@ test("SWO-01 ordinary archives never acquire a later delivery, for equal or larg
     const options={...exportOptions(638,898,variant),deliveryTask:task};
     const saved=await loaded.service.exportSingleJpg(photo,options);
     assert.equal(saves,1);assert.notEqual(saved.fileName,old.fileName);
-    assert.equal(day.entries.get(old.fileName).content,oldBytes);
+    const larger=legacySize[0]>638;
+    // A larger ordinary photo is never deleted; an equal one of the identical picture is.
+    if(larger)assert.equal(day.entries.get(old.fileName).content,oldBytes);
+    else {assert.equal(day.entries.has(old.fileName),false);assert.equal(saved.removedPlainCount,1);}
     let index=JSON.parse(day.entries.get('.idphoto-jpg-index.json').content).entries;
     assert.deepEqual(index[old.fileName],oldIndex);
     assert.equal(index[saved.fileName].deliveryTaskId,task.id);
@@ -326,8 +337,72 @@ test("SWO-01 ordinary archives never acquire a later delivery, for equal or larg
     for(const module of ['core/deliveryProtocol','photoshop/archiveNamingService'])
       vm.runInContext(fs.readFileSync(path.join(__dirname,'../src',module+'.js'),'utf8'),restarted.context);
     assert.equal((await restarted.service.exportSingleJpg(photo,options)).fileName,saved.fileName);
-    assert.equal(saves,1);assert.equal(jpgNames(root).length,2);
+    assert.equal(saves,1);assert.equal(jpgNames(root).length,larger?2:1);
   }
+});
+
+test("a merely similar ordinary photo (fuzzy identity) is kept beside the managed archive", async () => {
+  const root=makeFolder('root'), loaded=loadExportService(root);
+  for(const module of ['core/deliveryProtocol','photoshop/archiveNamingService'])
+    vm.runInContext(fs.readFileSync(path.join(__dirname,'../src',module+'.js'),'utf8'),loaded.context);
+  const service=loaded.context.window.IDPhotoVariantService, protocol=loaded.context.window.IDPhotoDeliveryProtocol;
+  const plain=variantFixture(service,'blue');
+  let managed=null;
+  for (let offset=1; offset<255 && !managed; offset++) {
+    const candidate=variantFixture(service,'blue',offset);
+    if (service.compareIdentity(plain,candidate).kind==='visual-high' && service.serializeIdentity(plain)!==service.serializeIdentity(candidate)) managed=candidate;
+  }
+  assert.ok(managed,'a fuzzy match with a different identity exists');
+  const old=await loaded.service.exportSingleJpg({saveAs:{jpg:f=>f.write(new Uint8Array([255,216,9,255,217]).buffer)}},exportOptions(638,898,plain));
+  const folder=await root.createFolder(protocol.id()),payload=JSON.stringify({version:1,files:[{role:'photo',sha256:'c'.repeat(64)}]});
+  await(await folder.createFile('request.json',{overwrite:false})).write(payload);
+  const saved=await loaded.service.exportSingleJpg({saveAs:{jpg:f=>f.write(new Uint8Array([255,216,1,255,217]).buffer)}},
+    {...exportOptions(638,898,managed),deliveryTask:{id:folder.name,folder,fingerprint:protocol.sha256(payload)}});
+  assert.equal(saved.removedPlainCount,0);
+  assert.deepEqual(jpgNames(root).sort(),[old.fileName,saved.fileName].sort());
+});
+
+test("one managed save publishes its plan, map, root marker and index in a single bridge launch", async () => {
+  const root=makeFolder('root'), loaded=loadExportService(root);
+  for(const module of ['core/deliveryProtocol','photoshop/archiveNamingService'])
+    vm.runInContext(fs.readFileSync(path.join(__dirname,'../src',module+'.js'),'utf8'),loaded.context);
+  const protocol=loaded.context.window.IDPhotoDeliveryProtocol, bridge=loaded.context.window.IDPhotoPrintService;
+  const service=loaded.context.window.IDPhotoVariantService;
+  const photo={saveAs:{jpg:async f=>f.write(new Uint8Array([255,216,1,255,217]).buffer)}};
+  async function task() {
+    const folder=await root.createFolder(protocol.id()),payload=JSON.stringify({version:1,files:[{role:'photo',sha256:'c'.repeat(64)}]});
+    await(await folder.createFile('request.json',{overwrite:false})).write(payload);
+    return {id:folder.name,folder,fingerprint:protocol.sha256(payload)};
+  }
+  let single=0;
+  for (const name of ['commitArchiveRecord','hideArchiveRecord']) {
+    const original=bridge[name].bind(bridge);
+    bridge[name]=async file=>{single++;return original(file);};
+  }
+  bridge.launches=0;
+  await loaded.service.exportSingleJpg(photo,{...exportOptions(638,898,variantFixture(service,'red')),deliveryTask:await task()});
+  // The root marker is created once and read back at once; every other record waits for the batch.
+  assert.equal(bridge.launches,1);
+  single=0;bridge.launches=0;
+  const batches=[];
+  const second=await loaded.service.exportSingleJpg(photo,{...exportOptions(638,898,variantFixture(service,'white')),
+    deliveryTask:await task(),archiveIndexExecutor:async items=>{batches.push(Array.from(items,i=>i.operation));await bridge.runArchiveOperations(items);}});
+  assert.equal(batches.length,1);assert.equal(bridge.launches,1);
+  assert.deepEqual(batches[0],['commit-archive-record','hide-archive-record','commit-archive-record','commit-archive-index']);
+  const day=root.entries.get('2026').entries.get('2026-07').entries.get('2026-07-13');
+  assert.equal(Array.from(day.entries.keys()).some(n=>n.endsWith('.tmp')),false);
+  assert.equal(JSON.parse(day.entries.get('.idphoto-jpg-index.json').content).entries[second.fileName].archiveId.length,32);
+
+  // A denied launch leaves the photo, removes every staged file, and a later save recovers the map.
+  const denied=await task();
+  const failed=await loaded.service.exportSingleJpg(photo,{...exportOptions(638,898,variantFixture(service,'blue')),
+    deliveryTask:denied,archiveIndexExecutor:async()=>{throw Error('User denied.');}});
+  assert.equal(failed.indexSyncWarning,true);
+  assert.equal(Array.from(day.entries.keys()).some(n=>n.endsWith('.tmp')),false);
+  const recovered=await loaded.service.exportSingleJpg(photo,{...exportOptions(638,898,variantFixture(service,'blue')),deliveryTask:denied});
+  assert.equal(recovered.keptLargest,true);assert.equal(recovered.fileName,failed.fileName);
+  const id=JSON.parse(day.entries.get('.idphoto-jpg-index.json').content).entries[failed.fileName].archiveId;
+  assert.ok(day.entries.has('.idphoto-archive-'+id+'.json'));
 });
 
 async function managedFixture() {
@@ -975,10 +1050,12 @@ test("combined index executor replaces standalone launches and preserves JPGs if
   let operations = [];
   loaded.context.window.IDPhotoPrintService.commitArchiveIndex = async () => { throw Error("unexpected standalone launch"); };
   loaded.context.window.IDPhotoPrintService.hideArchiveIndex = async () => { throw Error("unexpected standalone launch"); };
-  const options = Object.assign(exportOptions(638, 898, variant), { archiveIndexExecutor: async (file, operation) => {
-    operations.push(operation);
-    if (operation === "commit-archive-index") await file.commitHiddenIndex();
-    else file.hidden = true;
+  const options = Object.assign(exportOptions(638, 898, variant), { archiveIndexExecutor: async (items) => {
+    for (const { file, operation } of items) {
+      operations.push(operation);
+      if (operation === "commit-archive-index") await file.commitHiddenIndex();
+      else file.hidden = true;
+    }
   } });
   const saved = await loaded.service.exportSingleJpg(savingDocument(), options);
   const duplicate = await loaded.service.exportSingleJpg(savingDocument(), options);

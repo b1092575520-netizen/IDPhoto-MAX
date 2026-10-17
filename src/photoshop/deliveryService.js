@@ -9,6 +9,13 @@
   // filesystem event (10s rescan) and one 45s HTTP request, with bounded margin.
   // This is an attempt budget, not a promise that the cloud will respond.
   var CODE_WAIT_MS = 60000;
+  // 10-17: one coded save waited three times for the same code (33 s of 56 s). A code
+  // confirmed within two minutes, with no companion change since, is not asked again.
+  var CODE_FRESH_MS = 120000;
+  // A recovered print reuses the code its recovery confirmed for this long.
+  var RECOVERED_CODE_REUSE_MS = 10 * 60 * 1000;
+  // The delivery manager looks at a finished delivery's code request at least once a minute.
+  var REPRINT_CODE_WAIT_MS = 90000;
   // Archive and customer photos (user 2026-10-17): 10 looks the same and is about half the size.
   var SAVE_JPEG_QUALITY = 10;
   var latestTask = null;
@@ -289,9 +296,9 @@
       contextFingerprint: task.contextFingerprint, consumerId: task.consumerId, sourceIdentity: task.sourceIdentity }));
     return JSON.stringify(request);
   }
-  async function prepare(task, documentRef) {
-    preparingTask = task;
-    try {
+  // Photoshop work: the saved-size JPEG. The code request after it needs no modal
+  // scope, so the layout can build its sheet while the delivery manager answers.
+  async function savePhoto(task, documentRef) {
     var photo = await saveJpeg(task, documentRef, "photo.jpg", "photo");
     // New layout tasks hand off the selected specification JPEG; old tasks retain their original bytes.
     if (photo.sizeBytes > 8388608 || photo.width * photo.height > 20000000) {
@@ -300,6 +307,14 @@
     }
     await writeAtomic(task.folder, "photo-prepared.json", JSON.stringify({ version: 1, taskId: task.id,
       outputId: task.outputId, contextFingerprint: task.contextFingerprint, photo: photo }), false);
+    return photo;
+  }
+  async function prepare(task, documentRef) {
+    return await requestCode(task, await savePhoto(task, documentRef));
+  }
+  async function requestCode(task, photo) {
+    preparingTask = task;
+    try {
     var payload = await preparedPayload(task, photo); task.fingerprint = protocol().sha256(payload);
     await writeAtomic(task.folder, "request.json", payload, false);
     await status(task, { processing: "awaiting-code", manifestFingerprint: task.fingerprint });
@@ -344,6 +359,7 @@
     if (code) {
       task.contextKey = receipt.contextKey; task.deliveryId = receipt.deliveryId; task.code = code;
       if (task.automation) window.IDPhotoDeliveryAutomationService.confirmed(task);
+      task.codeConfirmedAt = Date.now(); task.codeGroupStamp = groupStamp();
       return code;
     }
     // Only diagnostics bound to this attempt and immutable request can describe
@@ -374,9 +390,22 @@
     }
     return "";
   }
-  async function confirmCode(task) {
+  // Companion (同行) choices and merges are the plugin-side events that can move a
+  // customer to another delivery code.
+  function groupStamp() {
+    var automation = window.IDPhotoDeliveryAutomationService;
+    if (!automation || !automation.store) return "";
+    var group = automation.store().group(), merge = automation.store().mergeIntent();
+    return JSON.stringify([group.on, group.sessionId, group.code, group.members.slice().sort(), merge && merge.operationId || ""]);
+  }
+  function freshCode(task, expectedCode) {
+    return Boolean(task.code === expectedCode && protocol().isPickupCode(expectedCode) && task.codeConfirmedAt &&
+      Date.now() - task.codeConfirmedAt >= 0 && Date.now() - task.codeConfirmedAt < CODE_FRESH_MS && task.codeGroupStamp === groupStamp());
+  }
+  async function confirmCode(task, waitMs) {
     if (activeWait) throw new Error("已有取码请求正在等待，请勿重复重试");
-    notify("正在等待后台核对云端并获取取件码，最多 60 秒；可停止等待并保留原任务");
+    waitMs = waitMs || CODE_WAIT_MS;
+    notify("正在等待后台核对云端并获取取件码，最多 " + Math.round(waitMs / 1000) + " 秒；可停止等待并保留原任务");
     task.code = ""; task.confirmationId = protocol().id(); task.confirmationFailure = ""; task.confirmationRejected = false;
     var attempt = { cancelled: false, requestId: task.confirmationId, taskId: task.id, automation: Boolean(task.automation) };
     activeWait = attempt;
@@ -384,7 +413,7 @@
     try {
     await writeAtomic(task.folder, "code-request.json", JSON.stringify({ version: 2, taskId: task.id, manifestFingerprint: task.fingerprint,
       requestId: task.confirmationId, contextKey: task.contextKey || "", deliveryId: task.deliveryId || "" }));
-    var deadline = Date.now() + CODE_WAIT_MS, code = "";
+    var deadline = Date.now() + waitMs, code = "";
     while (Date.now() < deadline) {
       if (attempt.cancelled) throw protocol().pickupCodeError("已停止本机等待；原任务保留，不代表云端取消");
       code = await readCode(task);
@@ -399,7 +428,7 @@
       await new Promise(function (resolve) { setTimeout(resolve, 200); });
     }
     if (attempt.cancelled) throw protocol().pickupCodeError("已停止本机等待；原任务保留，不代表云端取消");
-    if (!code) throw protocol().pickupCodeError("取码超时：交付管理 60 秒内没给取件码");
+    if (!code) throw protocol().pickupCodeError("取码超时：交付管理 " + Math.round(waitMs / 1000) + " 秒内没给取件码");
     if (code) await writeAtomic(task.folder, "code-binding.json", JSON.stringify({ version: 2, taskId: task.id,
       manifestFingerprint: task.fingerprint, contextKey: task.contextKey, deliveryId: task.deliveryId }));
     if (code) notify("云端已核对，本次已取得有效取件码");
@@ -454,6 +483,7 @@
     return task.status;
   }
   async function verifyOutput(task, expectedCode) {
+    if (freshCode(task, expectedCode)) return expectedCode;
     var code = await confirmCode(task);
     if (code !== expectedCode) throw protocol().pickupCodeError("排版期间取件码已变化，已停止本次成品输出；请核对后主动重拼原任务");
     task.code = code;
@@ -616,8 +646,9 @@
       if (connected.sourceIdentity !== task.sourceIdentity) throw new Error("原交接目录身份已变化，请恢复原目录");
       await status(task, { processing: "retrying-code", codeState: "unconfirmed" });
       if (recovery && recovery.confirmedTask && recovery.confirmedTask.id === task.id && recovery.confirmedTask.fingerprint === task.fingerprint)
-        task = Object.assign(task, { code: recovery.confirmedTask.code, confirmationId: recovery.confirmedTask.confirmationId });
-      else task.code = await confirmCode(task);
+        task = Object.assign(task, { code: recovery.confirmedTask.code, confirmationId: recovery.confirmedTask.confirmationId,
+          codeConfirmedAt: recovery.confirmedTask.codeConfirmedAt, codeGroupStamp: recovery.confirmedTask.codeGroupStamp });
+      else task.code = await confirmCode(task, recovery && recovery.codeWaitMs);
       protocol().requirePickupCode(task.code);
       if (reprint) task.outputAttemptId = protocol().id();
       if (window.IDPhotoTemplates.forDelivery && task.template && task.template.id) {
@@ -773,9 +804,16 @@
     var sourceDocument = window.IDPhotoDocumentService.getActiveDocument && window.IDPhotoDocumentService.getActiveDocument();
     try {
       var task = await retryPending(item.id, false, { confirmedTask: taskToResume });
+      // A size printed at once with the shared code (multi-size layout) is never offered again.
+      var early = await readEarlyPrint(task);
+      var printAvailable = !early && task.mode === "print" && Boolean(task.outputOptions && task.outputOptions.quickPrint);
+      var notice = early && early.code !== task.code ?
+        "纸上印的取件码 " + early.code + " 已不能用，现在是 " + task.code + "，请重排这个尺寸" : "";
       await writeAtomic(task.folder, "automatic-recovery.json", JSON.stringify({ version: 1, taskId: task.id,
-        manifestFingerprint: task.fingerprint, code: task.code, printAvailable: task.mode === "print" && Boolean(task.outputOptions && task.outputOptions.quickPrint) }));
-      return { id: task.id, code: task.code, canPrint: task.mode === "print" && Boolean(task.outputOptions && task.outputOptions.quickPrint), text: task.code + " 已补好，可以打印" };
+        manifestFingerprint: task.fingerprint, code: task.code, printAvailable: printAvailable, earlyPrinted: Boolean(early),
+        notice: notice, confirmedAt: task.codeConfirmedAt || Date.now(), groupStamp: task.codeGroupStamp || groupStamp() }));
+      if (early) return notice ? { id: task.id, code: task.code, canPrint: false, text: notice } : null;
+      return { id: task.id, code: task.code, canPrint: printAvailable, text: task.code + " 已补好，可以打印" };
     } catch (error) {
       var record = automation.store().tasks().find(function (value) { return value.id === item.id; });
       if (record && ["pending", "retryable"].includes(record.state)) automation.failure({ id: item.id, automation: true }, error);
@@ -783,6 +821,19 @@
     } finally {
       if (sourceDocument) await window.IDPhotoPhotoshopExecution.activateDocument(sourceDocument);
     }
+  }
+  async function readEarlyPrint(task) {
+    var file = await optionalEntry(task.folder, "early-print.json");
+    if (!file) return null;
+    var value = JSON.parse(await file.read({ format: format(false) }));
+    return value && value.version === 1 && value.taskId === task.id && protocol().isPickupCode(value.code) ? value : null;
+  }
+  // Multi-size layout: this size was printed at once with the customer's shared code
+  // while the first photo was still uploading; the background only adds the photo.
+  async function markEarlyPrint(task, code) {
+    protocol().requirePickupCode(code);
+    await writeAtomic(task.folder, "early-print.json", JSON.stringify({ version: 1, taskId: task.id, code: code,
+      at: new Date().toISOString() }), false);
   }
   function recoveryPrintText(error) { return ("没打印：" + errorText(error)).slice(0, 900); }
   function recordPrintNoticeIssue(record, error) {
@@ -828,9 +879,16 @@
     if (value.version !== 1 || value.taskId !== id || value.manifestFingerprint !== task.fingerprint || !protocol().isPickupCode(value.code))
       throw new Error("恢复打印记录身份不匹配");
     if (!value.printAvailable || value.printStarted) throw new Error("此恢复打印已开始，请人工核对打印状态，避免重复出纸");
+    var reuse = Number.isFinite(value.confirmedAt) && Date.now() - value.confirmedAt >= 0 &&
+      Date.now() - value.confirmedAt < RECOVERED_CODE_REUSE_MS && value.groupStamp === groupStamp() &&
+      !window.IDPhotoDeliveryAutomationService.store().mergeIntent();
     value = Object.assign({}, value, { printAvailable: false, printStarted: new Date().toISOString(), printState: "started" });
     await writeAtomic(folder, "automatic-recovery.json", JSON.stringify(value)); consumed = true;
-    var result = await retryPending(id, true, { manualPrint: true }), outcome = result && result.retryResult;
+    // The recovery confirmed this code minutes ago; asking a finished delivery again can take a full minute.
+    var recovery = reuse ? { manualPrint: true, confirmedTask: { id: id, fingerprint: task.fingerprint, code: value.code,
+      confirmationId: task.confirmationId || "", codeConfirmedAt: Date.now(), codeGroupStamp: groupStamp() } } :
+      { manualPrint: true, codeWaitMs: REPRINT_CODE_WAIT_MS };
+    var result = await retryPending(id, true, recovery), outcome = result && result.retryResult;
     if (!outcome || !Array.isArray(outcome.printFailures) || !Array.isArray(outcome.printedResults) ||
         outcome.printFailures.length || outcome.printedResults.length !== 1) {
       var failed = outcome && outcome.printFailures && outcome.printFailures[0];
@@ -1081,7 +1139,8 @@
     } catch (error) { await status(task, { processing: "failed", error: errorText(error), message: "原件与独立副本保留，失败的整批不会交付。" }); throw error; }
     finally { await execution.activateDocument(sourceDocument); }
   }
-  window.IDPhotoDeliveryService = { begin: begin, prepare: prepare, archivePhoto: archivePhoto, complete: complete, electronic: electronic, multi: multi, regenerate: regenerate,
+  window.IDPhotoDeliveryService = { begin: begin, prepare: prepare, savePhoto: savePhoto, requestCode: requestCode,
+    markEarlyPrint: markEarlyPrint, archivePhoto: archivePhoto, complete: complete, electronic: electronic, multi: multi, regenerate: regenerate,
     receiveInformationTasks: receiveInformationTasks,
     pending: pending, retryPending: function (id) { return retryPending(id, false); }, deferPending: deferPending, startOutput: startOutput,
     current: current, currentPreview: currentPreview, nextCustomer: nextCustomer, chooseCurrent: chooseCurrent,

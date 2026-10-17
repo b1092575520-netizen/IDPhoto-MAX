@@ -79,8 +79,9 @@ test("the centralized layout path applies source eligibility to every informatio
 
   assert.match(main, /IDPhotoLayoutWorkflow\.create/);
   assert.match(workflow, /IDPhotoSourceEligibilityService\.getInfoBarDecision/);
-  assert.match(workflow, /renderInfoBar\(targetDocument, layoutPlan, template, docInfo, runOptions\)/);
-  assert.match(workflow, /runTemplateLayout\(processResult\.document, targetDocument, template, docInfo, runOptions\)/);
+  assert.match(workflow, /renderInfoBar\(targetDocument, placed\.layoutPlan, template, docInfo, runOptions\)/);
+  assert.match(workflow, /placeLayout\(processResult\.document, targetDocument, template, runOptions\)/);
+  assert.match(workflow, /finishLayout\(targetDocument, placed, template, docInfo, runOptions\)/);
   assert.match(workflow, /信息条区域留白/);
 });
 

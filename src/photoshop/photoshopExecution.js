@@ -72,27 +72,46 @@
     return doc;
   }
 
+  // Photoshop refuses a new modal scope while the operator is inside a tool or
+  // dialog ("host is in a modal state"). Wait briefly instead of leaving a
+  // document open; a callback that already started is never run twice.
+  var MODAL_BUSY_RETRIES = 20;
+  var MODAL_BUSY_WAIT_MS = 500;
+
+  function isModalBusy(error) {
+    return /modal state/i.test(error && error.message ? error.message : String(error || ""));
+  }
+
   async function executeAsModal(callback, commandName) {
     var core = getPhotoshop().core;
     if (!core || typeof core.executeAsModal !== "function") {
       throw new Error("当前 Photoshop UXP API 不支持 executeAsModal");
     }
-    return await core.executeAsModal(async function (context) {
+    for (var attempt = 0; ; attempt += 1) {
+      var started = false;
       try {
-        var result = await callback(context);
-        if (context && context.isCancelled) {
-          var cancelled = new Error("用户已取消操作");
-          cancelled.number = -128;
-          throw cancelled;
-        }
-        return result;
+        return await core.executeAsModal(async function (context) {
+          started = true;
+          try {
+            var result = await callback(context);
+            if (context && context.isCancelled) {
+              var cancelled = new Error("用户已取消操作");
+              cancelled.number = -128;
+              throw cancelled;
+            }
+            return result;
+          } catch (error) {
+            if (context && context.isCancelled) error.cancelled = true;
+            throw error;
+          }
+        }, {
+          commandName: commandName || "证件照排版"
+        });
       } catch (error) {
-        if (context && context.isCancelled) error.cancelled = true;
-        throw error;
+        if (started || attempt >= MODAL_BUSY_RETRIES || !isModalBusy(error) || typeof setTimeout !== "function") throw error;
+        await new Promise(function (resolve) { setTimeout(resolve, MODAL_BUSY_WAIT_MS); });
       }
-    }, {
-      commandName: commandName || "证件照排版"
-    });
+    }
   }
 
   window.IDPhotoPhotoshopExecution = {

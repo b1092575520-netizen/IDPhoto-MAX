@@ -60,7 +60,7 @@ function harness(options = {}) {
     IDPhotoCropService:{prepareSinglePhoto:async(d,info,shape,ratio,opts)=>{assert.equal(d,original);assert.equal(opts.preservePixels,true);return {document:photo};}},
     IDPhotoTemplates:{getTemplateById:()=>({infoBar:{x:0,y:100,width:1653,height:555,avatar:{x:20,y:120},texts:[{x:100,y:140}]}})},
     IDPhotoSettingsStore:{load:()=>({})},
-    IDPhotoInfoBarRenderer:{renderInfoBar:async(d,bar,settings,opts)=>{renders.push({id:d.id,source:opts.sourceDocument.id,code:opts.pickupCode,mode:opts.pickupCodeMode,date:opts.dateText});if(options.renderFail)throw 'injected Photoshop failure';return {ok:true,createdCount:1,message:'rendered'};}},
+    IDPhotoInfoBarRenderer:{renderInfoBar:async(d,bar,settings,opts)=>{renders.push({id:d.id,source:opts.sourceDocument.id,code:opts.pickupCode,mode:opts.pickupCodeMode,date:opts.dateText});clock+=options.renderDelay||0;if(options.renderFail)throw 'injected Photoshop failure';return {ok:true,createdCount:1,message:'rendered'};}},
   };
   class Clock extends Date { static now(){clock+=1500;return clock;} }
   const context=vm.createContext({window,console,Date:Clock,setTimeout:fn=>{if(options.onSleep)options.onSleep(window.IDPhotoDeliveryService);fn();},require:name=>{assert.equal(name,'uxp');return {storage:{localFileSystem:filesystem,formats:{binary:'binary',utf8:'utf8'}}};}});
@@ -348,7 +348,7 @@ test('regeneration refuses cached, terminal, failed and cross-connection confirm
  }
 });
 test('management during rendering refuses export when the new confirmation has a different code',async()=>{
- const h=harness(),task=await h.service.electronic(h.original,h.info,{});h.options.changedDuringRender=true;
+ const h=harness(),task=await h.service.electronic(h.original,h.info,{});h.options.changedDuringRender=true;h.options.renderDelay=130000;
  await assert.rejects(h.service.regenerate(task.folder),/状态变化/);
  await assert.rejects(task.folder.getEntry('supplements.json'));assert.equal(h.closed.includes(h.original.id),false);
 });
@@ -445,7 +445,7 @@ test('repeat refuses replaced photo, root, consumer, terminal status and stale r
 
 test('a changed code after rendering stops repeat completion; another deliberate attempt can use the new code',async()=>{
   const h=harness(),first=await h.service.electronic(h.original,h.info,{});
-  h.options.changedDuringRender=true;
+  h.options.changedDuringRender=true;h.options.renderDelay=130000;
   await assert.rejects(h.service.reprintCurrent(first.id,true),/取件码已变化/);
   assert.equal(h.taskCount(),1);
   assert.equal([...h.files.keys()].filter(p=>/output-complete-[a-f0-9]+.json$/.test(p)).length,0);
@@ -519,7 +519,7 @@ test('information pickup rejects cross-task, traversal, foreign connection and c
 
 test('information pickup preserves a failed task for explicit retry and never treats rendering-time rotation as success',async()=>{
   const {h,task}=await informationFixture();
-  h.options.changedDuringRender=true;
+  h.options.changedDuringRender=true;h.options.renderDelay=130000;
   const failed=await h.service.receiveInformationTasks();
   assert.equal(failed.completed,0);assert.equal(failed.failures.length,1);
   await assert.rejects(task.folder.getEntry('information-result.json'));
@@ -543,4 +543,15 @@ test('specification archive reuses exact immutable JPEG and legacy dimensions ke
   await (await task.folder.getEntry('request.json')).write(payload);
   await (await task.folder.getEntry('photo.jpg')).write(new Uint8Array([9]).buffer);
   await assert.rejects(h.service.archivePhoto(task,{widthPx:827,heightPx:1157}),/照片变化/);
+});
+
+test('a code confirmed moments ago is not asked for again; one confirmed over two minutes ago is', async () => {
+  const h = harness(), task = await h.service.electronic(h.original, h.info, {});
+  const requestId = async () => JSON.parse(await (await task.folder.getEntry('code-request.json')).read()).requestId;
+  const before = await requestId();
+  assert.equal(await h.service.verifyOutput(task, task.code), task.code);
+  assert.equal(await requestId(), before);
+  task.codeConfirmedAt -= 130000;
+  assert.equal(await h.service.verifyOutput(task, task.code), task.code);
+  assert.notEqual(await requestId(), before);
 });

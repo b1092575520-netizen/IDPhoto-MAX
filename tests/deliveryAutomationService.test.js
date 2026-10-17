@@ -74,7 +74,7 @@ function harness(options = {}) {
       assert.equal(name, "uxp"); return { storage: { localFileSystem: filesystem, formats: { utf8: "utf8" } } };
     } });
   const load = () => vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/photoshop/deliveryAutomationService.js"), "utf8"), context);
-  for (const module of ["core/deliveryProtocol", "core/deliveryAutomationStore"])
+  for (const module of ["core/deliveryProtocol", "core/deliveryAutomationStore"].concat(options.templates ? ["core/templateRegistry"] : []))
     vm.runInContext(fs.readFileSync(path.join(__dirname, "../src", module + ".js"), "utf8"), context);
   window.IDPhotoDeliveryProtocol.id = () => id(++serial);
   load();
@@ -127,7 +127,7 @@ function harness(options = {}) {
     return task;
   }
   return { options, memory, snapshots, requests, root, connected, prior, next, reload: load,
-    identity: window.IDPhotoDeliveryIdentity,
+    identity: window.IDPhotoDeliveryIdentity, templates: window.IDPhotoTemplates,
     advance: amount => { clock += amount; }, get service() { return window.IDPhotoDeliveryAutomationService; } };
 }
 
@@ -142,6 +142,15 @@ test("an exact legacy capture key is retained across the identity upgrade, and m
   h.prior(2, "another-old-key");
   h.identity.matchesSourceIdentity = () => true;
   assert.throws(() => h.service.plan(info("new-capture-key"), "print", template), /多份历史记录/);
+});
+
+test("1寸 and 标准2寸 deliver the same saved photo, so they share one specification", () => {
+  const h = harness({ templates: true }), templates = h.templates;
+  const key = name => h.service.plan(info("capture-key"), "print", templates.getTemplateById(name)).specKey;
+  assert.equal(key("one-inch"), "827x1157:white");
+  assert.equal(key("standard-two-inch"), "827x1157:white");
+  const visa = templates.getTemplateById("visa-two-inch");
+  assert.equal(key("visa-two-inch"), visa.widthPx + "x" + visa.heightPx + ":white");
 });
 
 test("different reliable originals sharing a filename never borrow a previous delivery or member", async () => {

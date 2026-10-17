@@ -488,3 +488,24 @@ test("manual content-aware mode still expands a modest mismatch", async () => {
   assert.equal(cropCount, 0);
   assert.equal(result.cropMode, "content-aware-expand");
 });
+
+test("a larger save size takes its own copy of the same crop; the layout copy keeps the selected pixels", async () => {
+  const sizes = [];
+  function doc(id) { return { id, async activate() {}, async duplicate() { const copy = doc(id * 10); created.push(copy); return copy; },
+    async resizeImage(w, h) { sizes.push([id, w, h]); } }; }
+  const created = [];
+  const processed = doc(2);
+  const original = { id: 1, async duplicate() { return processed; } };
+  const closed = [];
+  const service = loadCropService({ core: { async executeAsModal(fn) { return fn(); } } },
+    { async prepareCompositeSourceLayer() { return {}; }, async closeWithoutSaving(d) { closed.push(d.id); } });
+  const oneInch = { name: "1寸", widthPx: 638, heightPx: 898 };
+  const result = await service.prepareSinglePhoto(original, { name: "s", widthPx: 2400, heightPx: 3378 }, oneInch, { ok: true },
+    { saveSize: { widthPx: 827, heightPx: 1157 } });
+  assert.equal(result.saveDocument, created[0]);
+  assert.deepEqual(sizes, [[20, 827, 1157], [2, 638, 898]]);
+  const same = await service.prepareSinglePhoto(original, { name: "s", widthPx: 2400, heightPx: 3378 }, oneInch, { ok: true },
+    { saveSize: { widthPx: 638, heightPx: 898 } });
+  assert.equal(same.saveDocument, null);
+  assert.deepEqual(closed, []);
+});

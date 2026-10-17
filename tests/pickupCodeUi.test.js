@@ -52,7 +52,7 @@ function harness(options = {}) {
       const error = options.failureError || Object.assign(Error("后台未确认取件码"), { code: "PICKUP_CODE_REQUIRED" });
       if (options.throwFailure) throw error;
       const failed = options.fail;
-      return { successes: failed ? [] : ["模板一"], failures: failed ? [{ templateName: "模板一", error }] : [],
+      return { successes: failed ? options.doneSizes || [] : ["模板一"], failures: failed ? [{ templateName: "模板一", error }] : [],
         successResults: [], exportFailures: [], printFailures: [], printedResults: [], closedAfterPrintResults: [],
         closeAfterPrintFailures: [], duplicateExports: [], replacedExports: [] };
     } }) },
@@ -245,16 +245,16 @@ for (const [reason, text] of Object.entries({
   });
 }
 
-test("pickup alerts say what actually happened: one size at a time, auto-continue, or no code", async () => {
+test("pickup alerts say what actually happened: auto-continue, no code, or which sizes already came out", async () => {
   const cases = [
-    [{ causeCode: "PICKUP_ONE_SIZE" }, /一次只能排一个尺寸/, /可领取/],
     [{ causeCode: "AUTO_TARGET_PREPARING" }, /稍后自动补上/, /不用重新排/],
     [{ causeCode: "AUTO_TASK_PENDING" }, /稍后自动补上/, /不用重新排/],
-    [{}, /取件码没拿到/, /自动再试/]
+    [{}, /取件码没拿到，这次没出片/, /自动再试/],
+    [{}, /取件码没拿到，后面的尺寸没出/, /已出好：模板一；这个尺寸和后面的没出/, ["模板一"]]
   ];
-  for (const [extra, title, body] of cases) {
+  for (const [extra, title, body, doneSizes] of cases) {
     const failureError = Object.assign(Error("后台未确认取件码"), { code: "PICKUP_CODE_REQUIRED" }, extra);
-    const h = harness({ fail: true, failureError });
+    const h = harness({ fail: true, failureError, doneSizes });
     h.toggle.fire(); h.select(); await h.shortcuts.execute();
     assert.equal(h.alerts.length, 1);
     assert.match(h.alerts[0], title);

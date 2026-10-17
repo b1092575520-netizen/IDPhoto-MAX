@@ -34,13 +34,15 @@ function loadWorkflow(options = {}) {
         }
       },
       IDPhotoCropService: {
-        async prepareSinglePhoto(_sourceDocument, _docInfo, template) {
+        async prepareSinglePhoto(_sourceDocument, _docInfo, template, _ratio, cropOptions) {
           if (options.cropError) throw options.cropError;
           if (options.returnOriginal) return { document: { id: _sourceDocument.id } };
           const document = { name: "processed-" + (++cropIndex) };
           processedDocuments.push(document);
           calls.push("crop:" + template.id);
-          return { document, message: "processed", highResolutionDocument: options.delivery ? {name:'high-resolution-'+cropIndex} : null };
+          const saveDocument = cropOptions && cropOptions.saveSize ?
+            { name: "save-" + cropIndex + "-" + cropOptions.saveSize.widthPx + "x" + cropOptions.saveSize.heightPx } : null;
+          return { document, saveDocument, message: "processed", highResolutionDocument: options.delivery ? {name:'high-resolution-'+cropIndex} : null };
         }
       },
       IDPhotoCanvasService: {
@@ -106,7 +108,8 @@ function loadWorkflow(options = {}) {
           }
           if (options.combinedIndex) {
             try {
-              await exportOptions.archiveIndexExecutor({ nativePath: "C:\\Archive\\.idphoto-jpg-index.json.stage-1.tmp" }, options.combinedIndex);
+              await exportOptions.archiveIndexExecutor([{ operation: options.combinedIndex,
+                file: { name: ".idphoto-jpg-index.json.stage-1.tmp", nativePath: "C:\\Archive\\.idphoto-jpg-index.json.stage-1.tmp" } }]);
             } catch (error) {
               return { ok: true, indexUnavailable: true, message: error.message };
             }
@@ -126,7 +129,7 @@ function loadWorkflow(options = {}) {
             return { ok: false, blocked: true, message: "wrong printer" };
           }
           return { ok: true, printed: true, printerName: "DS-RX1", message: "printed",
-            archiveIndexResult: options.combinedIndex ? { ok: true, hidden: true, operation: options.combinedIndex } : undefined };
+            archiveBatch: options.combinedIndex ? { ok: true } : undefined };
         }
       },
       IDPhotoDocumentService: {
@@ -148,9 +151,14 @@ function loadWorkflow(options = {}) {
   }
   if (options.delivery) context.window.IDPhotoDeliveryService = Object.assign({
     startOutput: async () => { calls.push("output-started"); },
-    verifyOutput: async (_task, code) => { calls.push("verify-code"); return code; }
+    verifyOutput: async (_task, code) => { calls.push("verify-code"); return code; },
+    // The photo is saved under Photoshop; the code request runs while the sheet is built.
+    savePhoto: async (_task, document) => { calls.push("save-photo:" + document.name); return { path: "photo.jpg" }; },
+    requestCode: async (task) => { calls.push("request-code"); return options.delivery.prepare(task); },
+    markEarlyPrint: async (_task, code) => { calls.push("early-print:" + code); }
   }, options.delivery);
   if (options.analyzeDocument) context.window.IDPhotoVariantService = { analyzeDocument: options.analyzeDocument };
+  if (options.saveSizes) context.window.IDPhotoTemplates = { getSaveSize: (template) => options.saveSizes[template.id] || { widthPx: template.widthPx, heightPx: template.heightPx } };
   vm.runInContext(fs.readFileSync(workflowPath, "utf8"), context, { filename: workflowPath });
   return {
     workflow: context.window.IDPhotoLayoutWorkflow.create(),
@@ -169,7 +177,9 @@ test('pickup-code failure blocks canvas, archive, completion and print, cleaning
     const result=await loaded.workflow.run({templateNames:['模板一'],sourceDocument:{id:101},docInfo:{id:101,name:'original',sourceMetadata:{}},delivery:true,quickPrint:true,exportJpg:true,nasArchive:true});
     assert.equal(result.ok,false,errorStage);
     assert.equal(result.failures[0].error.code,'PICKUP_CODE_REQUIRED',errorStage);
-    assert.equal(loaded.calls.some(c=>/^(canvas:|export:|info:|print)/.test(c)),false,errorStage);
+    // The sheet may be built while the code is awaited, but nothing is coded, saved or printed.
+    assert.equal(loaded.calls.some(c=>/^(export:|info:|print|output-started)/.test(c)),false,errorStage);
+    if(loaded.calls.includes('canvas:排版_一'))assert.ok(loaded.calls.includes('close:target-1'),errorStage);
     assert.equal(completed,0);
     if(!['begin','missing-task'].includes(errorStage)) {
       assert.ok(loaded.calls.includes('close:high-resolution-1'));
@@ -190,12 +200,73 @@ test('a confirmed code reaches the strip and prints once even if later completio
   assert.equal(result.successResults[0].result.deliveryResult.ok,false);
 });
 
-test('multi-template delivery fails before creating a task; ordinary layout never invokes delivery',async()=>{
+test('ordinary layout never invokes delivery',async()=>{
   let begins=0;const loaded=loadWorkflow({delivery:{begin:async()=>{begins++;throw Error('must not run');}}});
-  await assert.rejects(loaded.workflow.run({templateNames:['模板一','模板二'],delivery:true}),error=>/一次只能排一个尺寸/.test(error.message)&&error.causeCode==='PICKUP_ONE_SIZE');
-  assert.equal(begins,0);
-  const result=await loaded.workflow.run({templateNames:['模板一'],sourceDocument:{id:101},docInfo:{id:101,sourceMetadata:{}},delivery:false,skipExport:true,skipPrint:true});
+  const result=await loaded.workflow.run({templateNames:['模板一','模板二'],sourceDocument:{id:101},docInfo:{id:101,sourceMetadata:{}},delivery:false,skipExport:true,skipPrint:true});
   assert.equal(result.ok,true);assert.equal(begins,0);
+});
+
+const shapeTemplates=[
+  {id:'one-inch',name:'1寸',shortName:'1寸',widthPx:638,heightPx:898,infoBar:{kind:'bottom'}},
+  {id:'two-inch',name:'标准2寸',shortName:'2寸',widthPx:827,heightPx:1157,infoBar:{kind:'bottom'}},
+  {id:'small-two',name:'小2寸',shortName:'小2寸',widthPx:780,heightPx:1134,infoBar:{kind:'bottom'}}];
+const shapeSizes={'one-inch':{widthPx:827,heightPx:1157}};
+
+test('several sizes of one customer each print a sheet with one shared code; the same shape is delivered once',async()=>{
+  const begins=[],codes=[];
+  const delivery={begin:async(_i,_m,template)=>{begins.push(template.id);return {id:'task-'+begins.length};},
+    prepare:async task=>{task.fingerprint='saved';return 'A2B3C4';},complete:async()=>({info:'saved',message:'prepared'})};
+  const loaded=loadWorkflow({templates:shapeTemplates,saveSizes:shapeSizes,delivery,inspectRender:o=>codes.push(o.pickupCode)});
+  const result=await loaded.workflow.run({templateNames:['1寸','标准2寸'],sourceDocument:{id:101},docInfo:{id:101,sourceMetadata:{}},
+    delivery:true,quickPrint:true,exportJpg:true});
+  assert.equal(result.ok,true);assert.deepEqual(begins,['one-inch']);
+  assert.deepEqual(codes,['A2B3C4','A2B3C4']);
+  assert.equal(loaded.calls.filter(c=>c==='print').length,2);
+  // The delivered photo and the archive are the 827x1157 copy; 2寸 adds neither again.
+  assert.ok(loaded.calls.includes('save-photo:save-1-827x1157'));
+  assert.deepEqual(loaded.calls.filter(c=>c.startsWith('export:')),['export:one-inch']);
+  assert.ok(loaded.calls.includes('close:save-1-827x1157'));
+  assert.match(result.successResults[1].result.deliveryResult.message,/沿用取件码 A2B3C4/);
+});
+
+test('a different shape prints at once with the shared code while the first photo is still uploading',async()=>{
+  const begins=[],codes=[];let requests=0;
+  const delivery={begin:async(_i,_m,template)=>{begins.push(template.id);return {id:'task-'+begins.length};},
+    prepare:async task=>{requests++;if(requests===2){const e=Error('原交付仍在准备，原任务完成后自动继续');e.code='AUTO_TARGET_PREPARING';e.retryable=true;throw e;}
+      task.fingerprint='saved';return 'A2B3C4';},complete:async()=>({info:'saved',message:'prepared'})};
+  const loaded=loadWorkflow({templates:shapeTemplates,saveSizes:shapeSizes,delivery,inspectRender:o=>codes.push(o.pickupCode)});
+  const result=await loaded.workflow.run({templateNames:['1寸','小2寸'],sourceDocument:{id:101},docInfo:{id:101,sourceMetadata:{}},
+    delivery:true,quickPrint:true,exportJpg:true});
+  assert.equal(result.ok,true,JSON.stringify(result.failures.map(f=>f.error.message)));
+  assert.deepEqual(begins,['one-inch','small-two']);assert.deepEqual(codes,['A2B3C4','A2B3C4']);
+  assert.ok(loaded.calls.includes('early-print:A2B3C4'));
+  assert.equal(loaded.calls.filter(c=>c==='print').length,2);
+  assert.equal(loaded.calls.filter(c=>c==='output-started').length,1);
+  assert.deepEqual(loaded.calls.filter(c=>c.startsWith('export:')),['export:one-inch']);
+  assert.match(result.successResults[1].result.deliveryResult.message,/稍后自动补上/);
+});
+
+test('a later size never starts a delivery of its own after the first size lost its code',async()=>{
+  const begins=[];
+  const delivery={begin:async(_i,_m,template)=>{begins.push(template.id);return {id:'task'};},prepare:async()=>{throw Error('取码超时');}};
+  const loaded=loadWorkflow({templates:shapeTemplates,saveSizes:shapeSizes,delivery});
+  const result=await loaded.workflow.run({templateNames:['1寸','小2寸'],sourceDocument:{id:101},docInfo:{id:101,sourceMetadata:{}},
+    delivery:true,quickPrint:true,exportJpg:true});
+  assert.equal(result.failures.length,1);assert.deepEqual(begins,['one-inch']);
+  assert.equal(loaded.calls.includes('print'),false);
+});
+
+test('the sheet is placed while the delivery manager answers, and the code reaches it afterwards',async()=>{
+  let release;const answered=new Promise(r=>{release=r;});
+  const delivery={begin:async()=>({id:'task'}),prepare:async task=>{await answered;task.fingerprint='saved';return 'A2B3C4';},
+    complete:async()=>({info:'saved',message:'prepared'})};
+  const loaded=loadWorkflow({delivery,inspectRender:o=>assert.equal(o.pickupCode,'A2B3C4')});
+  const running=loaded.workflow.run({templateNames:['模板一'],sourceDocument:{id:101},docInfo:{id:101,sourceMetadata:{}},delivery:true,quickPrint:true});
+  for(let i=0;i<20&&!loaded.calls.includes('place:one');i++)await new Promise(r=>setImmediate(r));
+  assert.ok(loaded.calls.includes('place:one'));assert.equal(loaded.calls.includes('info:one'),false);
+  release();
+  const result=await running;
+  assert.equal(result.ok,true);assert.ok(loaded.calls.indexOf('info:one')>loaded.calls.indexOf('place:one'));
 });
 
 test("the layout task owns a successful template transaction and closes its processed photo", async () => {
@@ -455,8 +526,9 @@ test("a DS-RX1 driver error is isolated from layout and JPG export", async () =>
 test("archive commit and duplicate hide piggyback on exactly one print request per layout", async () => {
   for (const operation of ["commit-archive-index", "hide-archive-index"]) {
     const loaded = loadWorkflow({ combinedIndex: operation, inspectPrint(options) {
-      assert.equal(options.archiveIndex.operation, operation);
-      assert.match(options.archiveIndex.indexPath, /Archive/);
+      assert.equal(options.archiveOperations.length, 1);
+      assert.equal(options.archiveOperations[0].operation, operation);
+      assert.match(options.archiveOperations[0].file.nativePath, /Archive/);
     } });
     const result = await loaded.workflow.run({ templateNames: ["模板一", "模板二"], sourceDocument: { name: "source" }, docInfo: { name: "source.jpg" }, quickPrint: true, exportJpg: true });
     assert.equal(loaded.calls.filter(call => call === "print").length, 2);

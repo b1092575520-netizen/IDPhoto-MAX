@@ -124,17 +124,43 @@
     }
   }
 
-  async function writeJpgIdentityIndex(folder, index, indexExecutor) {
+  // UXP cannot overwrite a Hidden file on Windows. The native bridge commits and
+  // hides the staged index; it travels in the save's single bridge launch.
+  async function stageJpgIdentityIndex(folder, index) {
     var pendingName = JPG_INDEX_NAME + "." + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2) + ".tmp";
     var file = await folder.createFile(pendingName, { overwrite: false });
+    var item = { operation: "commit-archive-index", file: file, cleanup: { folder: folder, name: pendingName } };
     try {
       await file.write(JSON.stringify({ version: 1, entries: index }), { format: require("uxp").storage.formats.utf8 });
-      // UXP cannot overwrite a Hidden file on Windows. The native bridge commits and hides it atomically.
-      if (indexExecutor) await indexExecutor(file, "commit-archive-index");
-      else await window.IDPhotoPrintService.commitArchiveIndex(file);
+    } catch (error) {
+      await removeStagedItems([item]);
+      throw error;
+    }
+    return item;
+  }
+
+  async function removeStagedItems(items) {
+    for (var item of items) {
+      if (!item.cleanup) continue;
+      // Address only the staging name; the File object may now refer to the committed file.
+      try { await (await item.cleanup.folder.getEntry(item.cleanup.name)).delete(); } catch (absent) { /* committed */ }
+    }
+  }
+
+  // Everything one save needs from the Windows bridge goes in one launch: with the
+  // print when there is one, otherwise on its own. Returns the failure, if any.
+  async function flushArchiveBridge(items, indexExecutor) {
+    var naming = window.IDPhotoArchiveNamingService;
+    var all = (naming && naming.takeBatch ? naming.takeBatch() : []).concat(items);
+    if (!all.length) return null;
+    try {
+      if (indexExecutor) await indexExecutor(all);
+      else await window.IDPhotoPrintService.runArchiveOperations(all);
+      return null;
+    } catch (error) {
+      return error;
     } finally {
-      // Address only our staging name; the File object may now refer to the committed index.
-      try { await (await folder.getEntry(pendingName)).delete(); } catch (cleanupError) { /* absent after move */ }
+      await removeStagedItems(all);
     }
   }
 
@@ -155,12 +181,14 @@
     return parsed;
   }
 
-  async function withHiddenIndex(result, folder, indexExecutor) {
-    try {
-      var file = await folder.getEntry(JPG_INDEX_NAME);
-      if (indexExecutor) await indexExecutor(file, "hide-archive-index");
-      else await window.IDPhotoPrintService.hideArchiveIndex(file);
-    } catch (error) {
+  async function withHiddenIndex(result, folder, items, indexExecutor) {
+    var error = null;
+    if (!items.length) {
+      try { items = [{ operation: "hide-archive-index", file: await folder.getEntry(JPG_INDEX_NAME) }]; }
+      catch (missing) { error = missing; }
+    }
+    error = await flushArchiveBridge(items, indexExecutor) || error;
+    if (error) {
       // Visibility is auxiliary: never roll back a photo or a committed identity index.
       result.indexVisibilityWarning = true;
       result.message += " · 索引自动隐藏失败：" + (error && error.message ? error.message : String(error));
@@ -508,17 +536,32 @@
     return largest;
   }
 
-  async function deleteCandidateFiles(candidates, keepFile, folder, identityIndex) {
-    var deletedCount = 0;
-    var index;
-    for (index = 0; index < candidates.length; index += 1) {
+  // A managed photo is deleted only after its retirement record was published;
+  // an ordinary photo has no record to wait for.
+  async function prepareRemoval(candidates, keepFile, folder, identityIndex) {
+    var removal = [];
+    for (var index = 0; index < candidates.length; index += 1) {
       if (candidates[index].file === keepFile) {
         continue;
       }
+      var entry = identityIndex[candidates[index].file.name];
       try {
         if (window.IDPhotoArchiveNamingService && folder)
-          await window.IDPhotoArchiveNamingService.retire(folder, identityIndex[candidates[index].file.name]);
-        await deleteCreatedFile(candidates[index].file);
+          await window.IDPhotoArchiveNamingService.retire(folder, entry);
+        removal.push({ file: candidates[index].file, managed: Boolean(entry && entry.archiveId) });
+      } catch (cleanupError) {
+        console.warn("[export] failed to retire duplicate JPG", cleanupError);
+      }
+    }
+    return removal;
+  }
+
+  async function finishRemoval(removal, recordsPublished) {
+    var deletedCount = 0;
+    for (var item of removal) {
+      if (item.managed && !recordsPublished) continue;
+      try {
+        await deleteCreatedFile(item.file);
         deletedCount += 1;
       } catch (cleanupError) {
         console.warn("[export] failed to remove duplicate JPG", cleanupError);
@@ -661,6 +704,14 @@
     rootResult = await getOutputRootFolder(nasArchive);
     dateFolder = await getDatedOutputFolder(rootResult.folder);
     async function saveInDirectory() {
+      var naming = window.IDPhotoArchiveNamingService;
+      if (naming && naming.beginBatch) naming.beginBatch();
+      // Staged records not published by this save are removed with their temporary files.
+      try { return await saveStaged(); }
+      finally { if (naming && naming.discardBatch) await naming.discardBatch(); }
+    }
+    async function saveStaged() {
+    var plainDuplicates = [];
     try {
       identityIndex = await readJpgIdentityIndex(dateFolder, Boolean(options.deliveryTask));
       if (options.deliveryTask && window.IDPhotoArchiveNamingService &&
@@ -674,6 +725,15 @@
     aspectGroup = getAspectGroup(template.widthPx, template.heightPx);
     currentArea = getPixelArea(template.widthPx, template.heightPx);
     existingExports = indexError ? [] : await findSourceGroupExports(dateFolder, template, variant, identityIndex);
+    if (options.deliveryTask) {
+      // The same picture saved earlier without a code (identical identity, not a
+      // fuzzy match, never larger) gives way to this managed copy (10-17 #9).
+      plainDuplicates = existingExports.filter(function (candidate) {
+        var entry = identityIndex[candidate.file.name];
+        return entry && !entry.archiveId && !entry.deliveryTaskId && candidate.area <= currentArea &&
+          String(entry.identityMarker || "").toLowerCase() === String(variant.identityMarker || "").toLowerCase();
+      });
+    }
     // Identical source bytes never authorize joining two explicit customers.
     if (options.deliveryTask) existingExports = existingExports.filter(function (candidate) {
       var entry = identityIndex[candidate.file.name];
@@ -699,25 +759,28 @@
       existingExports = existingExports.filter(function (entry) {
         return hasSimilarAspect(entry.widthPx, entry.heightPx, largestExisting.widthPx, largestExisting.heightPx);
       });
+      var keeperItems = [];
       if (options.deliveryTask && window.IDPhotoArchiveNamingService) {
         await writePrivateIndex(dateFolder, identityIndex);
-        await writeJpgIdentityIndex(dateFolder, identityIndex);
+        keeperItems.push(await stageJpgIdentityIndex(dateFolder, identityIndex));
       }
-      removedCount = await deleteCandidateFiles(existingExports, largestExisting.file, dateFolder, identityIndex);
-      return await withHiddenIndex({
+      var keeperRemoval = await prepareRemoval(existingExports, largestExisting.file, dateFolder, identityIndex);
+      var duplicate = await withHiddenIndex({
         ok: true,
         skipped: true,
         duplicateSource: true,
         sameAspect: true,
         keptLargest: true,
         fileName: largestExisting.file.name,
-        removedCount: removedCount,
-        cleanupIncomplete: removedCount < existingExports.length - 1,
         mode: rootResult.mode,
         picked: rootResult.picked,
-        message: "同一原片同底色近似比例已保留最大 JPG，跳过重复导出：" + largestExisting.file.name +
-          (removedCount < existingExports.length - 1 ? " · 较小 JPG 清理失败，请检查目录权限" : "")
-      }, dateFolder, options.archiveIndexExecutor);
+        message: "同一原片同底色近似比例已保留最大 JPG，跳过重复导出：" + largestExisting.file.name
+      }, dateFolder, keeperItems, options.archiveIndexExecutor);
+      removedCount = await finishRemoval(keeperRemoval, !duplicate.indexVisibilityWarning);
+      duplicate.removedCount = removedCount;
+      duplicate.cleanupIncomplete = removedCount < existingExports.length - 1;
+      if (duplicate.cleanupIncomplete) duplicate.message += " · 较小 JPG 清理失败，请检查目录权限";
+      return duplicate;
     }
     replacedSmaller = Boolean(largestExisting);
     fileName = window.IDPhotoPathService.makeJpgFileName(template.name, docInfo.name, template.widthPx, template.heightPx, variant);
@@ -746,6 +809,7 @@
       throw saveError;
     }
     // A completed photo is primary data. Auxiliary index failures must never delete it.
+    var bridgeItems = [];
     if (!indexError) {
       identityIndex[fileName] = { identityMarker: variant.identityMarker, backgroundColor: variant.backgroundColor };
       try {
@@ -758,10 +822,19 @@
         indexError = writeError;
       }
       if (!indexError) {
-        try { await writeJpgIdentityIndex(dateFolder, identityIndex, options.archiveIndexExecutor); }
-        catch (syncError) { indexSyncError = syncError; console.warn("[export] private index saved; shared index sync failed", syncError); }
+        try { bridgeItems.push(await stageJpgIdentityIndex(dateFolder, identityIndex)); }
+        catch (syncError) { indexSyncError = syncError; }
       }
     }
+    var removal = [], plainRemoval = [];
+    if (!indexError) {
+      if (replacedSmaller) removal = await prepareRemoval(existingExports, null, dateFolder, identityIndex);
+      plainRemoval = await prepareRemoval(plainDuplicates, null, dateFolder, identityIndex);
+    }
+    // Records staged for this photo are published even when the index is unavailable.
+    var bridgeError = await flushArchiveBridge(bridgeItems, options.archiveIndexExecutor);
+    if (bridgeError && !indexError) indexSyncError = indexSyncError || bridgeError;
+    if (indexSyncError) console.warn("[export] private index saved; shared index sync failed", indexSyncError);
     if (indexError) {
       console.warn("[export] JPG saved; identity index unavailable", indexError);
       return {
@@ -775,9 +848,8 @@
         message: "单张 JPG 已保存：" + fileName + " · 去重索引失败，已保留照片并暂停清理：" + indexError.message
       };
     }
-    if (replacedSmaller) {
-      removedCount = await deleteCandidateFiles(existingExports, null, dateFolder, identityIndex);
-    }
+    removedCount = await finishRemoval(removal, !bridgeError);
+    var plainRemoved = await finishRemoval(plainRemoval, !bridgeError);
 
     return {
       ok: true,
@@ -788,6 +860,7 @@
       indexSyncWarning: Boolean(indexSyncError),
       replacedSmaller: replacedSmaller,
       removedCount: removedCount,
+      removedPlainCount: plainRemoved,
       cleanupIncomplete: removedCount < existingExports.length,
       mode: rootResult.mode,
       picked: rootResult.picked,
@@ -795,6 +868,7 @@
         "单张 JPG 已导出：" +
         fileName +
         (replacedSmaller ? (removedCount < existingExports.length ? " · 较小 JPG 清理失败，请检查目录权限" : " · 已替换同组较小 JPG") : "") +
+        (plainRemoved ? " · 已替换同一张没带码的存档" : "") +
         (nasArchive ? " · NAS 日期归档" : " · 插件数据目录测试输出") +
         (rootResult.picked ? " · 已选择输出根目录" : "") +
         (indexSyncError ? " · 本机去重记录已保存，目录索引同步失败：" + (indexSyncError.message || String(indexSyncError)) : "")

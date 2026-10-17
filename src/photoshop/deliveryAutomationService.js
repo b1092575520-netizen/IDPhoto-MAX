@@ -26,10 +26,16 @@
     if (matches.length > 1) throw new Error("原片身份对应多份历史记录，请在交付管理中核对");
     return matches[0] || current;
   }
+  // 1寸 and 标准2寸 deliver the same saved photo, so they are one specification.
+  function savedSize(template) {
+    var size = window.IDPhotoTemplates && window.IDPhotoTemplates.getSaveSize && window.IDPhotoTemplates.getSaveSize(template);
+    return size || { widthPx: template.widthPx, heightPx: template.heightPx };
+  }
   function specKey(info, mode, template) {
+    var size = mode === "electronic" ? { widthPx: info.widthPx, heightPx: info.heightPx } : savedSize(template);
     return window.IDPhotoDeliveryIdentity.makeVariantKey({
-      widthPx: mode === "electronic" ? info.widthPx : template.widthPx,
-      heightPx: mode === "electronic" ? info.heightPx : template.heightPx,
+      widthPx: size.widthPx,
+      heightPx: size.heightPx,
       backgroundColor: info.sourceVariant && info.sourceVariant.backgroundColor || "unknown"
     });
   }

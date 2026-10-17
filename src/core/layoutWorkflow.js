@@ -221,10 +221,9 @@
       );
     }
 
-    async function runTemplateLayout(processedDocument, targetDocument, template, docInfo, runOptions) {
+    async function placeLayout(processedDocument, targetDocument, template, runOptions) {
       var layoutPlan;
       var layerResult;
-      var infoResult;
 
       if (!processedDocument) {
         throw new Error("处理后单张照片文档不可用");
@@ -252,18 +251,38 @@
         layoutPlan,
         template
       );
+      return { layoutPlan: layoutPlan, layerResult: layerResult };
+    }
 
-      step("infobar", "rendering info bar", layoutPlan.infoBar);
+    async function finishLayout(targetDocument, placed, template, docInfo, runOptions) {
+      step("infobar", "rendering info bar", placed.layoutPlan.infoBar);
       status("步骤7：生成信息条");
-      infoResult = await renderInfoBar(targetDocument, layoutPlan, template, docInfo, runOptions);
-
+      var infoResult = await renderInfoBar(targetDocument, placed.layoutPlan, template, docInfo, runOptions);
       return {
         ok: true,
-        layoutPlan: layoutPlan,
-        layerResult: layerResult,
+        layoutPlan: placed.layoutPlan,
+        layerResult: placed.layerResult,
         infoResult: infoResult,
-        message: template.name + " 拼版完成：" + layerResult.placedCount + " 张 · " + infoResult.message
+        message: template.name + " 拼版完成：" + placed.layerResult.placedCount + " 张 · " + infoResult.message
       };
+    }
+
+    // Archive and customer photos take the largest pixels of the size's shape group
+    // (1寸 saves at 标准2寸 size); the printed sheet keeps the selected size.
+    function saveTemplateFor(template) {
+      var size = window.IDPhotoTemplates && typeof window.IDPhotoTemplates.getSaveSize === "function" ?
+        window.IDPhotoTemplates.getSaveSize(template) : null;
+      if (!size || (size.widthPx === template.widthPx && size.heightPx === template.heightPx)) return template;
+      return Object.assign({}, template, { widthPx: size.widthPx, heightPx: size.heightPx,
+        photoWidthPx: size.widthPx, photoHeightPx: size.heightPx });
+    }
+
+    function saveKey(template) {
+      return template.widthPx + "x" + template.heightPx;
+    }
+
+    function exportEnabled(runOptions) {
+      return !runOptions.skipExport && Boolean(runOptions.exportJpg || runOptions.tryExportSingle);
     }
 
     async function exportSingleJpg(processedDocument, template, docInfo, runOptions) {
@@ -283,7 +302,7 @@
       });
     }
 
-    async function printLayout(targetDocument, runOptions, archiveIndex) {
+    async function printLayout(targetDocument, runOptions, archiveOperations) {
       if (runOptions.skipPrint || !runOptions.quickPrint) {
         return {
           ok: true,
@@ -291,7 +310,22 @@
           message: runOptions.skipPrint ? "当前入口禁止快速打印" : "快速打印已关闭"
         };
       }
-      return await requireMethod("IDPhotoPrintService", "printOneCopy")(targetDocument, { archiveIndex: archiveIndex });
+      return await requireMethod("IDPhotoPrintService", "printOneCopy")(targetDocument,
+        archiveOperations ? { archiveOperations: archiveOperations } : {});
+    }
+
+    // The larger saved copy (if any) and the layout copy; the original is never touched.
+    async function closeWorkingCopies(processResult, reason, documentToReactivate) {
+      if (processResult && processResult.saveDocument) {
+        await closeProcessedDocument({ document: processResult.saveDocument }, reason + " (saved size)");
+        processResult.saveDocument = null;
+      }
+      await closeProcessedDocument(processResult, reason, documentToReactivate);
+    }
+
+    function markDeliveryFailure(deliveryTask, error) {
+      if (deliveryTask && deliveryTask.automation && !deliveryTask.completionWritten)
+        window.IDPhotoDeliveryAutomationService.failure(deliveryTask, error);
     }
 
     async function runOne(templateName, sourceDocument, docInfo, runOptions, index, total) {
@@ -300,17 +334,24 @@
       var processResult;
       var canvasResult;
       var targetDocument;
+      var placed;
       var layoutResult;
       var printResult;
       var exportResult;
       var closeAfterPrintResult;
       var deliveryTask = null;
       var deliveryResult = { requested: Boolean(runOptions.delivery), message: "本次未启用电子交付" };
+      var codePromise = null;
+      var earlyPrint = false;
 
       if (!template) {
         throw new Error("模板注册表中未找到：" + templateName);
       }
-      if (runOptions.delivery) {
+      var saveTemplate = saveTemplateFor(template);
+      var shared = runOptions.sharedDelivery || null;
+      // Multi-size: a size whose saved photo this customer already received prints with the shared code only.
+      var sharedOnly = Boolean(runOptions.delivery && shared && shared.code && shared.keys[saveKey(saveTemplate)]);
+      if (runOptions.delivery && !sharedOnly) {
         try {
           if (!template.infoBar || template.infoBar.enabled === false || template.infoBar.position === "none") {
             throw new Error("当前模板缺少可用信息条，请选择带取件码信息条的模板。");
@@ -340,31 +381,33 @@
         strategy: runOptions.cropStrategy
       });
       status("步骤3：" + templateLabel(template) + " 裁剪与扩图策略：" + getCropStrategyLabel(runOptions.cropStrategy));
+      var needsSaveCopy = !sharedOnly && (Boolean(deliveryTask) || exportEnabled(runOptions)) && saveTemplate !== template;
       processResult = await requireMethod("IDPhotoCropService", "prepareSinglePhoto")(
         sourceDocument,
         docInfo,
         template,
         ratioResult,
-        { strategy: runOptions.cropStrategy, keepHighResolution: false }
+        { strategy: runOptions.cropStrategy, keepHighResolution: false,
+          saveSize: needsSaveCopy ? { widthPx: saveTemplate.widthPx, heightPx: saveTemplate.heightPx } : null }
       );
       if (!processResult || !processResult.document || sameDocument(processResult.document, sourceDocument)) {
         throw new Error("处理后单张不是独立文档，已停止以保护原片");
       }
-      runOptions.pickupCode = "";
+      var saveDocument = processResult.saveDocument || processResult.document;
+      runOptions.pickupCode = sharedOnly ? shared.code : "";
       if (deliveryTask) {
         try {
           if (runOptions.resumeDeliveryTask) {
             runOptions.pickupCode = window.IDPhotoDeliveryProtocol.requirePickupCode(deliveryTask.code);
           } else {
-          runOptions.pickupCode = await requireMethod("IDPhotoDeliveryService", "prepare")(deliveryTask, processResult.document);
-          window.IDPhotoDeliveryProtocol.requirePickupCode(runOptions.pickupCode);
+            var photo = await requireMethod("IDPhotoDeliveryService", "savePhoto")(deliveryTask, saveDocument);
+            // No modal scope while the delivery manager answers: the sheet is built meanwhile.
+            codePromise = requireMethod("IDPhotoDeliveryService", "requestCode")(deliveryTask, photo);
+            codePromise.catch(function () {});
           }
-          await requireMethod("IDPhotoDeliveryService", "startOutput")(deliveryTask);
-          deliveryResult = { requested: true, ok: true, taskId: deliveryTask.id, message: "取件码 " + runOptions.pickupCode + "，照片准备中" };
         } catch (deliveryError) {
-          if (deliveryTask && deliveryTask.automation && !deliveryTask.completionWritten)
-            window.IDPhotoDeliveryAutomationService.failure(deliveryTask, deliveryError);
-          await closeProcessedDocument(processResult, "pickup code blocked");
+          markDeliveryFailure(deliveryTask, deliveryError);
+          await closeWorkingCopies(processResult, "pickup code blocked");
           throw window.IDPhotoDeliveryProtocol.pickupCodeError(deliveryError);
         } finally {
           if (processResult.highResolutionDocument && !sameDocument(processResult.highResolutionDocument, sourceDocument)) {
@@ -375,35 +418,84 @@
       }
 
       try {
-        step("canvas", "creating 3600x2400 600ppi document");
-        status("步骤4：" + templateLabel(template) + " 创建 3600x2400px / 600ppi 6 寸拼版画布");
-        canvasResult = await requireMethod("IDPhotoCanvasService", "createSixInchCanvas")(getDocumentName(template));
-        targetDocument = canvasResult && canvasResult.document;
-        if (!targetDocument) {
-          throw new Error("创建画布后未返回新文档对象");
+        try {
+          step("canvas", "creating 3600x2400 600ppi document");
+          status("步骤4：" + templateLabel(template) + " 创建 3600x2400px / 600ppi 6 寸拼版画布");
+          canvasResult = await requireMethod("IDPhotoCanvasService", "createSixInchCanvas")(getDocumentName(template));
+          targetDocument = canvasResult && canvasResult.document;
+          if (!targetDocument) {
+            throw new Error("创建画布后未返回新文档对象");
+          }
+          if (sameDocument(targetDocument, sourceDocument) || sameDocument(targetDocument, processResult.document)) {
+            targetDocument = null;
+            throw new Error("创建画布返回了原片文档，已停止执行以避免覆盖原片");
+          }
+        } catch (canvasError) {
+          canvasError.canvasStage = true;
+          throw canvasError;
         }
-        if (sameDocument(targetDocument, sourceDocument) || sameDocument(targetDocument, processResult.document)) {
-          throw new Error("创建画布返回了原片文档，已停止执行以避免覆盖原片");
+        placed = await placeLayout(processResult.document, targetDocument, template, runOptions);
+      } catch (layoutError) {
+        if (codePromise) {
+          // A started code request finishes before the copies close; the task then waits for recovery.
+          try { await codePromise; } catch (codeError) { markDeliveryFailure(deliveryTask, codeError); }
         }
-      } catch (canvasError) {
-        await closeProcessedDocument(processResult, "canvas failed");
-        throw canvasError;
+        if (!layoutError.canvasStage) await closeTargetDocument(targetDocument, "layout failed");
+        targetDocument = null;
+        await closeWorkingCopies(processResult, layoutError.canvasStage ? "canvas failed" : "layout failed");
+        throw layoutError;
+      }
+
+      if (deliveryTask) {
+        try {
+          if (codePromise) {
+            try {
+              runOptions.pickupCode = await codePromise;
+              window.IDPhotoDeliveryProtocol.requirePickupCode(runOptions.pickupCode);
+            } catch (codeError) {
+              var preparing = codeError && (codeError.code === "AUTO_TARGET_PREPARING" || codeError.causeCode === "AUTO_TARGET_PREPARING");
+              if (!(preparing && shared && shared.code)) throw codeError;
+              // The customer's first photo is still uploading: this size prints now with the
+              // shared code and its photo joins the same delivery in the background.
+              markDeliveryFailure(deliveryTask, codeError);
+              await requireMethod("IDPhotoDeliveryService", "markEarlyPrint")(deliveryTask, shared.code);
+              runOptions.pickupCode = shared.code;
+              earlyPrint = true;
+            }
+          }
+          if (!earlyPrint) {
+            await requireMethod("IDPhotoDeliveryService", "startOutput")(deliveryTask);
+            deliveryResult = { requested: true, ok: true, taskId: deliveryTask.id, message: "取件码 " + runOptions.pickupCode + "，照片准备中" };
+            if (shared && shared.code && shared.code !== runOptions.pickupCode)
+              deliveryResult.message += "；注意：这个尺寸的取件码和前面的不一样";
+          } else {
+            deliveryResult = { requested: true, ok: true, taskId: deliveryTask.id, earlyPrint: true,
+              message: "取件码 " + runOptions.pickupCode + "，这个尺寸的电子版稍后自动补上" };
+          }
+        } catch (deliveryError) {
+          markDeliveryFailure(deliveryTask, deliveryError);
+          await closeTargetDocument(targetDocument, "pickup code blocked");
+          await closeWorkingCopies(processResult, "pickup code blocked");
+          throw window.IDPhotoDeliveryProtocol.pickupCodeError(deliveryError);
+        }
+      } else if (sharedOnly) {
+        deliveryResult = { requested: true, ok: true, shared: true, message: "沿用取件码 " + runOptions.pickupCode };
       }
 
       try {
-        layoutResult = await runTemplateLayout(processResult.document, targetDocument, template, docInfo, runOptions);
+        layoutResult = await finishLayout(targetDocument, placed, template, docInfo, runOptions);
       } catch (layoutError) {
         await closeTargetDocument(targetDocument, "layout failed");
         targetDocument = null;
-        await closeProcessedDocument(processResult, "layout failed");
+        await closeWorkingCopies(processResult, "layout failed");
         throw layoutError;
       }
-      if (deliveryTask && deliveryTask.fingerprint) {
+      if (deliveryTask && deliveryTask.fingerprint && !earlyPrint) {
         try {
           await requireMethod("IDPhotoDeliveryService", "verifyOutput")(deliveryTask, runOptions.pickupCode);
         } catch (changedDelivery) {
           await closeTargetDocument(targetDocument, "pickup code changed");
-          await closeProcessedDocument(processResult, "pickup code changed");
+          await closeWorkingCopies(processResult, "pickup code changed");
           throw window.IDPhotoDeliveryProtocol.pickupCodeError(changedDelivery);
         }
         try {
@@ -416,12 +508,12 @@
       }
 
       var printAttempted = false;
-      async function submitPrint(archiveIndex) {
+      async function submitPrint(archiveOperations) {
         printAttempted = true;
         try {
-          if (deliveryTask && runOptions.quickPrint && !runOptions.skipPrint)
+          if (deliveryTask && !earlyPrint && runOptions.quickPrint && !runOptions.skipPrint)
             await requireMethod("IDPhotoDeliveryService", "verifyOutput")(deliveryTask, runOptions.pickupCode);
-          printResult = await printLayout(targetDocument, runOptions, archiveIndex);
+          printResult = await printLayout(targetDocument, runOptions, archiveOperations);
         } catch (printError) {
           reportError("print", printError);
           printResult = { ok: false, cancelled: isCancellation(printError), error: errorToText(printError),
@@ -431,21 +523,25 @@
       var exportOptions = Object.assign({}, runOptions);
       exportOptions.deliveryTask = deliveryTask;
       if (runOptions.quickPrint && !runOptions.skipPrint) {
-        // Save the photo first, then commit its index and print through one shell launch.
-        exportOptions.archiveIndexExecutor = async function (file, operation) {
+        // The archive records and index travel with the print: one bridge launch, one prompt.
+        exportOptions.archiveIndexExecutor = async function (archiveOperations) {
           if (printAttempted) throw new Error("本次打印已提交，拒绝重复启动");
-          await submitPrint({ operation: operation, indexPath: file.nativePath });
-          var receipt = printResult && printResult.archiveIndexResult;
-          if (!receipt || receipt.ok !== true || receipt.hidden !== true || receipt.operation !== operation) {
-            throw new Error(receipt && receipt.message ? receipt.message :
-              "打印桥未确认索引已保存并隐藏" + (printResult && printResult.message ? "：" + printResult.message : ""));
+          await submitPrint(archiveOperations);
+          var batch = printResult && printResult.archiveBatch;
+          if (!batch || batch.ok !== true) {
+            throw new Error(batch && batch.message ? batch.message :
+              "打印桥未确认存档已保存并隐藏" + (printResult && printResult.message ? "：" + printResult.message : ""));
           }
         };
       }
       try {
         try {
           status("步骤8：单张 JPG 导出检查");
-          exportResult = await exportSingleJpg(processResult.document, template, docInfo, exportOptions);
+          if (sharedOnly || earlyPrint) {
+            exportResult = { ok: true, skipped: true, message: sharedOnly ? "同一顾客这张照片已存过" : "电子版补上后再存档" };
+          } else {
+            exportResult = await exportSingleJpg(saveDocument, saveTemplate, docInfo, exportOptions);
+          }
           step("export", "done", exportResult);
         } catch (exportError) {
           reportError("export", exportError);
@@ -461,7 +557,12 @@
         }
         step("print", "done", printResult);
       } finally {
-        await closeProcessedDocument(processResult, "execute finished", targetDocument);
+        await closeWorkingCopies(processResult, "execute finished", targetDocument);
+      }
+
+      if (shared && runOptions.delivery) {
+        if (!shared.code && runOptions.pickupCode) shared.code = runOptions.pickupCode;
+        shared.keys[saveKey(saveTemplate)] = true;
       }
 
       closeAfterPrintResult = {
@@ -521,11 +622,9 @@
       templateNames = runOptions.templateNames.slice();
       runOptions.historicalDelivery = false;
       runOptions.deliveryDateText = "";
-      if (runOptions.delivery && templateNames.length !== 1) {
-        var oneSize = window.IDPhotoDeliveryProtocol.pickupCodeError("取件码模式一次只能排一个尺寸，请一个一个排。未创建交付。");
-        oneSize.causeCode = "PICKUP_ONE_SIZE";
-        throw oneSize;
-      }
+      // Several sizes for one customer (user 10-17): each prints its own sheet, all with one code.
+      runOptions.sharedDelivery = runOptions.delivery && !runOptions.resumeDeliveryTask && templateNames.length > 1 ?
+        { code: "", keys: {} } : null;
 
       if (runOptions.sourceDocument && runOptions.docInfo && runOptions.docInfo.id != null &&
           runOptions.sourceDocument.id !== runOptions.docInfo.id) {
@@ -562,6 +661,10 @@
           reportError("execute " + templateNames[index], error);
           if (isCancellation(error)) {
             cancelled = true;
+            break;
+          }
+          // Without its code a later size could start a second delivery: stop here.
+          if (runOptions.delivery && error && error.code === "PICKUP_CODE_REQUIRED") {
             break;
           }
         }

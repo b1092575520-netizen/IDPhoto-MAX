@@ -216,23 +216,22 @@
     console.error("[" + name + "] failed", error);
   }
 
-  async function showPickupCodeFailure(error) {
+  async function showPickupCodeFailure(error, doneSizes) {
     // Short on purpose: what happened, then the one thing to do. Unfinished
     // tasks continue automatically in the background (2026-10-17).
     var reason = errorToText(error), cause = error && (error.causeCode || error.code) || "";
     var title, body;
-    if (cause === "PICKUP_ONE_SIZE") {
-      title = "取件码模式一次只能排一个尺寸";
-      body = "这次没有排版，也没有打印。\n先排一个尺寸，等交付管理里这单变成“可领取”，再排下一个，会自动沿用同一个取件码。";
-    } else if (cause === "AUTO_TARGET_PREPARING" || cause === "AUTO_TASK_PENDING") {
+    var done = doneSizes && doneSizes.length ? "已出好：" + doneSizes.join("、") + "；这个尺寸和后面的没出。\n" : "";
+    if (cause === "AUTO_TARGET_PREPARING" || cause === "AUTO_TASK_PENDING") {
       title = "这个尺寸稍后自动补上";
-      body = "同一张照片的上一单还在后台处理，交付管理里还没到“可领取”。\n处理完插件会自动补做这个尺寸，补好后面板会提示你点“打印”，不用重新排。";
+      body = done + "同一张照片的上一单还在后台处理，交付管理里还没到“可领取”。\n处理完插件会自动补做这个尺寸，补好后面板会提示你点“打印”，不用重新排。";
     } else {
-      title = "取件码没拿到，这次没出片";
-      body = reason + "\n\n没有出成品，也没有打印。" + (error && error.retryable === false ? "请在交付管理里看看这单的原因。" :
+      title = done ? "取件码没拿到，后面的尺寸没出" : "取件码没拿到，这次没出片";
+      body = (done || "") + reason + "\n\n" + (done ? "" : "没有出成品，也没有打印。") +
+        (error && error.retryable === false ? "请在交付管理里看看这单的原因。" :
         "\n请看看交付管理开着没有、网络通不通。连上后插件会自动再试，补好后面板会提示你点“打印”，不用重新排。");
     }
-    setStatus(title + "：" + (cause === "PICKUP_ONE_SIZE" ? "请一个一个排" : reason));
+    setStatus(title + "：" + reason);
     try {
       await window.IDPhotoPhotoshopExecution.getPhotoshop().app.showAlert(title + "\n\n" + body);
     } catch (alertError) {
@@ -947,10 +946,11 @@
     }
 
     try {
-      if (deliveryStatusView && window.IDPhotoDeliveryAutomationService && templateNames.length === 1) {
+      if (deliveryStatusView && window.IDPhotoDeliveryAutomationService) {
         if (delivery) {
           docInfo.sourceVariant = await window.IDPhotoVariantService.analyzeDocument(sourceDocument);
-          showDeliveryPlan(docInfo, getEffectiveTemplateByName(templateNames[0]));
+          if (templateNames.length === 1) showDeliveryPlan(docInfo, getEffectiveTemplateByName(templateNames[0]));
+          else deliveryStatusView.showPlan(MULTI_SIZE_PLAN);
         } else deliveryStatusView.showPlan(state.pickupCodeMode ? plainDeliveryPlan(sourceDecision) : null);
       }
       runResult = await getLayoutWorkflow().run({
@@ -998,7 +998,7 @@
     if (pickupFailure) {
       // Keep the selection so the operator can correct the connection or choose
       // ordinary mode deliberately. A failure must never look like completion.
-      await showPickupCodeFailure(pickupFailure.error);
+      await showPickupCodeFailure(pickupFailure.error, successes.map(getTemplateShortName));
       return;
     }
 
@@ -1339,6 +1339,8 @@
     else deliveryStatusView.showPlan(plan);
   }
 
+  var MULTI_SIZE_PLAN = { kind: "plain", text: "多个尺寸 · 共用一个取件码，各打一张" };
+
   function plainDeliveryPlan(sourceDecision) {
     if (!sourceDecision) return { kind: "plain" };
     var reasons = {
@@ -1357,12 +1359,16 @@
     if (!deliveryStatusView || !window.IDPhotoDeliveryAutomationService) return;
     var generation = ++planGeneration;
     var selected = getSelectedTemplateNames();
-    if (!state.pickupCodeMode || selected.length !== 1) { deliveryStatusView.showPlan(null); return; }
+    if (!state.pickupCodeMode || !selected.length) { deliveryStatusView.showPlan(null); return; }
     var info = await window.IDPhotoDocumentService.getActiveDocumentInfo(), doc = getCurrentDocumentObject();
     if (!info || !doc || doc.id !== info.id) { deliveryStatusView.showPlan(null); return; }
     var eligible = window.IDPhotoSourceEligibilityService.checkSource(info.sourceMetadata, info.name);
     if (!eligible.eligible || !window.IDPhotoDeliveryIdentity.getSourceIdentity(info)) {
       if (generation === planGeneration) deliveryStatusView.showPlan(plainDeliveryPlan(eligible));
+      return;
+    }
+    if (selected.length > 1) {
+      if (generation === planGeneration) deliveryStatusView.showPlan(MULTI_SIZE_PLAN);
       return;
     }
     info.sourceVariant = await window.IDPhotoVariantService.analyzeDocument(doc);

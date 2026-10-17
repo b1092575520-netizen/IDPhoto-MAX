@@ -8,18 +8,40 @@
     var entries = await folder.getEntries();
     return entries.find(function (entry) { return entry.name === name; }) || null;
   }
-  async function atomic(folder, name, value, overwrite) {
+  // Hidden records of one save are staged here and published together with the
+  // index (and the print) in a single bridge launch: one permission prompt per save.
+  var batch = null;
+  function beginBatch() { batch = []; }
+  function takeBatch() { var staged = batch || []; batch = null; return staged; }
+  async function removeStaged(items) {
+    for (var item of items || []) {
+      if (!item.cleanup) continue;
+      try { var leftover = await optional(item.cleanup.folder, item.cleanup.name); if (leftover) await leftover.delete(); }
+      catch (_) { /* Published by the bridge, or already gone. */ }
+    }
+  }
+  async function discardBatch() { await removeStaged(takeBatch()); }
+  function stagedRecord(folder, name) {
+    return (batch || []).find(function (item) { return item.recordName === name && key(item.cleanup.folder.nativePath) === key(folder.nativePath); });
+  }
+  async function atomic(folder, name, value, overwrite, immediate) {
     var temporary = name + "." + protocol().id() + ".tmp";
-    var file = await folder.createFile(temporary, { overwrite: false });
+    var file = await folder.createFile(temporary, { overwrite: false }), staged = false;
     try {
       await file.write(JSON.stringify(value), { format: storage().formats.utf8 });
       if (/^\.idphoto-(?:output-|archive)/.test(name)) {
         if (overwrite) throw new Error("归档身份记录不允许覆盖");
-        await window.IDPhotoPrintService.commitArchiveRecord(file);
+        if (batch && !immediate) {
+          batch.push({ operation: "commit-archive-record", file: file, recordName: name, content: JSON.stringify(value),
+            cleanup: { folder: folder, name: temporary } });
+          staged = true;
+        } else await window.IDPhotoPrintService.commitArchiveRecord(file);
       } else await file.moveTo(folder, { newName: name, overwrite: overwrite === true });
     } finally {
-      var leftover = await optional(folder, temporary);
-      if (leftover) await leftover.delete();
+      if (!staged) {
+        var leftover = await optional(folder, temporary);
+        if (leftover) await leftover.delete();
+      }
     }
   }
   async function withDirectory(folder, callback) {
@@ -43,12 +65,15 @@
   async function rootIdentity(root) {
     var filename = ".idphoto-archive-root.json", file = await optional(root, filename), value;
     if (!file) {
+      // Created once per archive root and read back at once, so not staged.
       value = { version: 1, id: protocol().id(), directory: key(root.nativePath) };
-      try { await atomic(root, filename, value, false); }
+      try { await atomic(root, filename, value, false, true); }
       catch (error) { if (!await optional(root, filename)) throw error; }
       file = await root.getEntry(filename);
     }
-    await window.IDPhotoPrintService.hideArchiveRecord(file);
+    if (!batch) await window.IDPhotoPrintService.hideArchiveRecord(file);
+    else if (!batch.some(function (item) { return item.operation === "hide-archive-record" && item.file.nativePath === file.nativePath; }))
+      batch.push({ operation: "hide-archive-record", file: file });
     value = JSON.parse(await file.read({ format: storage().formats.utf8 }));
     if (value.version !== 1 || !/^[a-f0-9]{32}$/.test(value.id) || value.directory !== key(root.nativePath))
       throw new Error("归档根目录身份不符，照片已保留，不能按取件码改名");
@@ -74,10 +99,12 @@
       throw new Error("受管归档照片内容已变化，保留原文件待核对");
   }
   async function immutable(folder, name, record) {
-    var file = await optional(folder, name);
+    var file = await optional(folder, name), staged = stagedRecord(folder, name);
     if (file) {
       if (JSON.stringify(JSON.parse(await file.read({ format: storage().formats.utf8 }))) !== JSON.stringify(record))
         throw new Error("归档不可变映射冲突，保留资料待核对");
+    } else if (staged) {
+      if (staged.content !== JSON.stringify(record)) throw new Error("归档不可变映射冲突，保留资料待核对");
     } else await atomic(folder, name, record, false);
   }
   async function prepareOutput(task, root, folder, file) {
@@ -92,7 +119,12 @@
   async function discardFailedOutput(folder, plan) {
     if (!plan) return;
     if (await optional(folder, plan.originalName)) throw new Error("未完成照片仍存在，保留产出计划待核对");
-    var file = await optional(folder, ".idphoto-output-" + plan.archiveId + ".json");
+    var name = ".idphoto-output-" + plan.archiveId + ".json", staged = stagedRecord(folder, name);
+    if (staged) {
+      batch.splice(batch.indexOf(staged), 1);
+      await removeStaged([staged]);
+    }
+    var file = await optional(folder, name);
     if (file) await file.delete();
   }
   async function bind(task, root, folder, file, indexLocation, entry, template, output) {
@@ -102,9 +134,10 @@
     if (entry.deliveryTaskId && entry.deliveryTaskId !== task.id) throw new Error("归档属于另一位顾客，不能重新绑定");
     if (entry.archiveId) {
       // Retry registration after a lost handoff write, without changing identity.
-      var existing = await optional(folder, ".idphoto-archive-" + entry.archiveId + ".json");
-      if (!existing) throw new Error("受管归档映射缺失，保留照片待核对");
-      var saved = JSON.parse(await existing.read({ format: storage().formats.utf8 }));
+      var mapName = ".idphoto-archive-" + entry.archiveId + ".json";
+      var existing = await optional(folder, mapName), stagedMap = stagedRecord(folder, mapName);
+      if (!existing && !stagedMap) throw new Error("受管归档映射缺失，保留照片待核对");
+      var saved = JSON.parse(existing ? await existing.read({ format: storage().formats.utf8 }) : stagedMap.content);
       await verifyRecord(task, folder, file, saved, entry);
       if (key(saved.root) !== key(root.nativePath) ||
           key(saved.privateIndex) !== key(indexLocation.folder.nativePath + "/" + indexLocation.name) ||
@@ -165,15 +198,27 @@
       var plan = JSON.parse(await planFile.read({ format: storage().formats.utf8 }));
       if (plan.taskId === task.id && plan.manifestFingerprint === task.fingerprint &&
           entries.some(function (e) { return e.name === plan.originalName; }) &&
-          !entries.some(function (e) { return e.name === ".idphoto-archive-" + plan.archiveId + ".json"; }))
+          !entries.some(function (e) { return e.name === ".idphoto-archive-" + plan.archiveId + ".json"; }) &&
+          !stagedRecord(folder, ".idphoto-archive-" + plan.archiveId + ".json"))
         throw new Error("上次产出已保留但完成凭据缺失；停止重复保存，请核对原任务与原文件");
     }
-    for (var file of entries) {
-      if (!/^\.idphoto-archive-[a-f0-9]{32}\.json$/.test(file.name)) continue;
-      var saved = JSON.parse(await file.read({ format: storage().formats.utf8 }));
+    // Maps restored above are still staged for this save's bridge launch.
+    var maps = [];
+    for (var mapFile of entries) {
+      if (/^\.idphoto-archive-[a-f0-9]{32}\.json$/.test(mapFile.name))
+        maps.push({ name: mapFile.name, saved: JSON.parse(await mapFile.read({ format: storage().formats.utf8 })) });
+    }
+    (batch || []).forEach(function (item) {
+      if (item.recordName && /^\.idphoto-archive-[a-f0-9]{32}\.json$/.test(item.recordName) &&
+          key(item.cleanup.folder.nativePath) === key(folder.nativePath) &&
+          !maps.some(function (map) { return map.name === item.recordName; }))
+        maps.push({ name: item.recordName, saved: JSON.parse(item.content) });
+    });
+    for (var map of maps) {
+      var saved = map.saved;
       if (saved.taskId !== task.id || saved.manifestFingerprint !== task.fingerprint) continue;
       if (saved.directory !== folder.nativePath ||
-          file.name !== ".idphoto-archive-" + saved.archiveId + ".json")
+          map.name !== ".idphoto-archive-" + saved.archiveId + ".json")
         throw new Error("本地归档恢复映射路径不匹配");
       var photo = entries.find(function (e) { return e.name === saved.originalName; });
       if (entries.some(function (e) { return e.name === ".idphoto-archive-retired-" + saved.archiveId + ".json"; })) continue;
@@ -198,9 +243,10 @@
   async function retire(folder, entry) {
     if (!entry || !entry.archiveId) return;
     var name = ".idphoto-archive-retired-" + entry.archiveId + ".json";
-    if (!await optional(folder, name)) await atomic(folder, name, { version: 1, archiveId: entry.archiveId,
+    if (!stagedRecord(folder, name) && !await optional(folder, name)) await atomic(folder, name, { version: 1, archiveId: entry.archiveId,
       reason: "same-source-larger-archive" }, false);
   }
   window.IDPhotoArchiveNamingService = { withDirectory: withDirectory, prepareOutput: prepareOutput,
-    discardFailedOutput: discardFailedOutput, bind: bind, retire: retire, recoverIndex: recoverIndex };
+    discardFailedOutput: discardFailedOutput, bind: bind, retire: retire, recoverIndex: recoverIndex,
+    beginBatch: beginBatch, takeBatch: takeBatch, discardBatch: discardBatch, removeStaged: removeStaged };
 })();

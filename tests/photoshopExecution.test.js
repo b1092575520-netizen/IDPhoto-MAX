@@ -116,3 +116,34 @@ test("modal cancellation remains detectable when the host throws an untyped erro
   const execution = loadExecution({ core: { async executeAsModal(callback) { return callback({ isCancelled: true }); } } });
   await assert.rejects(execution.executeAsModal(async () => { throw new Error("cancelled by host"); }), error => execution.isCancellation(error));
 });
+
+function loadWithTimers(photoshop) {
+  const context = {
+    require(name) { assert.equal(name, "photoshop"); return photoshop; },
+    setTimeout: (fn) => setImmediate(fn),
+    window: {}
+  };
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(executionPath, "utf8"), context, { filename: executionPath });
+  return context.window.IDPhotoPhotoshopExecution;
+}
+
+test("a modal scope busy with the operator's tool is retried, but a started callback never runs twice", async () => {
+  let refusals = 2, runs = 0;
+  const execution = loadWithTimers({ core: { async executeAsModal(callback) {
+    if (refusals-- > 0) throw new Error("host is in a modal state");
+    return await callback({});
+  } } });
+  assert.equal(await execution.executeAsModal(async () => { runs++; return "closed"; }, "close"), "closed");
+  assert.equal(runs, 1);
+
+  const failingInside = loadWithTimers({ core: { async executeAsModal(callback) { return await callback({}); } } });
+  let inside = 0;
+  await assert.rejects(failingInside.executeAsModal(async () => { inside++; throw new Error("host is in a modal state"); }), /modal state/);
+  assert.equal(inside, 1);
+
+  let attempts = 0;
+  const alwaysBusy = loadWithTimers({ core: { async executeAsModal() { attempts++; throw new Error("host is in a modal state"); } } });
+  await assert.rejects(alwaysBusy.executeAsModal(async () => {}), /modal state/);
+  assert.equal(attempts, 21);
+});

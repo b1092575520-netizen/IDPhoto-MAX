@@ -187,3 +187,52 @@ test("archive records publish hidden without overwriting identities or accepting
     assert.equal(run('hide-archive-record',photo).ok,false);assert.equal(fs.readFileSync(photo,'utf8'),'untouched');
   } finally {fs.rmSync(directory,{recursive:true,force:true});}
 });
+
+test("one launch commits a batch of records and the index in order and stops at the first failure", { skip: process.platform !== "win32" }, () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "idphoto-batch-"));
+  function stage(name, content) {
+    const staged = path.join(directory, name + "." + "c".repeat(32) + ".tmp");
+    fs.writeFileSync(staged, JSON.stringify(content)); return staged;
+  }
+  function run(id, job) {
+    const jobPath = path.join(directory, id + ".idprint");
+    fs.writeFileSync(jobPath, JSON.stringify(Object.assign({ schemaVersion: 1, jobId: id }, job)));
+    const result = spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", bridgePath, jobPath], { encoding: "utf8" });
+    return { status: result.status, output: result.stdout + result.stderr, receipt: JSON.parse(fs.readFileSync(path.join(directory, id + ".result.json"), "utf8")) };
+  }
+  try {
+    const output = stage(".idphoto-output-" + "a".repeat(32) + ".json", { version: 1, id: "plan" });
+    const map = stage(".idphoto-archive-" + "a".repeat(32) + ".json", { version: 1, id: "map" });
+    const index = path.join(directory, ".idphoto-jpg-index.json.stage-1.tmp");
+    fs.writeFileSync(index, JSON.stringify({ version: 1, entries: {} }));
+    const saved = run("batch-ok", { operations: [
+      { operation: "commit-archive-record", indexPath: output },
+      { operation: "commit-archive-record", indexPath: map },
+      { operation: "commit-archive-index", indexPath: index }] });
+    assert.equal(saved.status, 0, saved.output);
+    assert.equal(saved.receipt.ok, true); assert.equal(saved.receipt.printed, false);
+    assert.deepEqual(saved.receipt.results.map(item => item.operation), ["commit-archive-record", "commit-archive-record", "commit-archive-index"]);
+    for (const name of [".idphoto-output-" + "a".repeat(32) + ".json", ".idphoto-archive-" + "a".repeat(32) + ".json", ".idphoto-jpg-index.json"])
+      assert.match(spawnSync("attrib.exe", [path.join(directory, name)], { encoding: "utf8" }).stdout, /H/);
+
+    const conflict = stage(".idphoto-archive-" + "a".repeat(32) + ".json", { version: 1, id: "other" });
+    const later = path.join(directory, ".idphoto-jpg-index.json.stage-2.tmp");
+    fs.writeFileSync(later, JSON.stringify({ version: 1, entries: { later: {} } }));
+    const stopped = run("batch-stop", { operations: [
+      { operation: "commit-archive-record", indexPath: conflict },
+      { operation: "commit-archive-index", indexPath: later }] });
+    assert.equal(stopped.receipt.ok, false); assert.equal(stopped.receipt.failedIndex, 0);
+    assert.equal(fs.existsSync(later), true);
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(directory, ".idphoto-jpg-index.json"), "utf8")).entries, {});
+
+    const printIndex = path.join(directory, ".idphoto-jpg-index.json.stage-3.tmp");
+    fs.writeFileSync(printIndex, JSON.stringify({ version: 1, entries: { printed: {} } }));
+    const printed = run("print-batch", { printerName: "INVALID-NO-PRINT", archiveOperations: [
+      { operation: "hide-archive-index", indexPath: path.join(directory, ".idphoto-jpg-index.json") },
+      { operation: "commit-archive-index", indexPath: printIndex }] });
+    assert.equal(printed.receipt.reason, "wrong-printer"); assert.equal(printed.receipt.printed, false);
+    assert.equal(printed.receipt.archiveIndexResult.ok, true);
+    assert.equal(printed.receipt.archiveIndexResult.results.length, 2);
+    assert.deepEqual(Object.keys(JSON.parse(fs.readFileSync(path.join(directory, ".idphoto-jpg-index.json"), "utf8")).entries), ["printed"]);
+  } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});

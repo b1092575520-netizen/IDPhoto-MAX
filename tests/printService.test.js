@@ -332,3 +332,46 @@ test("bridge reasons are shown in Chinese, including a missing temporary image",
     assert.doesNotMatch(result.message, /temporary|submitted/);
   }
 });
+
+test("a temporary print JPG Photoshop never wrote is exported once more, and never launched empty", async () => {
+  const healed = loadService();
+  let saves = 0;
+  healed.documentRef.saveAs.jpg = async (file) => {
+    saves++;
+    if (saves === 1) healed.root.entries.get("print-jobs").entries.delete(file.name);
+    else healed.root.entries.get("print-jobs").entries.set(file.name, file);
+  };
+  assert.equal((await healed.service.printOneCopy(healed.documentRef)).printed, true);
+  assert.equal(saves, 2); assert.equal(healed.openedPaths.length, 1);
+
+  const missing = loadService();
+  missing.documentRef.saveAs.jpg = async (file) => { missing.root.entries.get("print-jobs").entries.delete(file.name); };
+  const result = await missing.service.printOneCopy(missing.documentRef);
+  assert.equal(result.printed, false); assert.equal(result.reason, "image-not-found");
+  assert.match(result.message, /没有打印/);
+  assert.equal(missing.openedPaths.length, 0);
+  assert.equal(Array.from(missing.root.entries.get("print-jobs").entries.keys()).some(name => name.endsWith(".idprint")), false);
+});
+
+test("archive records and the index travel with the print, or in one archive-only launch", async () => {
+  const records = [
+    { operation: "commit-archive-record", file: { name: ".idphoto-output-" + "a".repeat(32) + ".json." + "b".repeat(32) + ".tmp", nativePath: "C:\A\o.tmp" } },
+    { operation: "commit-archive-index", file: { name: ".idphoto-jpg-index.json.x1-y.tmp", nativePath: "C:\A\i.tmp" } }];
+  const printing = loadService();
+  await printing.service.printOneCopy(printing.documentRef, { archiveOperations: records.map(item => printing.service.archiveRequest(item.file, item.operation)) });
+  assert.deepEqual(printing.getWrittenJob().archiveOperations.map(item => item.operation), ["commit-archive-record", "commit-archive-index"]);
+  assert.equal(printing.getWrittenJob().archiveIndex, undefined);
+
+  const archiving = loadService({ bridgeResult: { ok: true, printed: false, results: [
+    { operation: "commit-archive-record", ok: true, hidden: true }, { operation: "commit-archive-index", ok: true, hidden: true }] } });
+  const receipt = await archiving.service.runArchiveOperations(records);
+  assert.equal(receipt.ok, true); assert.equal(archiving.openedPaths.length, 1);
+  assert.equal(archiving.getWrittenJob().operations.length, 2);
+
+  const partial = loadService({ bridgeResult: { ok: false, printed: false, failedIndex: 1, message: "conflict",
+    results: [{ operation: "commit-archive-record", ok: true, hidden: true }] } });
+  await assert.rejects(partial.service.runArchiveOperations(records), /未确认存档记录.*conflict/);
+  await assert.rejects(partial.service.runArchiveOperations([{ operation: "commit-archive-record", file: { name: "photo.jpg", nativePath: "C:\photo.jpg" } }]), /无效/);
+  const denied = loadService({ launchThrow: "User denied." });
+  await assert.rejects(denied.service.runArchiveOperations(records), /阻止/);
+});

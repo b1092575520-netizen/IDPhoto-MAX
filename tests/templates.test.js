@@ -131,3 +131,19 @@ test('the layout plan Photoshop actually draws keeps the one-inch style marker f
     assert.equal(delivery.infoBar.ordinaryLayout,undefined,raw.id+' delivery');
   }
 });
+
+test("saved photos use the largest pixels among the same or nearly the same shape (within 1%)", () => {
+  const registry = { window: {} };
+  vm.createContext(registry);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/core/templateRegistry.js"), "utf8"), registry);
+  const templates = registry.window.IDPhotoTemplates;
+  const save = (id) => { const size = templates.getSaveSize(templates.getTemplateById(id)); return size.widthPx + "x" + size.heightPx; };
+  assert.equal(save("one-inch"), "827x1157");
+  assert.equal(save("standard-two-inch"), "827x1157");
+  for (const id of ["argentina", "us-visa", "us-visa-51"]) assert.equal(save(id), "1205x1205");
+  for (const template of templates.getAllTemplates()) {
+    if (["one-inch", "standard-two-inch", "argentina", "us-visa", "us-visa-51"].includes(template.id)) continue;
+    assert.equal(save(template.id), template.widthPx + "x" + template.heightPx, template.id);
+  }
+  assert.equal(templates.getSaveSize({ widthPx: 0, heightPx: 10 }), null);
+});

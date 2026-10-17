@@ -224,6 +224,8 @@
     var bounds = compositionPlan.bounds;
     var processedDocument = null;
     var highResolutionDocument = null;
+    var saveDocument = null;
+    var saveSize = options && options.saveSize;
     var cropped = !(ratioResult && ratioResult.ok);
     var requestedStrategy = normalizeStrategy(options && options.strategy);
     var strategyResult = {
@@ -270,11 +272,27 @@
             }
             await activateDocument(processedDocument);
           }
+          if (saveSize && !(options && options.preservePixels) &&
+              (saveSize.widthPx !== template.widthPx || saveSize.heightPx !== template.heightPx)) {
+            // The saved/delivered copy shares this crop but takes the larger pixels of its shape group.
+            saveDocument = await duplicateDocument(processedDocument, "保存规格_" + processedName);
+            if (!saveDocument || saveDocument === processedDocument || saveDocument === sourceDocument ||
+                saveDocument.id != null && (saveDocument.id === processedDocument.id || saveDocument.id === sourceDocument.id)) {
+              saveDocument = null;
+              throw new Error("保存副本身份不独立，已停止以保护原片");
+            }
+            await activateDocument(saveDocument);
+            await resizeDocumentWithDomOrBatchPlay(saveDocument, saveSize.widthPx, saveSize.heightPx);
+            await activateDocument(processedDocument);
+          }
           if (!(options && options.preservePixels)) resizeMode = await resizeDocumentWithDomOrBatchPlay(processedDocument, template.widthPx, template.heightPx);
         },
         "裁切并处理单张证件照"
       );
     } catch (error) {
+      if (saveDocument) {
+        try { await closeDocumentWithoutSaving(saveDocument); } catch (cleanupError) { console.warn("[crop] save copy cleanup failed", cleanupError); }
+      }
       if (highResolutionDocument) {
         try { await closeDocumentWithoutSaving(highResolutionDocument); } catch (cleanupError) { console.warn("[crop] high resolution cleanup failed", cleanupError); }
       }
@@ -292,6 +310,7 @@
       ok: true,
       document: processedDocument,
       highResolutionDocument: highResolutionDocument,
+      saveDocument: saveDocument,
       temporaryDocument: true,
       cropped: cropped,
       cropBounds: bounds,

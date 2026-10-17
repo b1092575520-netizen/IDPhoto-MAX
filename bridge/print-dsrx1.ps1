@@ -259,6 +259,25 @@ function Invoke-ArchiveIndexOperation {
   return $receipt
 }
 
+# One launch per save: archive records and the index run in order, and the
+# first failure stops the rest so no later step trusts a missing record.
+function Invoke-ArchiveOperationBatch {
+  param($operations)
+  $list = @($operations)
+  if ($list.Count -lt 1 -or $list.Count -gt 32) {
+    Throw-BridgeError 'invalid-operation' 'An archive batch holds 1 to 32 operations'
+  }
+  $results = New-Object System.Collections.ArrayList
+  for ($index = 0; $index -lt $list.Count; $index++) {
+    try { [void]$results.Add((Invoke-ArchiveIndexOperation $list[$index])) }
+    catch {
+      return [ordered]@{ ok = $false; printed = $false; results = @($results); failedIndex = $index;
+        operation = [string]$list[$index].operation; message = $_.Exception.Message }
+    }
+  }
+  return [ordered]@{ ok = $true; printed = $false; results = @($results) }
+}
+
 try {
   Add-Type -AssemblyName System.Drawing
 
@@ -303,7 +322,17 @@ try {
     Write-JsonUtf8NoBom $resultPath $archiveReceipt
     exit 0
   }
-  if ($job.archiveIndex) {
+  if ($job.PSObject.Properties['operations']) {
+    $batchReceipt = Invoke-ArchiveOperationBatch $job.operations
+    $batchReceipt.schemaVersion = $SchemaVersion
+    $batchReceipt.jobId = $jobId
+    Write-JsonUtf8NoBom $resultPath $batchReceipt
+    exit 0
+  }
+  if ($job.archiveOperations) {
+    try { $archiveIndexResult = Invoke-ArchiveOperationBatch $job.archiveOperations }
+    catch { $archiveIndexResult = [ordered]@{ ok = $false; printed = $false; results = @(); failedIndex = 0; message = $_.Exception.Message } }
+  } elseif ($job.archiveIndex) {
     try { $archiveIndexResult = Invoke-ArchiveIndexOperation $job.archiveIndex }
     catch { $archiveIndexResult = [ordered]@{ ok = $false; operation = [string]$job.archiveIndex.operation; message = $_.Exception.Message } }
   }
