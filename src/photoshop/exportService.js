@@ -5,6 +5,8 @@
   var NAS_LABEL_KEY = "idphoto-max-nas-folder-label";
   var JPG_INDEX_NAME = ".idphoto-jpg-index.json";
   var MAX_ASPECT_RATIO_FACTOR = 1.05;
+  // Archive and customer photos (user 2026-10-17): 10 looks the same and is about half the size.
+  var SAVE_JPEG_QUALITY = 10;
   var selectedNasFolder = null;
   var exportQueue = Promise.resolve();
 
@@ -577,7 +579,7 @@
     await window.IDPhotoPhotoshopExecution.executeAsModal(
       async function () {
         if (documentRef && documentRef.saveAs && typeof documentRef.saveAs.jpg === "function") {
-          await documentRef.saveAs.jpg(file, { quality: 12 }, true);
+          await documentRef.saveAs.jpg(file, { quality: SAVE_JPEG_QUALITY }, true);
           return;
         }
         throw new Error("当前 Photoshop DOM 不支持 saveAs.jpg");

@@ -217,17 +217,27 @@
   }
 
   async function showPickupCodeFailure(error) {
-    // Short on purpose (2026-10-11): what happened, why, and the one thing to check.
-    var reason = errorToText(error);
-    var message = "取件码没拿到，这次没出片\n\n" + reason +
-      "\n\n没有出成品，也没有打印；网络恢复后也不会自动打印。" +
-      "\n请看看交付管理开着没有、网络通不通。已存下的交接副本会保留，到“未完成交付”里继续，不要重新做一份。";
-    setStatus("取件码没拿到，这次没出片：" + reason);
+    // Short on purpose: what happened, then the one thing to do. Unfinished
+    // tasks continue automatically in the background (2026-10-17).
+    var reason = errorToText(error), cause = error && (error.causeCode || error.code) || "";
+    var title, body;
+    if (cause === "PICKUP_ONE_SIZE") {
+      title = "取件码模式一次只能排一个尺寸";
+      body = "这次没有排版，也没有打印。\n先排一个尺寸，等交付管理里这单变成“可领取”，再排下一个，会自动沿用同一个取件码。";
+    } else if (cause === "AUTO_TARGET_PREPARING" || cause === "AUTO_TASK_PENDING") {
+      title = "这个尺寸稍后自动补上";
+      body = "同一张照片的上一单还在后台处理，交付管理里还没到“可领取”。\n处理完插件会自动补做这个尺寸，补好后面板会提示你点“打印”，不用重新排。";
+    } else {
+      title = "取件码没拿到，这次没出片";
+      body = reason + "\n\n没有出成品，也没有打印。" + (error && error.retryable === false ? "请在交付管理里看看这单的原因。" :
+        "\n请看看交付管理开着没有、网络通不通。连上后插件会自动再试，补好后面板会提示你点“打印”，不用重新排。");
+    }
+    setStatus(title + "：" + (cause === "PICKUP_ONE_SIZE" ? "请一个一个排" : reason));
     try {
-      await window.IDPhotoPhotoshopExecution.getPhotoshop().app.showAlert(message);
+      await window.IDPhotoPhotoshopExecution.getPhotoshop().app.showAlert(title + "\n\n" + body);
     } catch (alertError) {
       logStepError("pickup-code-alert", alertError);
-      setStatus("取件码没拿到，这次没出片：" + reason + "（提示窗口没打开：" + errorToText(alertError) + "）");
+      setStatus(title + "：" + reason + "（提示窗口没打开：" + errorToText(alertError) + "）");
     }
   }
 
@@ -859,46 +869,6 @@
     return text;
   }
 
-  async function confirmDeliverySource(docInfo) {
-    var service = window.IDPhotoSourceEligibilityService;
-    if (!service || !service.checkSource) throw new Error("照片来源判断未加载");
-    if (service.checkSource(docInfo.sourceMetadata, docInfo.name).eligible) return { proceed: true, intent: null };
-    var panel = one("#historicalDeliveryPanel");
-    if (!panel) throw new Error("本店旧片补交确认界面未加载");
-    var intent = { type: "historical-shop", confirmed: true, noExistingDelivery: true,
-      sourceDocumentId: String(docInfo.id), sourceName: String(docInfo.name || ""),
-      sourceMetadata: JSON.stringify(docInfo.sourceMetadata || {}) };
-    one("#historicalDeliveryPhoto").textContent = "本次照片：" + docInfo.name;
-    panel.style.display = "block";
-    setStatus("请核对本次旧片补交；普通重印请取消后直接排版");
-    var choice;
-    try {
-      choice = await new Promise(function (resolve) {
-        one("#confirmHistoricalDelivery").onclick = function () { resolve("new"); };
-        one("#existingHistoricalDelivery").onclick = function () { resolve("existing"); };
-        one("#cancelHistoricalDelivery").onclick = function () { resolve("cancel"); };
-      });
-    } finally {
-      panel.style.display = "none";
-      ["#confirmHistoricalDelivery", "#existingHistoricalDelivery", "#cancelHistoricalDelivery"].forEach(function (id) { one(id).onclick = null; });
-    }
-    var active = getCurrentDocumentObject();
-    if (!active || active.id !== docInfo.id) throw new Error("确认期间活动照片已改变，本次补交已取消，请重新选择");
-    if (choice === "existing") {
-      var folder = await require("uxp").storage.localFileSystem.getFolder();
-      if (folder) {
-        await window.IDPhotoDeliveryService.regenerate(folder);
-        setStatus("原交付信息条已重导；未创建新交付，未自动打印");
-      } else setStatus("未选择原任务，本次未创建交付");
-      return { proceed: false };
-    }
-    if (choice !== "new") { setStatus("已取消本次交付"); return { proceed: false }; }
-    var currentInfo = await readActiveDocumentForStatus("补交确认");
-    if (!service.historicalIntentMatches(intent, currentInfo))
-      throw new Error("确认期间照片来源信息已改变，本次补交已取消，请重新核对");
-    return { proceed: true, intent: intent };
-  }
-
   async function runCurrentTemplate(options) {
     state.pendingTemplateSelection = null;
     var explicitDelivery = options && typeof options.delivery === "boolean" ? options.delivery : null;
@@ -977,11 +947,6 @@
     }
 
     try {
-      if (explicitDelivery === true) {
-        var confirmation = await confirmDeliverySource(docInfo);
-        if (!confirmation.proceed) return;
-        deliveryIntent = confirmation.intent;
-      }
       if (deliveryStatusView && window.IDPhotoDeliveryAutomationService && templateNames.length === 1) {
         if (delivery) {
           docInfo.sourceVariant = await window.IDPhotoVariantService.analyzeDocument(sourceDocument);
@@ -1182,13 +1147,6 @@
     });
   }
 
-  function showConnectionStatus(message) {
-    var line = one("#deliveryConnectionStatus");
-    if (!line) return;
-    line.textContent = message || "";
-    line.style.display = message ? "block" : "none";
-  }
-
   function bindModifierTracking() {
     document.addEventListener("keydown", function (event) {
       if (event.key === "Control") {
@@ -1229,151 +1187,11 @@
         runCurrentTemplateSafely({ source: "点击主执行按钮" });
       });
     }
-    var electronicButton = one("#electronicDeliveryButton");
-    if (electronicButton) electronicButton.addEventListener("click", async function () {
-      if (!beginPhotoshopOperation("delivery")) { setStatus("当前任务尚未完成，请稍候"); return; }
-      try {
-        var info = await readActiveDocumentForStatus("电子交付"), sourceDoc = getCurrentDocumentObject();
-        if (!info || !sourceDoc || sourceDoc.id !== info.id) throw new Error("活动照片已改变，请重新确认");
-        var confirmation = await confirmDeliverySource(info);
-        if (!confirmation.proceed) return;
-        setStatus("正在生成当前照片的独立电子成片，不调用打印");
-        var task = await window.IDPhotoDeliveryService.electronic(sourceDoc, info, window.IDPhotoSettingsStore.load(), confirmation.intent);
-        setStatus("电子成片已交接，等待后台发布；取件码 " + task.code + "；信息条：" + (task.status.info === "saved" ? "已保存" : "待重试"));
-      } catch (error) {
-        setStatus((error && error.completed ? "完成信号已提交，后续处理待核对：" : "电子交付未完成：") + errorToText(error));
-        if (error && error.code === "PICKUP_CODE_REQUIRED") await showPickupCodeFailure(error);
-      }
-      finally { endPhotoshopOperation("delivery"); }
-    });
     var configureDelivery = one("#configureDeliveryRoot");
-    var currentCustomerId = null;
-    async function showCurrentCustomer() {
-      var item = await window.IDPhotoDeliveryService.current();
-      currentCustomerId = item && item.id;
-      one("#currentCustomerPanel").style.display = "block";
-      one("#currentCustomerConfirmed").checked = false;
-      one("#currentCustomerPreview").src = "";
-      one("#reprintCurrentCustomer").disabled = true;
-      one("#retryCurrentArchives").style.display = item && item.batch ? "block" : "none";
-      one("#nextDeliveryCustomer").style.display = item ? "block" : "none";
-      one("#chooseOriginalCustomer").style.display = item ? "none" : "block";
-      one("#currentCustomerDescription").textContent = item ?
-        "当前顾客原照片：" + item.name + " · 任务 " + item.id.slice(-8) + " · " +
-        (item.mode === "electronic" ? "仅电子，不打印" : "沿用原排版和打印选项") :
-        "尚未选择顾客；可开始新交付，或选择历史任务核对后继续。";
-      if (item) {
-        one("#currentCustomerPreview").src = await window.IDPhotoDeliveryService.currentPreview(item.id);
-        one("#reprintCurrentCustomer").disabled = Boolean(item.batch);
-        if (item.batch) one("#currentCustomerDescription").textContent += " · 多规格草稿仍在后台人工完成，不自动打印";
-      }
-    }
-    if (one("#reviewCurrentCustomer")) {
-      one("#reviewCurrentCustomer").addEventListener("click", async function () {
-        if (!beginPhotoshopOperation("current-review")) return;
-        try { await showCurrentCustomer(); }
-        catch (error) { setStatus("原照片待核对：" + errorToText(error)); }
-        finally { endPhotoshopOperation("current-review"); }
-      });
-      one("#closeCurrentCustomer").addEventListener("click", function () {
-        if (!state.activePhotoshopOperation) {
-          one("#currentCustomerPanel").style.display = "none";
-          one("#currentCustomerPreview").src = ""; currentCustomerId = null;
-        }
-      });
-      one("#chooseOriginalCustomer").addEventListener("click", async function () {
-        if (!beginPhotoshopOperation("current-review")) return;
-        try { await window.IDPhotoDeliveryService.chooseCurrent(); await showCurrentCustomer(); }
-        catch (error) { setStatus(errorToText(error)); }
-        finally { endPhotoshopOperation("current-review"); }
-      });
-      one("#nextDeliveryCustomer").addEventListener("click", async function () {
-        if (!currentCustomerId || !beginPhotoshopOperation("current-review")) return;
-        try {
-          await window.IDPhotoDeliveryService.nextCustomer(currentCustomerId);
-          await showCurrentCustomer();
-          setStatus("已开始下一位；原顾客照片、交付与取件码绑定均保留");
-        } catch (error) { setStatus(errorToText(error)); }
-        finally { endPhotoshopOperation("current-review"); }
-      });
-      one("#reprintCurrentCustomer").addEventListener("click", async function () {
-        if (!currentCustomerId || !beginPhotoshopOperation("delivery")) return;
-        try {
-          var repeated = await window.IDPhotoDeliveryService.reprintCurrent(currentCustomerId, one("#currentCustomerConfirmed").checked);
-          setStatus("原任务已重拼，取件码 " + repeated.code + "；未新建交付。请核对输出和打印结果");
-          one("#currentCustomerConfirmed").checked = false;
-        } catch (error) {
-          setStatus("原任务重拼未完成：" + errorToText(error));
-          if (error && error.code === "PICKUP_CODE_REQUIRED") await showPickupCodeFailure(error);
-        } finally { endPhotoshopOperation("delivery"); }
-      });
-      one("#retryCurrentArchives").addEventListener("click", async function () {
-        if (!currentCustomerId || !beginPhotoshopOperation("delivery")) return;
-        try {
-          await window.IDPhotoDeliveryService.retryCurrentArchives(currentCustomerId);
-          setStatus("本批本地归档已核对；文件发布后由后台同步取件码名称");
-        } catch (error) { setStatus("本地归档待重试：" + errorToText(error)); }
-        finally { endPhotoshopOperation("delivery"); }
-      });
-    }
-    var pendingReview = one("#reviewPendingDelivery"), pendingId = null;
-    if (pendingReview) {
-      pendingReview.addEventListener("click", async function () {
-        if (!beginPhotoshopOperation("pending-review")) { setStatus("当前操作尚未结束，请稍候"); return; }
-        try {
-          var item = await window.IDPhotoDeliveryService.pending();
-          one("#pendingDeliveryPanel").style.display = "block";
-          one("#retryPendingDelivery").style.display = item ? "block" : "none";
-          one("#deferPendingDelivery").style.display = item ? "block" : "none";
-          if (!item) { pendingId = null; one("#pendingDeliveryDescription").textContent = "没有等待继续的原任务；可在此检测本机交接连接"; return; }
-          pendingId = item.id;
-          one("#pendingDeliveryDescription").textContent = "原照片：" + item.name + " · " +
-            (item.mode === "electronic" ? "仅电子，不打印" : "排版；原快速打印" + (item.outputOptions.quickPrint && !item.outputOptions.skipPrint ? "开启" : "关闭"));
-          one("#pendingDeliveryPanel").style.display = "block";
-        } catch (error) { setStatus("原任务待核对：" + errorToText(error)); }
-        finally { endPhotoshopOperation("pending-review"); }
-      });
-      one("#closePendingDelivery").addEventListener("click", function () {
-        if (!state.activePhotoshopOperation) { pendingId = null; one("#pendingDeliveryPanel").style.display = "none"; }
-      });
-      one("#deferPendingDelivery").addEventListener("click", async function () {
-        if (!pendingId || !beginPhotoshopOperation("delivery")) return;
-        try {
-          await window.IDPhotoDeliveryService.deferPending(pendingId);
-          pendingId = null; one("#pendingDeliveryPanel").style.display = "none";
-          setStatus("旧任务保留未完成，不代表云端取消；现在可为另一位顾客明确开始新交付");
-        } catch (error) { setStatus(errorToText(error)); }
-        finally { endPhotoshopOperation("delivery"); }
-      });
-      one("#retryPendingDelivery").addEventListener("click", async function () {
-        if (!pendingId || !beginPhotoshopOperation("delivery")) return;
-        try {
-          var task = await window.IDPhotoDeliveryService.retryPending(pendingId);
-          pendingId = null; one("#pendingDeliveryPanel").style.display = "none";
-          var message = task.completionWritten ? "原任务已提交完成信号，等待后台发布" : "原任务已生成成品；完成信号仍待核对，勿重复输出";
-          if (task.retryResult && task.retryResult.printFailures.length) message += "；打印未成功，请核对打印状态";
-          if (task.retryResult && task.retryResult.exportFailures.length) message += "；普通保存未成功，请核对归档状态";
-          setStatus(message);
-        } catch (error) {
-          setStatus((error && error.completed ? "原任务完成信号已保存，后续处理待核对：" : "原任务未继续：") + errorToText(error));
-          if (error && error.code === "PICKUP_CODE_REQUIRED") await showPickupCodeFailure(error);
-        } finally { endPhotoshopOperation("delivery"); }
-      });
-    }
     var stopWait = one("#stopDeliveryWait");
     if (stopWait) stopWait.addEventListener("click", function () {
       setStatus(window.IDPhotoDeliveryService.stopWaiting() ?
         "已请求停止本机等待；原任务保留，不代表云端取消" : "当前没有正在等待的取码请求");
-    });
-    var checkConnection = one("#checkDeliveryConnection");
-    if (checkConnection) checkConnection.addEventListener("click", async function () {
-      if (state.activePhotoshopOperation) { setStatus("当前操作尚未结束，请稍候再检测连接"); return; }
-      checkConnection.disabled = true;
-      try {
-        await window.IDPhotoDeliveryService.connection();
-        showConnectionStatus("交接已连通；云端将在实际交付时核对");
-      } catch (error) { showConnectionStatus(errorToText(error)); }
-      finally { checkConnection.disabled = false; }
     });
     if (configureDelivery) configureDelivery.addEventListener("click", async function () {
       try { var path = await window.IDPhotoDeliveryService.configure(); if (path) setStatus("本机交接目录：" + path + "；请在后台选择同一目录，仅需配置一次"); }
@@ -1496,7 +1314,6 @@
       });
     if (window.IDPhotoDeliveryService && window.IDPhotoDeliveryService.onProgress)
       window.IDPhotoDeliveryService.onProgress(function (message) {
-        showConnectionStatus(message);
         setStatus(message);
       });
     loadQuickPrintPreference();
@@ -1585,7 +1402,7 @@
           if (automaticNotice === notice) automaticNotice = null;
           showAutomaticNotice(); setStatus("打印任务已提交");
         } catch (error) {
-          automaticNotice = { id: notice.id, canPrint: false, text: errorToText(error) };
+          automaticNotice = { id: notice.id, canPrint: false, text: "没打印：" + errorToText(error) };
           showAutomaticNotice(); setStatus(errorToText(error));
         } finally { endPhotoshopOperation("recovered-print"); }
       });

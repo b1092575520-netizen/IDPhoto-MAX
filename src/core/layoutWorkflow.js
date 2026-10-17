@@ -521,7 +521,11 @@
       templateNames = runOptions.templateNames.slice();
       runOptions.historicalDelivery = false;
       runOptions.deliveryDateText = "";
-      if (runOptions.delivery && templateNames.length !== 1) throw window.IDPhotoDeliveryProtocol.pickupCodeError("取件码模式一次选一张规格；多规格请使用“多规格草稿”，或关闭取件码模式后普通排版。未创建交付。");
+      if (runOptions.delivery && templateNames.length !== 1) {
+        var oneSize = window.IDPhotoDeliveryProtocol.pickupCodeError("取件码模式一次只能排一个尺寸，请一个一个排。未创建交付。");
+        oneSize.causeCode = "PICKUP_ONE_SIZE";
+        throw oneSize;
+      }
 
       if (runOptions.sourceDocument && runOptions.docInfo && runOptions.docInfo.id != null &&
           runOptions.sourceDocument.id !== runOptions.docInfo.id) {

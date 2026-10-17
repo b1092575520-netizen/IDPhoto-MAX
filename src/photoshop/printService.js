@@ -77,17 +77,28 @@
     };
   }
 
-  function getBridgeFailureMessage(reason, fallback) {
+  // Shown in the panel: Chinese only, and say plainly that nothing was printed.
+  var PERMISSION_DENIED_MESSAGE = "没有打印：Photoshop 权限框点了“阻止”。要打印就重新排一次，在权限框里点“允许”；勾上“记住我的选择”以后就不再问";
+
+  function isPermissionDenied(error) {
+    var text = error && error.message ? error.message : String(error || "");
+    return /denied|拒绝/i.test(text);
+  }
+
+  function getBridgeFailureMessage(reason) {
     var messages = {
       "printer-not-found": "快速打印已阻止：未找到名称精确为 DS-RX1 的打印机",
       "printer-invalid": "快速打印已阻止：DS-RX1 当前不可用",
       "paper-not-found": "快速打印已阻止：DS-RX1 驱动中未找到普通 (6x4) 纸张",
+      "paper-too-small": "快速打印已阻止：DS-RX1 纸张比 6 寸照片小",
       "wrong-printer": "快速打印已阻止：作业目标不是 DS-RX1",
       "wrong-paper": "快速打印已阻止：作业目标不是普通 (6x4) 纸张",
       "wrong-copies": "快速打印已阻止：作业份数不是一份",
-      "wrong-image-size": "快速打印已阻止：打印临时图不是 3600x2400 像素"
+      "wrong-image-size": "快速打印已阻止：打印临时图不是 3600x2400 像素",
+      "image-not-found": "没有打印：打印用的临时图没生成出来，请重新排一次",
+      "job-not-found": "没有打印：打印任务文件不见了，请重新排一次"
     };
-    return messages[reason] || fallback || "Windows 打印桥拒绝了本次任务";
+    return messages[reason] || "没有打印：打印桥拒绝了这次任务（" + (reason || "原因不明") + "），请重新排一次";
   }
 
   function normalizeBridgeResult(result, jobId) {
@@ -120,7 +131,7 @@
       printed: false,
       blocked: true,
       reason: result.reason || "bridge-rejected",
-      message: getBridgeFailureMessage(result.reason, result.message)
+      message: getBridgeFailureMessage(result.reason)
     };
   }
 
@@ -231,7 +242,20 @@
       );
 
       launchAttempted = true;
-      launchMessage = await uxp.shell.openPath(jobFile.nativePath);
+      try {
+        launchMessage = await uxp.shell.openPath(jobFile.nativePath);
+      } catch (launchError) {
+        if (!isPermissionDenied(launchError)) throw launchError;
+        // The bridge never started: nothing can be in the printer queue.
+        completed = true;
+        return {
+          ok: false,
+          printed: false,
+          blocked: true,
+          reason: "permission-denied",
+          message: PERMISSION_DENIED_MESSAGE
+        };
+      }
       if (typeof launchMessage === "string" && launchMessage.trim()) {
         completed = true;
         return {
@@ -299,7 +323,14 @@
         operation: operation, indexPath: file.nativePath
       }, uxp.storage.formats);
       launched = true;
-      var launchError = await uxp.shell.openPath(jobFile.nativePath);
+      var launchError;
+      try {
+        launchError = await uxp.shell.openPath(jobFile.nativePath);
+      } catch (openError) {
+        if (!isPermissionDenied(openError)) throw openError;
+        launched = false;
+        throw new Error("Photoshop 权限框点了“阻止”，这次没存档");
+      }
       if (launchError) throw new Error(String(launchError));
       var deadline = Date.now() + (options.timeoutMs || 5000);
       do {

@@ -400,3 +400,51 @@ test("an interrupted recovered print remains visible as unconfirmed and cannot b
   await assert.rejects(h.service.printRecovered(task.id), /重复|已开始/);
   assert.equal(h.prints.length, 0);
 });
+
+function rejectReceipt(h, task, payload) {
+  return JSON.stringify({ version: 2, taskId: task.id, manifestFingerprint: h.window.IDPhotoDeliveryProtocol.sha256(payload),
+    accepted: false, confirmed: false, status: "rejected", deliveryId: "", code: "", completed: false,
+    error: "历史补交须明确确认本次照片和未有交付，不能沿用其他照片的确认。" });
+}
+
+test("a manifest the delivery manager rejected is parked and never asked for a code again", async () => {
+  const h = harness({ receipt: false }), original = h.source();
+  await assert.rejects(h.service.electronic(original.document, original.info, {}), /超时/);
+  const task = h.service.latest(), payload = await (await task.folder.getEntry("request.json")).read();
+  await (await task.folder.createFile("receipt.json", { overwrite: true })).write(rejectReceipt(h, task, payload));
+  h.reload();
+  const before = (await h.json(task.folder, "code-request.json")).requestId;
+  assert.equal(await h.service.primeRecovery(), null);
+  assert.equal((await h.json(task.folder, "code-request.json")).requestId, before, "no new request for a rejected manifest");
+  const record = h.automation.store().tasks().find(item => item.id === task.id);
+  assert.equal(record.state, "blocked"); assert.match(record.error, /拒收/);
+  h.options.receipt = true;
+  assert.equal(await h.service.primeRecovery(), null, "a parked task is not picked up again");
+  assert.equal(h.opened.length, 0); assert.equal(h.renders.length, 0); assert.equal(h.prints.length, 0);
+});
+
+test("a rejection written while waiting ends the wait at once with the real reason", async () => {
+  let sleeps = 0;
+  const h = harness({ receipt: false, onSleep: service => {
+    sleeps++;
+    const task = service.latest && service.latest();
+    if (!task || !task.folder || !task.folder.children.has("request.json") || task.folder.children.has("receipt.json")) return;
+    task.folder.createFile("receipt.json");
+    task.folder.children.get("receipt.json").value = rejectReceipt(h, task, task.folder.children.get("request.json").value);
+  } }), original = h.source();
+  await assert.rejects(h.service.electronic(original.document, original.info, {}),
+    error => /交付管理拒收了这单/.test(error.message) && error.retryable === false);
+  assert.ok(sleeps < 10, "did not wait out the 60-second window: " + sleeps);
+  const record = h.automation.store().tasks().find(item => item.id === h.service.latest().id);
+  assert.equal(record.state, "blocked");
+});
+
+test("a failed recovery print reports the real cause instead of a completed-task refusal", async () => {
+  const h = harness({ connection: false }), { task } = await recoveredPrint(h);
+  h.options.receipt = false; h.reload();
+  await assert.rejects(h.service.printRecovered(task.id), error => /超时/.test(error.message) && !/cannot restart/.test(error.message));
+  assert.equal(h.automation.store().tasks().find(item => item.id === task.id).state, "completed");
+  assert.equal(h.prints.length, 0);
+  const notice = await h.service.recoveredNotice();
+  assert.equal(notice.canPrint, false); assert.match(notice.text, /^没打印：/);
+});

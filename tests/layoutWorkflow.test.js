@@ -192,7 +192,7 @@ test('a confirmed code reaches the strip and prints once even if later completio
 
 test('multi-template delivery fails before creating a task; ordinary layout never invokes delivery',async()=>{
   let begins=0;const loaded=loadWorkflow({delivery:{begin:async()=>{begins++;throw Error('must not run');}}});
-  await assert.rejects(loaded.workflow.run({templateNames:['模板一','模板二'],delivery:true}),/一次选一张/);
+  await assert.rejects(loaded.workflow.run({templateNames:['模板一','模板二'],delivery:true}),error=>/一次只能排一个尺寸/.test(error.message)&&error.causeCode==='PICKUP_ONE_SIZE');
   assert.equal(begins,0);
   const result=await loaded.workflow.run({templateNames:['模板一'],sourceDocument:{id:101},docInfo:{id:101,sourceMetadata:{}},delivery:false,skipExport:true,skipPrint:true});
   assert.equal(result.ok,true);assert.equal(begins,0);

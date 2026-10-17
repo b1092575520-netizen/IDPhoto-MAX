@@ -147,7 +147,7 @@
       mode: task.mode, title: String(task.docInfo.name || "电子成片").slice(0, 120), eligible: true, testOnly: true,
       contextFingerprint: task.contextFingerprint, files: [descriptor] };
     if (target) {
-      if (target.status !== "ready") { var waiting = new Error("原交付仍在准备，原任务完成后自动继续"); waiting.retryable = true; throw waiting; }
+      if (target.status !== "ready") { var waiting = new Error("原交付仍在准备，原任务完成后自动继续"); waiting.retryable = true; waiting.code = "AUTO_TARGET_PREPARING"; throw waiting; }
       request.targetDeliveryId = target.deliveryId; request.targetContextKey = target.contextKey; request.targetGroupVersion = target.groupVersion;
       request.newMember = !original;
       if (original) {
@@ -196,7 +196,9 @@
   function failure(task, error) {
     if (!task || !task.automation) return;
     var current = store().tasks().find(function (item) { return item.id === task.id; });
-    if (current && current.state === "stopped") return;
+    // A completed task (e.g. a failed recovery print) keeps its state; the caller
+    // reports the real error instead of a store "cannot restart" refusal.
+    if (current && (current.state === "stopped" || current.state === "completed")) return;
     if (error.code === "AUTO_STOPPED" || error.causeCode === "AUTO_STOPPED") { store().markTask(task.id, { state: "stopped", error: error.message }); return; }
     var hard = error.retryable === false || error.retryable !== true && /变化|改变|冲突|损坏|不匹配|不一致|已失效|成员归属|唯一确认|输出痕迹/.test(error.message || "");
     store().markTask(task.id, { state: hard ? "blocked" : "retryable", error: error.message || String(error) });

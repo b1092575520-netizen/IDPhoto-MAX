@@ -62,6 +62,9 @@ function loadService(options = {}) {
       const jobs = root.entries.get("print-jobs");
       const jobFile = Array.from(jobs.entries.values()).find((entry) => entry.name.endsWith(".idprint"));
       writtenJob = JSON.parse(jobFile.data);
+      if (options.launchThrow) {
+        throw new Error(options.launchThrow);
+      }
       if (options.launchError) {
         return options.launchError;
       }
@@ -290,4 +293,42 @@ test("the print service never reads or rewrites Photoshop print settings", () =>
 
   assert.doesNotMatch(source, /printSettings|printOneCopy\s*\"|PRINTER_PROFILE|captureCurrentPrinterProfile/);
   assert.doesNotMatch(source, /batchPlay/);
+});
+
+test("blocking the permission prompt prints nothing, says so in Chinese and leaves no job behind", async () => {
+  const loaded = loadService({ launchThrow: "User denied." });
+  const result = await loaded.service.printOneCopy(loaded.documentRef);
+  assert.equal(result.ok, false);
+  assert.equal(result.printed, false);
+  assert.equal(result.blocked, true);
+  assert.equal(result.reason, "permission-denied");
+  assert.match(result.message, /没有打印/);
+  assert.match(result.message, /阻止/);
+  assert.doesNotMatch(result.message, /denied|User|队列/i, "no English error text and no queue check when nothing was sent");
+  assert.equal(loaded.root.entries.get("print-jobs").entries.size, 0, "unlaunched job and image are cleaned");
+});
+
+test("blocking the prompt for an archive record fails in Chinese and removes the job", async () => {
+  const loaded = loadService({ launchThrow: "User denied." });
+  await assert.rejects(loaded.service.hideArchiveIndex({ name: ".idphoto-jpg-index.json", nativePath: "C:\Photos\.idphoto-jpg-index.json" }),
+    error => /阻止/.test(error.message) && !/denied/i.test(error.message));
+  assert.equal(loaded.root.entries.get("print-jobs").entries.size, 0);
+});
+
+test("other launch exceptions keep the unknown-outcome evidence", async () => {
+  const loaded = loadService({ launchThrow: "shell crashed" });
+  const result = await loaded.service.printOneCopy(loaded.documentRef);
+  assert.equal(result.outcomeUnknown, true);
+  assert.equal(result.printed, null);
+});
+
+test("bridge reasons are shown in Chinese, including a missing temporary image", async () => {
+  for (const reason of ["image-not-found", "job-not-found", "something-new"]) {
+    const loaded = loadService({ bridgeResult: { schemaVersion: 1, ok: false, printed: false, reason,
+      message: "The temporary print JPG was not found; no print job was submitted" } });
+    const result = await loaded.service.printOneCopy(loaded.documentRef);
+    assert.equal(result.printed, false);
+    assert.match(result.message, /没有打印/);
+    assert.doesNotMatch(result.message, /temporary|submitted/);
+  }
 });

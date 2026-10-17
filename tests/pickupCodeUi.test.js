@@ -20,10 +20,7 @@ function element(attributes = {}) {
 
 function harness(options = {}) {
   const memory = options.memory || new Map(), runs = [], alerts = [], automaticTicks = [];
-  const buttons = Object.fromEntries(["runButton", "electronicDeliveryButton", "runVisualAcceptance", "statusText",
-    "historicalDeliveryPanel", "historicalDeliveryPhoto", "confirmHistoricalDelivery", "existingHistoricalDelivery", "cancelHistoricalDelivery",
-    "reviewPendingDelivery", "pendingDeliveryPanel", "pendingDeliveryDescription", "retryPendingDelivery",
-    "deferPendingDelivery", "closePendingDelivery", "checkDeliveryConnection", "deliveryConnectionStatus", "stopDeliveryWait", "deliveryPlanHint"]
+  const buttons = Object.fromEntries(["runButton", "runVisualAcceptance", "statusText", "stopDeliveryWait", "deliveryPlanHint"]
     .map(id => [id, element()]));
   const toggle = element({ "data-key": "pickupCodeMode" }), size = element({ "data-template": "模板一" });
   let shortcuts, electronicCalls = 0, electronicIntents = [], retryCalls = [], deferCalls = [];
@@ -52,7 +49,7 @@ function harness(options = {}) {
     } } }) },
     IDPhotoLayoutWorkflow: { create: () => ({ run: async run => {
       runs.push(run);
-      const error = Object.assign(Error("后台未确认取件码"), { code: "PICKUP_CODE_REQUIRED" });
+      const error = options.failureError || Object.assign(Error("后台未确认取件码"), { code: "PICKUP_CODE_REQUIRED" });
       if (options.throwFailure) throw error;
       const failed = options.fail;
       return { successes: failed ? [] : ["模板一"], failures: failed ? [{ templateName: "模板一", error }] : [],
@@ -106,30 +103,6 @@ function harness(options = {}) {
 }
 const flush = async () => { await new Promise(resolve => setImmediate(resolve)); };
 
-test("pending recovery binds the reviewed original task and requires a separate explicit new-customer action", async () => {
-  let release;
-  const h=harness({pending:{id:"old-task",name:"原照片",mode:"print",outputOptions:{quickPrint:true}},
-    retryWait:new Promise(resolve=>{release=resolve;})});
-  await h.buttons.reviewPendingDelivery.fire();
-  assert.match(h.buttons.pendingDeliveryDescription.textContent,/原照片/);
-  assert.match(h.buttons.pendingDeliveryDescription.textContent,/原快速打印开启/);
-  h.photo.id=99;h.photo.name="current-other.jpg";
-  const running=h.buttons.retryPendingDelivery.fire();await flush();
-  await h.buttons.retryPendingDelivery.fire();
-  assert.deepEqual(h.retryCalls,["old-task"]);
-  assert.equal(h.runs.length,0,"retry cannot route current active photo through ordinary layout");
-  release();await running;
-  assert.deepEqual(h.deferCalls,[]);
-  h.options.pending={id:"next-old",name:"待核对照片",mode:"electronic",outputOptions:{}};
-  await h.buttons.reviewPendingDelivery.fire();
-  await h.buttons.closePendingDelivery.fire();
-  assert.equal(h.options.pending.id,"next-old","closing the panel cannot discard a logical task");
-  await h.buttons.reviewPendingDelivery.fire();
-  await h.buttons.deferPendingDelivery.fire();
-  assert.deepEqual(h.deferCalls,["next-old"]);
-  assert.equal(h.runs.length,0,"new customer confirmation alone does not start a delivery");
-});
-
 for (const entry of ["button", "doubleClick", "shortcut"]) {
   test("mode stays on across new/external/historical/unknown/next new photos: " + entry, async () => {
     const h = harness();
@@ -158,37 +131,14 @@ for (const entry of ["button", "doubleClick", "shortcut"]) {
   });
 }
 
-test("an exported photo stays ordinary and an explicit delivery never silently downgrades", async () => {
+test("an exported photo stays ordinary", async () => {
   const h = harness({ electronicFailure: true });
   h.toggle.fire();
   h.photo.name = "证件照排版_旧照片.jpg";
   h.select(); await h.shortcuts.execute();
   assert.equal(h.runs.at(-1).delivery, false);
-  const running = h.buttons.electronicDeliveryButton.fire(); await flush();
-  h.buttons.confirmHistoricalDelivery.fire(); await running;
-  assert.equal(h.electronicCalls, 1);
-  assert.equal(h.electronicIntents[0].type, "historical-shop");
-  assert.equal(h.alerts.length, 1);
-});
-
-test("historical confirmation is explicit, cancellable and limited to this photo", async () => {
-  const h = harness();
-  h.toggle.fire();
-  h.photo.sourceMetadata.captureDate = "2000-01-02";
-  let running = h.buttons.electronicDeliveryButton.fire(); await flush();
-  assert.equal(h.electronicCalls, 0, "no delivery before explicit confirmation");
-  h.buttons.cancelHistoricalDelivery.fire(); await running;
-  assert.equal(h.electronicCalls, 0);
-  running = h.buttons.electronicDeliveryButton.fire(); await flush();
-  h.buttons.confirmHistoricalDelivery.fire(); await running;
-  assert.equal(h.electronicCalls, 1);
-  assert.equal(h.electronicIntents[0].type, "historical-shop");
-  assert.equal(h.electronicIntents[0].sourceDocumentId, "10");
-  h.photo.name = "next-historical.jpg";
-  h.select(); await h.shortcuts.execute();
-  assert.equal(h.runs.at(-1).delivery, false);
   assert.equal(h.runs.at(-1).deliveryIntent, null);
-  assert.equal(h.toggle.label.textContent, "开");
+  assert.equal(h.alerts.length, 0);
 });
 
 test("ordinary button, double click and shortcut honor the persisted pickup switch; visual acceptance bypasses it", async () => {
@@ -213,15 +163,6 @@ test("ordinary button, double click and shortcut honor the persisted pickup swit
   reloaded.toggle.fire();
   reloaded.select(); await reloaded.shortcuts.execute();
   assert.equal(reloaded.runs.at(-1).delivery, false);
-});
-
-test("electronic delivery still requires a confirmed pickup code with the switch off", async () => {
-  const h = harness({ electronicFailure: true });
-  await h.buttons.electronicDeliveryButton.fire();
-  assert.equal(h.electronicCalls, 1);
-  assert.equal(h.alerts.length, 1);
-  assert.match(h.alerts[0], /没有出成品，也没有打印/);
-  assert.doesNotMatch(h.buttons.statusText.textContent, /电子成片已交接/);
 });
 
 for (const throwFailure of [false, true]) {
@@ -303,3 +244,30 @@ for (const [reason, text] of Object.entries({
     assert.equal(h.buttons.deliveryPlanHint.style.display, "none", "mode off still hides the card");
   });
 }
+
+test("pickup alerts say what actually happened: one size at a time, auto-continue, or no code", async () => {
+  const cases = [
+    [{ causeCode: "PICKUP_ONE_SIZE" }, /一次只能排一个尺寸/, /可领取/],
+    [{ causeCode: "AUTO_TARGET_PREPARING" }, /稍后自动补上/, /不用重新排/],
+    [{ causeCode: "AUTO_TASK_PENDING" }, /稍后自动补上/, /不用重新排/],
+    [{}, /取件码没拿到/, /自动再试/]
+  ];
+  for (const [extra, title, body] of cases) {
+    const failureError = Object.assign(Error("后台未确认取件码"), { code: "PICKUP_CODE_REQUIRED" }, extra);
+    const h = harness({ fail: true, failureError });
+    h.toggle.fire(); h.select(); await h.shortcuts.execute();
+    assert.equal(h.alerts.length, 1);
+    assert.match(h.alerts[0], title);
+    assert.match(h.alerts[0], body);
+    assert.doesNotMatch(h.alerts[0], /未完成交付|继续原任务|多规格草稿/, "never points at removed panel entries");
+  }
+});
+
+test("the panel no longer offers electronic, current-customer or pending-delivery entries", () => {
+  const html = fs.readFileSync(path.join(__dirname, "../index.html"), "utf8");
+  for (const id of ["electronicDeliveryButton", "reviewCurrentCustomer", "reviewPendingDelivery", "historicalDeliveryPanel",
+    "currentCustomerPanel", "pendingDeliveryPanel"]) assert.equal(html.includes('id="' + id + '"'), false, id);
+  const main = fs.readFileSync(path.join(__dirname, "../src/main.js"), "utf8");
+  for (const id of ["electronicDeliveryButton", "reviewCurrentCustomer", "reviewPendingDelivery", "confirmDeliverySource"])
+    assert.equal(main.includes(id), false, id);
+});

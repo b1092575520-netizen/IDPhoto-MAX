@@ -9,6 +9,8 @@
   // filesystem event (10s rescan) and one 45s HTTP request, with bounded margin.
   // This is an attempt budget, not a promise that the cloud will respond.
   var CODE_WAIT_MS = 60000;
+  // Archive and customer photos (user 2026-10-17): 10 looks the same and is about half the size.
+  var SAVE_JPEG_QUALITY = 10;
   var latestTask = null;
   var creatingTask = false, retryingTask = false, activeWait = null;
   var preparingTask = null;
@@ -254,7 +256,7 @@
     var width = pixels(documentRef.width), height = pixels(documentRef.height);
     await window.IDPhotoPhotoshopExecution.executeAsModal(async function () {
       await window.IDPhotoPhotoshopExecution.activateDocument(documentRef);
-      await documentRef.saveAs.jpg(file, { quality: 12 }, true);
+      await documentRef.saveAs.jpg(file, { quality: SAVE_JPEG_QUALITY }, true);
     }, "保存独立" + role + "副本");
     var bytes = await file.read({ format: format(true) });
     return { path: name, role: role, sha256: protocol().sha256(bytes), sizeBytes: bytes.byteLength, width: width, height: height };
@@ -317,12 +319,27 @@
     }
     } finally { if (preparingTask === task) preparingTask = null; }
   }
+  // The delivery manager rejects a manifest once and for all in receipt.json; asking
+  // again with the same manifest can never succeed, so stop instead of waiting.
+  async function readRejection(task) {
+    try {
+      var receipt = JSON.parse(await (await task.folder.getEntry("receipt.json")).read({ format: format(false) }));
+      if (receipt && receipt.taskId === task.id && task.fingerprint && receipt.manifestFingerprint === task.fingerprint &&
+          receipt.accepted === false && receipt.status === "rejected")
+        return String(receipt.error || "原因不明").slice(0, 300);
+    } catch (missing) { /* no receipt yet */ }
+    return "";
+  }
   async function readCode(task) {
     var receipt;
     try {
       receipt = JSON.parse(await (await task.folder.getEntry("code-response.json")).read({ format: format(false) }));
     }
-    catch (e) { return ""; }
+    catch (e) {
+      var rejectedEarly = await readRejection(task);
+      if (rejectedEarly) { task.confirmationFailure = "交付管理拒收了这单：" + rejectedEarly; task.confirmationRejected = true; }
+      return "";
+    }
     var code = protocol().confirmedCode(receipt, task);
     if (code) {
       task.contextKey = receipt.contextKey; task.deliveryId = receipt.deliveryId; task.code = code;
@@ -351,12 +368,16 @@
         task.confirmationFailure = messages[receipt.errorCode] || "本次云端核对未通过，请查看后台任务原因";
       }
     }
+    if (!task.confirmationFailure) {
+      var rejected = await readRejection(task);
+      if (rejected) { task.confirmationFailure = "交付管理拒收了这单：" + rejected; task.confirmationRejected = true; }
+    }
     return "";
   }
   async function confirmCode(task) {
     if (activeWait) throw new Error("已有取码请求正在等待，请勿重复重试");
     notify("正在等待后台核对云端并获取取件码，最多 60 秒；可停止等待并保留原任务");
-    task.code = ""; task.confirmationId = protocol().id(); task.confirmationFailure = "";
+    task.code = ""; task.confirmationId = protocol().id(); task.confirmationFailure = ""; task.confirmationRejected = false;
     var attempt = { cancelled: false, requestId: task.confirmationId, taskId: task.id, automation: Boolean(task.automation) };
     activeWait = attempt;
     waitingChanged(true);
@@ -370,11 +391,15 @@
       if (attempt.cancelled) throw protocol().pickupCodeError("已停止本机等待；原任务保留，不代表云端取消");
       if (Date.now() >= deadline) { code = ""; break; }
       if (code) break;
-      if (task.confirmationFailure) throw protocol().pickupCodeError(task.confirmationFailure + "，取件码待核对");
+      if (task.confirmationFailure) {
+        var confirmationError = protocol().pickupCodeError(task.confirmationFailure + "，取件码待核对");
+        if (task.confirmationRejected) confirmationError.retryable = false;
+        throw confirmationError;
+      }
       await new Promise(function (resolve) { setTimeout(resolve, 200); });
     }
     if (attempt.cancelled) throw protocol().pickupCodeError("已停止本机等待；原任务保留，不代表云端取消");
-    if (!code) throw protocol().pickupCodeError("本次取码等待超时，尚未取得有效确认；独立副本与原任务保留，请使用“继续原任务”受控重试，取件码待核对");
+    if (!code) throw protocol().pickupCodeError("取码超时：交付管理 60 秒内没给取件码");
     if (code) await writeAtomic(task.folder, "code-binding.json", JSON.stringify({ version: 2, taskId: task.id,
       manifestFingerprint: task.fingerprint, contextKey: task.contextKey, deliveryId: task.deliveryId }));
     if (code) notify("云端已核对，本次已取得有效取件码");
@@ -704,6 +729,12 @@
       }
       if (await optionalEntry(folder, "output-started.json")) throw new Error("原任务已有输出痕迹，请人工核对，避免重复打印");
       await originalPhoto(task);
+      var rejected = await readRejection(task);
+      if (rejected) {
+        // Rejected for good: park it instead of asking again every few minutes.
+        automation.store().markTask(task.id, { state: "blocked", error: "交付管理拒收了这单：" + rejected });
+        return null;
+      }
       var codeRequest = await optionalEntry(folder, "code-request.json"), existing;
       if (codeRequest) existing = JSON.parse(await codeRequest.read({ format: format(false) }));
       var automaticWaitFile = await optionalEntry(folder, "automatic-code-wait.json"), automaticWait;
@@ -753,7 +784,7 @@
       if (sourceDocument) await window.IDPhotoPhotoshopExecution.activateDocument(sourceDocument);
     }
   }
-  function recoveryPrintText(error) { return ("恢复打印需人工核对：" + errorText(error)).slice(0, 900); }
+  function recoveryPrintText(error) { return ("没打印：" + errorText(error)).slice(0, 900); }
   function recordPrintNoticeIssue(record, error) {
     var text = recoveryPrintText(error), diagnostic = "printNoticeBlocked: " + text;
     if (record.error !== diagnostic) window.IDPhotoDeliveryAutomationService.store().markTask(record.id, { error: diagnostic });
