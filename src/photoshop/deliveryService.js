@@ -835,6 +835,14 @@
     await writeAtomic(task.folder, "early-print.json", JSON.stringify({ version: 1, taskId: task.id, code: code,
       at: new Date().toISOString() }), false);
   }
+  // A failed or unconfirmed reprint is news right after it happens; an old one
+  // (e.g. from yesterday, or before an update) must not greet every startup.
+  var PRINT_NOTICE_MS = 30 * 60 * 1000;
+  function stalePrintNotice(value) {
+    var started = Date.parse(value.printStarted || "");
+    return Boolean(value.printStarted) && value.printState !== "submitted" &&
+      (!Number.isFinite(started) || Date.now() - started > PRINT_NOTICE_MS);
+  }
   function recoveryPrintText(error) { return ("没打印：" + errorText(error)).slice(0, 900); }
   function recordPrintNoticeIssue(record, error) {
     var text = recoveryPrintText(error), diagnostic = "printNoticeBlocked: " + text;
@@ -849,6 +857,7 @@
         var folder = await fs().getEntryForPersistentToken(record.token), file = await optionalEntry(folder, "automatic-recovery.json");
         if (!file) continue;
         var value = JSON.parse(await file.read({ format: format(false) }));
+        if (stalePrintNotice(value)) continue;
         var task = await restoreTask(folder);
         if (value.version !== 1 || value.taskId !== record.id || value.manifestFingerprint !== task.fingerprint || !protocol().isPickupCode(value.code))
           throw new Error("恢复打印记录身份不匹配");

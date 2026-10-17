@@ -127,6 +127,7 @@ function harness(options = {}) {
   reload();
   async function json(folder, name) { return JSON.parse(await (await folder.getEntry(name)).read()); }
   return { options, memory, files, tokens, renders, prints, opened, saves, exports, closed, source, reload, json, window,
+    advance: amount => { clock += amount; },
     get service() { return window.IDPhotoDeliveryService; }, get automation() { return window.IDPhotoDeliveryAutomationService; },
     printOptions: { templateNames: [template.name], exportJpg: true, nasArchive: true, quickPrint: true,
       skipPrint: false, closeAfterPrint: false, rowGap: 10, colGap: 10, delivery: true },
@@ -314,6 +315,17 @@ test("a workflow printer failure rejects success and persists an unconfirmed sta
   assert.equal(diagnostic.canPrint, false); assert.match(diagnostic.text, /DS-RX1 unavailable/);
   await assert.rejects(h.service.printRecovered(task.id), /避免重复|已开始/);
   assert.equal(await h.service.primeRecovery(), null); assert.equal(attempts, 1);
+});
+
+test("a reprint failure is reported after it happens, but an old one no longer greets every startup", async () => {
+  const h = harness({ connection: false }), { task } = await recoveredPrint(h);
+  h.window.IDPhotoPrintService.printOneCopy = async () => ({ ok: false, printed: false, message: "DS-RX1 unavailable" });
+  await assert.rejects(h.service.printRecovered(task.id), /DS-RX1 unavailable/);
+  h.advance(29 * 60 * 1000); h.reload();
+  assert.match((await h.service.recoveredNotice()).text, /DS-RX1 unavailable/);
+  h.advance(2 * 60 * 1000); h.reload();
+  assert.equal(await h.service.recoveredNotice(), null);
+  await assert.rejects(h.service.printRecovered(task.id), /避免重复|已开始/, "an old failed reprint still cannot print twice");
 });
 
 test("a skipped printer result is not reported as a submitted print", async () => {

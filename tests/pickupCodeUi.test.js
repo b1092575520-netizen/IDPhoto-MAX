@@ -85,7 +85,7 @@ function harness(options = {}) {
   }
   if (options.automatic) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/ui/deliveryStatusView.js"), "utf8"), context);
-    window.IDPhotoVariantService = { analyzeDocument: async () => ({ backgroundColor: "white" }) };
+    window.IDPhotoVariantService = { analyzeDocument: async () => ({ backgroundColor: options.backgroundColor || "white" }) };
     window.IDPhotoDeliveryAutomationService = {
       store: () => ({ group: () => ({ on: false }), mergeIntent: () => null }),
       plan: () => ({ kind: "new" })
@@ -244,6 +244,19 @@ for (const [reason, text] of Object.entries({
     assert.equal(h.buttons.deliveryPlanHint.style.display, "none", "mode off still hides the card");
   });
 }
+
+test("a photo whose background colour is not recognised is laid out and printed without a code", async () => {
+  const h = harness({ realIdentity: true, automatic: true, backgroundColor: "unknown" });
+  h.photo.sourceMetadata = { serialNumber: "SHOP", captureDate: h.date + "T12:34:56", captureSubsecond: "53" };
+  h.toggle.fire(); h.select(); await h.tick();
+  assert.equal(h.buttons.deliveryPlanHint.textContent, "只排版 · 认不出底色（只认白、蓝、红底），不出码");
+  await h.shortcuts.execute();
+  assert.equal(h.runs.length, 1);
+  assert.equal(h.runs.at(-1).delivery, false);
+  assert.equal(h.alerts.length, 0);
+  assert.equal(h.buttons.deliveryPlanHint.textContent, "只排版 · 认不出底色（只认白、蓝、红底），不出码");
+  assert.match(h.buttons.statusText.textContent, /认不出底色/);
+});
 
 test("pickup alerts say what actually happened: auto-continue, no code, or which sizes already came out", async () => {
   const cases = [

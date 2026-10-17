@@ -946,12 +946,22 @@
     }
 
     try {
+      if (delivery && window.IDPhotoVariantService && window.IDPhotoDeliveryAutomationService) {
+        docInfo.sourceVariant = await window.IDPhotoVariantService.analyzeDocument(sourceDocument);
+        // The delivery specification needs the background colour; without it the
+        // sheet is laid out and printed as usual, only without a code (10-17).
+        if (unknownBackground(docInfo)) {
+          delivery = false;
+          plainSourceMessage = UNKNOWN_BACKGROUND_MESSAGE;
+          setStatus(plainSourceMessage);
+        }
+      }
       if (deliveryStatusView && window.IDPhotoDeliveryAutomationService) {
         if (delivery) {
-          docInfo.sourceVariant = await window.IDPhotoVariantService.analyzeDocument(sourceDocument);
           if (templateNames.length === 1) showDeliveryPlan(docInfo, getEffectiveTemplateByName(templateNames[0]));
           else deliveryStatusView.showPlan(MULTI_SIZE_PLAN);
-        } else deliveryStatusView.showPlan(state.pickupCodeMode ? plainDeliveryPlan(sourceDecision) : null);
+        } else deliveryStatusView.showPlan(state.pickupCodeMode ?
+          (plainSourceMessage === UNKNOWN_BACKGROUND_MESSAGE ? UNKNOWN_BACKGROUND_PLAN : plainDeliveryPlan(sourceDecision)) : null);
       }
       runResult = await getLayoutWorkflow().run({
         templateNames: templateNames,
@@ -1340,6 +1350,13 @@
   }
 
   var MULTI_SIZE_PLAN = { kind: "plain", text: "多个尺寸 · 共用一个取件码，各打一张" };
+  var UNKNOWN_BACKGROUND_PLAN = { kind: "plain", text: "只排版 · 认不出底色（只认白、蓝、红底），不出码" };
+  var UNKNOWN_BACKGROUND_MESSAGE = "认不出底色（只认白、蓝、红底），本次只排版、不出取件码";
+
+  function unknownBackground(info) {
+    var color = info && info.sourceVariant && info.sourceVariant.backgroundColor;
+    return !color || color === "unknown";
+  }
 
   function plainDeliveryPlan(sourceDecision) {
     if (!sourceDecision) return { kind: "plain" };
@@ -1367,14 +1384,14 @@
       if (generation === planGeneration) deliveryStatusView.showPlan(plainDeliveryPlan(eligible));
       return;
     }
-    if (selected.length > 1) {
-      if (generation === planGeneration) deliveryStatusView.showPlan(MULTI_SIZE_PLAN);
-      return;
-    }
     info.sourceVariant = await window.IDPhotoVariantService.analyzeDocument(doc);
     var currentDocument = getCurrentDocumentObject();
-    if (generation !== planGeneration || !state.pickupCodeMode || getSelectedTemplateNames()[0] !== selected[0] || !currentDocument || currentDocument.id !== info.id) return;
-    showDeliveryPlan(info, getEffectiveTemplateByName(selected[0]));
+    var current = getSelectedTemplateNames();
+    if (generation !== planGeneration || !state.pickupCodeMode || current.length !== selected.length || current[0] !== selected[0] ||
+      !currentDocument || currentDocument.id !== info.id) return;
+    if (unknownBackground(info)) deliveryStatusView.showPlan(UNKNOWN_BACKGROUND_PLAN);
+    else if (selected.length > 1) deliveryStatusView.showPlan(MULTI_SIZE_PLAN);
+    else showDeliveryPlan(info, getEffectiveTemplateByName(selected[0]));
   }
 
   function initAutomaticDelivery() {
