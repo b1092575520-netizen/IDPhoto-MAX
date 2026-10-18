@@ -204,11 +204,15 @@
     }
   }
 
+  // Every step carries the milliseconds since the run started, so the UXP log shows where time goes.
+  var runStartedAt = 0;
   function logStep(name, message, payload) {
+    if (name === "execute" && message === "start") runStartedAt = Date.now();
+    var elapsed = runStartedAt ? " +" + (Date.now() - runStartedAt) + "ms" : "";
     if (payload !== undefined) {
-      console.log("[" + name + "] " + message, payload);
+      console.log("[" + name + "] " + message + elapsed, payload);
     } else {
-      console.log("[" + name + "] " + message);
+      console.log("[" + name + "] " + message + elapsed);
     }
   }
 

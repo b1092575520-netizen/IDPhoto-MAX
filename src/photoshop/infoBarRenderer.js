@@ -1220,19 +1220,28 @@
       await activateDocument(targetDocument);
       await createInfoBarBackground(Object.assign({}, bar, bar.band || {}), options);
       for (var region of reading.regions) {
-        var layer;
-        if (region.key === "portrait") {
-          layer = await duplicateSourceLayerToTarget(options.sourceDocument, targetDocument, source);
-        } else {
-          if (!options.entryCodeDocument) throw new Error("小程序码图片没有打开，不能印扫码说明");
-          layer = await duplicateSourceLayerToTarget(options.entryCodeDocument, targetDocument, getSourceLayer(options.entryCodeDocument));
-        }
-        await activateDocument(targetDocument);
-        layer.name = isDebugRender(options) ? "DEBUG_infoBar_" + region.key :
+        var layer, bounds, rectangle = planner.placed(bar, reading, region);
+        var name = isDebugRender(options) ? "DEBUG_infoBar_" + region.key :
           region.key === "portrait" ? "信息条小头像" : "完整小程序码";
-        await moveLayerToFront(layer, targetDocument);
-        var rectangle = planner.placed(bar, reading, region);
-        var bounds = await placePickupLayer(layer, rectangle, reading, layer.name, "start", true);
+        if (region.key === "entryCode") {
+          // Drawn in place at its final size: nothing to scale, turn or move.
+          if (!options.entryCode) throw new Error("小程序码没有准备好，不能印扫码说明");
+          layer = await window.IDPhotoEntryCodeService.draw(targetDocument, options.entryCode, rectangle,
+            { variant: region.variant, turn: reading.turn, name: name });
+          await moveLayerToFront(layer, targetDocument);
+          bounds = getLayerBounds(layer);
+          if (bounds.left !== rectangle.x || bounds.top !== rectangle.y ||
+              bounds.right !== rectangle.x + rectangle.width || bounds.bottom !== rectangle.y + rectangle.height)
+            throw new Error("小程序码位置不对，已停止输出");
+        } else {
+          layer = await duplicateSourceLayerToTarget(options.sourceDocument, targetDocument, source);
+          await activateDocument(targetDocument);
+          layer.name = name;
+          layer.visible = false;  // stays hidden until it sits in its slot, so the photo never flashes
+          await moveLayerToFront(layer, targetDocument);
+          bounds = await placePickupLayer(layer, rectangle, reading, name, "start", true);
+          layer.visible = true;
+        }
         evidence.push({ key: region.key, bounds: formatBounds(bounds), slot: rectangle });
       }
       var ids = getLayerService().getDocumentLayerIds(targetDocument);
@@ -1306,17 +1315,13 @@
     if (options && options.pickupCodeMode && infoBar.pickupLayout === "v5") {
       // Every pickup card carries the bundled code. If the image cannot be opened the card
       // is still printed, with the scan step replaced, so no order stops on it.
-      var codeDoc = null;
+      var entryCode = null;
       if (window.IDPhotoEntryCodeService) {
-        try { codeDoc = await window.IDPhotoEntryCodeService.open(infoBar.codeVariant || "logo"); }
+        try { entryCode = await window.IDPhotoEntryCodeService.prepare(); }
         catch (error) { window.IDPhotoPhotoshopExecution.throwIfCancelled(error); console.warn("[infoBarRenderer] entry code unavailable", error); }
       }
-      try {
-        return await renderPickupStrip(targetDocument, infoBar, settings || {},
-          Object.assign({}, options, { entryCodeAvailable: Boolean(codeDoc), entryCodeDocument: codeDoc }));
-      } finally {
-        if (codeDoc) await window.IDPhotoEntryCodeService.close(codeDoc);
-      }
+      return await renderPickupStrip(targetDocument, infoBar, settings || {},
+        Object.assign({}, options, { entryCodeAvailable: Boolean(entryCode), entryCode: entryCode }));
     }
     if (infoBar.ordinaryLayout === "classic" && !(options && options.pickupCodeMode)) {
       return await renderClassicStrip(targetDocument, infoBar, settings || {}, options || {});

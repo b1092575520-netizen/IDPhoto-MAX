@@ -125,6 +125,11 @@
                   <input id="shopTip" type="text" value="[请妥善保管此单据]" placeholder="请输入温馨提示语" />
                 </label>
                 <button class="panel-btn purple-btn wide-btn" id="saveSettings" type="button" data-icon="save"><span class="btn-label">保存店铺信息</span></button>
+                <div class="settings-note" id="entryCodeStatus">小程序码：本店默认（随插件自带）</div>
+                <div class="settings-actions">
+                  <button class="panel-btn" id="chooseEntryCode" type="button">更换小程序码</button>
+                  <button class="panel-btn" id="resetEntryCode" type="button" style="display: none">恢复默认</button>
+                </div>
               </div>
             </div>
           </section>
@@ -230,6 +235,9 @@
     <script src="src/photoshop/cropService.js"></script>
     <script src="src/photoshop/canvasService.js"></script>
     <script src="src/photoshop/layerService.js"></script>
+    <script src="src/vendor/qrcode-generator.js"></script>
+    <script src="src/vendor/jsQR.js"></script>
+    <script src="src/core/entryCodeMatrix.js"></script>
     <script src="src/photoshop/entryCodeService.js"></script>
     <script src="src/photoshop/infoBarRenderer.js"></script>
     <script src="src/photoshop/archiveNamingService.js"></script>

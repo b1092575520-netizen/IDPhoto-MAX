@@ -1,41 +1,84 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
-// The entry code ships with the plugin: the real bundled bytes are checked, and only the opened copy is closed.
-function harness({width,height,flattenFail=false,tamper=false}={}) {
-  const original={id:1},closed=[],events=[],opened=[];
-  const assets=path.join(__dirname,'..','src','assets');
-  const entry=name=>({name,read:async()=>{const b=fs.readFileSync(path.join(assets,name));if(tamper)b[b.length-1]^=1;return b.buffer.slice(b.byteOffset,b.byteOffset+b.length);}});
+// The entry code is drawn from its link; Settings can swap the link by reading a square code image once.
+const root=path.join(__dirname,'..');
+function harness({logoBytes,picture,cancel=false,putPixels=true}={}) {
+  const store=new Map(),original={id:1,name:'客人照片'},closed=[],puts=[],disposed=[];
+  const logo=logoBytes||fs.readFileSync(path.join(root,'src','assets','entry-logo.rgb'));
   const dir=children=>({getEntry:async name=>{if(!children[name])throw Error('missing '+name);return children[name];}});
-  const plugin=dir({src:dir({assets:dir({'entry-code.png':entry('entry-code.png'),'entry-code-coarse.png':entry('entry-code-coarse.png')})})});
+  const plugin=dir({src:dir({assets:dir({'entry-logo.rgb':{read:async()=>logo.buffer.slice(logo.byteOffset,logo.byteOffset+logo.length)}})})});
   let sequence=1;
-  const app={documents:[original],async open(file){opened.push(file.name);const size=file.name.includes('coarse')?990:1290;
-    const doc={id:++sequence,width:width||size,height:height||size};app.documents.push(doc);return doc;}};
-  const window={IDPhotoPhotoshopExecution:{executeAsModal:async callback=>callback(),getPhotoshop:()=>({app}),
-      activateDocument:async doc=>{assert.notEqual(doc.id,original.id);},batchPlay:async commands=>{events.push(commands[0]._obj);if(flattenFail)throw Error('flatten failed');}},
+  const app={documents:[original],async open(){const doc={id:++sequence,width:picture.width,height:picture.height};app.documents.push(doc);return doc;}};
+  const imaging={
+    async createImageDataFromBuffer(buffer,options){return {buffer,options,dispose(){disposed.push(options.width);}};},
+    async getPixels(){return {imageData:{width:picture.width,height:picture.height,components:3,getData:async()=>picture.rgb,dispose(){disposed.push('read');}}};}
+  };
+  if(putPixels) imaging.putPixels=async args=>{puts.push(args);};
+  const window={localStorage:{getItem:k=>store.has(k)?store.get(k):null,setItem:(k,v)=>store.set(k,String(v)),removeItem:k=>store.delete(k)},
+    IDPhotoPhotoshopExecution:{executeAsModal:async cb=>cb(),getPhotoshop:()=>({app})},
     IDPhotoDocumentService:{closeWithoutSaving:async doc=>{assert.notEqual(doc.id,original.id);closed.push(doc.id);app.documents=app.documents.filter(d=>d!==doc);}}};
-  const context=vm.createContext({window,console:{warn(){}},Uint8Array,require:()=>({storage:{formats:{binary:'binary'},localFileSystem:{getPluginFolder:async()=>plugin}}})});
-  for(const p of ['core/deliveryProtocol','photoshop/entryCodeService'])vm.runInContext(fs.readFileSync(__dirname+'/../src/'+p+'.js','utf8'),context);
-  return {service:window.IDPhotoEntryCodeService,original,closed,events,opened,app};
+  const context=vm.createContext({window,console:{warn(){},log(){}},Uint8Array,Uint8ClampedArray,
+    require:name=>name==='photoshop'?{imaging}:{storage:{formats:{binary:'binary'},localFileSystem:{getPluginFolder:async()=>plugin,getFileForOpening:async()=>cancel?null:{name:'新码.png'}}}}});
+  for(const f of ['src/core/deliveryProtocol.js','src/vendor/qrcode-generator.js','src/vendor/jsQR.js','src/core/entryCodeMatrix.js','src/photoshop/entryCodeService.js'])
+    vm.runInContext(fs.readFileSync(path.join(root,f),'utf8'),context,{filename:f});
+  return {service:window.IDPhotoEntryCodeService,code:window.IDPhotoEntryCode,decode:window.IDPhotoQrDecode,store,app,original,closed,puts,disposed};
 }
-test('both bundled code images open as their own flattened copy and close without touching the original',async()=>{
-  for(const [variant,file,size] of [['logo','entry-code.png',1290],['coarse','entry-code-coarse.png',990]]) {
-    const h=harness();
-    const doc=await h.service.open(variant);
-    assert.deepEqual(h.opened,[file]);assert.equal(doc.width,size);assert.deepEqual(h.events,['flattenImage']);
-    await h.service.close(doc);
-    assert.deepEqual(h.app.documents,[h.original]);
+function picture(code,text,variant='coarse',size=330){
+  const r=code.render({text,variant,size});return {width:size,height:size,rgb:r.pixels};
+}
+function rgba(rgb,size){const out=new Uint8ClampedArray(size*size*4);for(let i=0;i<size*size;i++){out[i*4]=rgb[i*3];out[i*4+1]=rgb[i*3+1];out[i*4+2]=rgb[i*3+2];out[i*4+3]=255;}return out;}
+
+test('both drawings of the store link read back as the link at every card size and turn',()=>{
+  const h=harness(),logo={data:fs.readFileSync(path.join(root,'src','assets','entry-logo.rgb')),width:240};
+  assert.equal(h.code.matrix(h.code.DEFAULT_TEXT,'Q').count,37);
+  assert.equal(h.code.matrix(h.code.DEFAULT_TEXT,'L').count,29);
+  for(const [variant,size,turn] of [['logo',480,''],['logo',480,'ccw'],['logo',355,''],['logo',292,'ccw'],['coarse',214,''],['coarse',180,'ccw']]) {
+    const r=h.code.render({variant,size,turn,logo});
+    assert.equal(r.pixels.length,size*size*3);
+    assert.equal(h.decode(rgba(r.pixels,size),size,size).data,h.code.DEFAULT_TEXT,variant+' '+size+' '+turn);
   }
-  const h=harness();await h.service.open();assert.deepEqual(h.opened,['entry-code.png']);
-  await assert.rejects(h.service.open('sun'),/未知/);
+  assert.throws(()=>h.code.render({variant:'sun',size:200}),/未知/);
 });
-test('damaged bytes or a wrong size never print, and the opened copy is closed',async()=>{
-  const damaged=harness({tamper:true});
-  await assert.rejects(damaged.service.open('logo'),/损坏/);assert.deepEqual(damaged.opened,[]);
-  const wrong=harness({width:1290,height:1200});
-  await assert.rejects(wrong.service.open('logo'),/尺寸/);
-  assert.deepEqual(wrong.app.documents,[wrong.original]);assert.equal(wrong.closed.length,1);
+test('the default code is drawn in place with the store logo; the pixels are released',async()=>{
+  const h=harness(),prepared=await h.service.prepare();
+  assert.equal(prepared.custom,false);assert.equal(prepared.logo.width,240);
+  const layers=[],doc={id:7,createLayer:async(kind,o)=>{const l={id:9,kind,name:o.name};layers.push(l);return l;}};
+  const layer=await h.service.draw(doc,prepared,{x:3000,y:100,width:214,height:214},{variant:'coarse',turn:'ccw',name:'完整小程序码'});
+  assert.equal(layer.name,'完整小程序码');assert.equal(layers[0].kind,'pixel');
+  assert.deepEqual(JSON.parse(JSON.stringify(h.puts[0].targetBounds)),{left:3000,top:100});
+  assert.equal(h.puts[0].documentID,7);assert.equal(h.puts[0].layerID,9);
+  assert.equal(h.puts[0].imageData.buffer.length,214*214*3);
+  assert.deepEqual(h.disposed,[214]);
 });
-test('flatten failure closes the newly opened asset and preserves the original document',async()=>{
-  const h=harness({flattenFail:true});
-  await assert.rejects(h.service.open('coarse'),/flatten failed/);
-  assert.deepEqual(h.app.documents,[h.original]);
+test('a damaged logo still prints the code without it; a Photoshop without pixel drawing prints no code',async()=>{
+  const broken=harness({logoBytes:Buffer.alloc(240*240*3)});
+  const prepared=await broken.service.prepare();
+  assert.equal(prepared.logo,null);
+  await assert.rejects(harness({putPixels:false}).service.prepare(),/不能直接画/);
+});
+test('Settings replaces the code from a square image, closes only that picture, and can go back',async()=>{
+  const base=harness(),text='https://mp.weixin.qq.com/a/~NEWcode123~~';
+  const h=harness({picture:picture(base.code,text)});
+  assert.match(h.service.label(),/本店默认/);
+  const result=await h.service.replaceFromImage();
+  assert.equal(result.text,text);
+  assert.deepEqual(h.app.documents,[h.original]);assert.equal(h.closed.length,1);assert.ok(h.disposed.includes('read'));
+  assert.equal(h.service.current().custom,true);assert.match(h.service.label(),/已更换/);
+  const prepared=await h.service.prepare();
+  assert.equal(prepared.text,text);assert.equal(prepared.logo,null,'a replaced code carries no store logo');
+  h.service.reset();
+  assert.equal(h.service.current().text,h.code.DEFAULT_TEXT);
+  const again=harness({picture:picture(base.code,base.code.DEFAULT_TEXT,'logo',430)});
+  await again.service.replaceFromImage();
+  assert.equal(again.store.size,0,'choosing the store code again simply keeps the default');
+});
+test('a cancelled picker, a blank picture or a non-link code keeps the current code',async()=>{
+  const base=harness();
+  const cancelled=harness({cancel:true});
+  assert.equal((await cancelled.service.replaceFromImage()).cancelled,true);
+  const blank=harness({picture:{width:200,height:200,rgb:new Uint8Array(200*200*3).fill(255)}});
+  await assert.rejects(blank.service.replaceFromImage(),/没认出二维码/);
+  assert.equal(blank.store.size,0);assert.deepEqual(blank.app.documents,[blank.original]);
+  const plain=harness({picture:picture(base.code,'店铺电话 13003825982')});
+  await assert.rejects(plain.service.replaceFromImage(),/不是小程序链接/);
+  assert.equal(plain.store.size,0);
 });

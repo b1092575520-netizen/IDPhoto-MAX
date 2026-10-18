@@ -239,7 +239,9 @@
       jobFile = await jobFolder.createFile("idphoto-" + jobId + ".idprint", { overwrite: false });
       resultName = "idphoto-" + jobId + ".result.json";
 
+      var timing = { start: Date.now() };
       await exportLayoutJpeg(documentRef, imageFile);
+      timing.jpeg = Date.now();
       if (!await hasWrittenImage(jobFolder, imageFile)) {
         await exportLayoutJpeg(documentRef, imageFile);
         if (!await hasWrittenImage(jobFolder, imageFile)) {
@@ -268,8 +270,10 @@
       );
 
       launchAttempted = true;
+      timing.job = Date.now();
       try {
         launchMessage = await uxp.shell.openPath(jobFile.nativePath);
+        timing.launched = Date.now();
       } catch (launchError) {
         if (!isPermissionDenied(launchError)) throw launchError;
         // The bridge never started: nothing can be in the printer queue.
@@ -298,6 +302,8 @@
         ? Math.max(0, options.pollIntervalMs)
         : DEFAULT_POLL_INTERVAL_MS;
       bridgeResponse = await waitForBridgeResult(jobFolder, resultName, jobId, timeoutMs, pollIntervalMs);
+      console.log("[print] timing ms: jpeg=" + (timing.jpeg - timing.start) + " job=" + (timing.job - timing.jpeg) +
+        " launch=" + (timing.launched - timing.job) + " bridge=" + (Date.now() - timing.launched));
       if (archiveOperations) {
         try {
           checkArchiveBatch(bridgeResponse.result.archiveIndexResult, archiveOperations);

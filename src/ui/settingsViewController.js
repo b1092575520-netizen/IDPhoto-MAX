@@ -351,7 +351,28 @@
       refreshNasAuthorization();
       refreshQuickPrintPreference();
       refreshRegisteredCameras();
+      refreshEntryCode();
       await refreshCurrentCamera();
+    }
+
+    function refreshEntryCode() {
+      var element = one("#entryCodeStatus"), reset = one("#resetEntryCode"), service = window.IDPhotoEntryCodeService;
+      if (!element || !service) return;
+      element.textContent = service.label();
+      // UXP ignores the hidden attribute, so the button is shown with display.
+      if (reset) reset.style.display = service.current().custom ? "" : "none";
+    }
+    async function chooseEntryCode() {
+      try {
+        var result = await window.IDPhotoEntryCodeService.replaceFromImage();
+        refreshEntryCode();
+        if (!result.cancelled) onStatus("已识别新的小程序码，之后的信息条都用它");
+      } catch (error) { onStatus(formatError(error)); }
+    }
+    function resetEntryCode() {
+      window.IDPhotoEntryCodeService.reset();
+      refreshEntryCode();
+      onStatus("已恢复本店默认小程序码");
     }
 
     function init() {
@@ -362,6 +383,8 @@
       refreshProfileFields();
       initSettingsNavigation();
       bindClick("#saveSettings", saveSettings);
+      bindClick("#chooseEntryCode", chooseEntryCode);
+      bindClick("#resetEntryCode", resetEntryCode);
       bindClick("#backupSettings", backupSettings);
       bindClick("#restoreSettings", restoreSettings);
       bindClick("#authorizeNasFolder", chooseNasFolder);

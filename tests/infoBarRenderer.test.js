@@ -146,17 +146,23 @@ function makeRendererHarness(options) {
     },
     window: { IDPhotoLayerService: layerService }
   };
-  const entryCode = { opened: [], closed: [] };
+  const entryCode = { prepared: 0, drawn: [] };
   if (options && options.entryCode) {
     context.window.IDPhotoEntryCodeService = {
-      async open(variant) {
-        if (options.entryCode === "broken") throw new Error("插件自带的小程序码图片已损坏");
-        const layer = { id: 800, bounds: { left: 0, top: 0, right: 1290, bottom: 1290 } };
-        const doc = { id: 80 + entryCode.opened.length, layers: [layer], activeLayers: [layer] };
-        entryCode.opened.push(variant);
-        return doc;
+      async prepare() {
+        if (options.entryCode === "broken") throw new Error("这版 Photoshop 不能直接画小程序码");
+        entryCode.prepared += 1;
+        return { text: "https://mp.weixin.qq.com/a/test", custom: false, logo: null };
       },
-      async close(doc) { entryCode.closed.push(doc.id); }
+      async draw(doc, prepared, rect, drawOptions) {
+        assert.equal(doc, targetDocument);
+        const layer = { id: nextLayerId++, name: drawOptions.name,
+          bounds: { left: rect.x, top: rect.y, right: rect.x + rect.width, bottom: rect.y + rect.height } };
+        targetDocument.layers.unshift(layer);
+        targetDocument.activeLayers = [layer];
+        entryCode.drawn.push({ variant: drawOptions.variant, turn: drawOptions.turn, rect });
+        return layer;
+      }
     };
   }
   vm.createContext(context);
@@ -275,15 +281,17 @@ for (const raw of loadTemplates().getAllTemplates()) {
     assert.ok(text.some(t=>/取件码/.test(t)));
     assert.ok(text.some(t=>/7天内/.test(t)));
     assert.equal(text.some(t=>/扫/.test(t)),shown,template.id+' scan step only with a printed code');
-    if(entryCode) assert.deepEqual(harness.entryCode.opened,shown?[r.codeVariant||'logo']:[]);
-    assert.equal(harness.entryCode.closed.length,shown?1:0,'the opened code copy is always closed');
+    assert.deepEqual(harness.entryCode.drawn.map(d=>d.variant),shown?[r.codeVariant||'logo']:[]);
+    if(shown) assert.equal(harness.entryCode.drawn[0].turn,r.orientation==='vertical'?'ccw':'',template.id+' code turns with the card');
     const code=harness.targetDocument.layers.filter(l=>l.name==='完整小程序码');
     assert.equal(code.length,shown?1:0);
     for(const layer of harness.targetDocument.layers) {
       const b=layer.bounds, box=layer.name==='完整小程序码'?{x:r.x-(r.orientation==='vertical'?r.codeReach||0:0),
         y:r.y-(r.orientation==='vertical'?0:r.codeReach||0),width:r.width+(r.codeReach||0),height:r.height+(r.codeReach||0)}:r;
       assert.ok(b.left>=box.x && b.top>=box.y && b.right<=box.x+box.width+0.001 && b.bottom<=box.y+box.height+0.001,template.id+' '+layer.name+' overflow');
-      assert.equal(layer.rotated||0,r.orientation==='vertical'?-90:0,template.id+' heads point to the photos');
+      if(layer.name!=='完整小程序码') assert.equal(layer.rotated||0,r.orientation==='vertical'?-90:0,template.id+' heads point to the photos');
+      else assert.equal(layer.rotated,undefined,'the code is drawn already turned');
+      assert.notEqual(layer.visible,false,template.id+' '+layer.name+' visible once placed');
     }
     if(shown) { const b=code[0].bounds; assert.ok(Math.abs((b.right-b.left)-(b.bottom-b.top))<1 && b.right-b.left>=179,template.id+' code is a full square'); }
   });

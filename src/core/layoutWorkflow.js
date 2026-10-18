@@ -258,6 +258,7 @@
       step("infobar", "rendering info bar", placed.layoutPlan.infoBar);
       status("步骤7：生成信息条");
       var infoResult = await renderInfoBar(targetDocument, placed.layoutPlan, template, docInfo, runOptions);
+      step("infobar", "done");
       return {
         ok: true,
         layoutPlan: placed.layoutPlan,
@@ -500,6 +501,7 @@
         }
         try {
           var deliveryStatus = await requireMethod("IDPhotoDeliveryService", "complete")(deliveryTask, targetDocument, layoutResult.layoutPlan.infoBar);
+          step("delivery", "layout and info saved");
           deliveryResult.message += "；" + deliveryStatus.message + (deliveryStatus.info === "failed" ? "；信息条图片待重试" : "；信息条图片已保存");
         } catch (completionError) {
           deliveryResult.ok = false;
