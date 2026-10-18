@@ -159,7 +159,7 @@
 
     applyTextOverride(next.infoBar.texts, override);
     if (next.infoBar.pickupLayout === "v5") {
-      var bar = next.infoBar, space = template.deliveryArea || template.infoBar;
+      var bar = next.infoBar, space = bar.band || template.deliveryArea || template.infoBar;
       if (bar.x < space.x || bar.y < space.y ||
           bar.x + bar.width > space.x + space.width || bar.y + bar.height > space.y + space.height ||
           Math.max(bar.width, bar.height) > 1417 || Math.min(bar.width, bar.height) < 150)

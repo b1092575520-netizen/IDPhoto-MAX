@@ -28,7 +28,7 @@
       source: "reference-template"
     };
     ["background", "textColor", "avatar", "texts", "layoutVersion", "pickupLayout", "safeMargin",
-      "ordinaryLayout"].forEach(function (key) {
+      "ordinaryLayout", "band", "pickupFamily", "codeVariant", "codeReach", "codeEdge", "textPadding", "packToCode"].forEach(function (key) {
       if (infoBar[key]) {
         cloned[key] = JSON.parse(JSON.stringify(infoBar[key]));
       }

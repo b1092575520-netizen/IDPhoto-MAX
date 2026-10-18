@@ -574,6 +574,28 @@
 
   // The registry retains v0.5.8 ordinary layouts. Delivery strips are selected
   // for the actual operation, never by a process-wide mode at module load time.
+  // Pickup cards (user 10-18). The card is what goes into the bag (long edge <= 60 mm);
+  // the band around it is red to the paper edge so a slightly off cut never shows white.
+  // Right-column cards turn so the heads point to the photos (away from the printer's
+  // bleed). The two thinnest strips let the coarse code reach into the white gap next
+  // to the photos; 标准2寸 gathers its text next to the code.
+  var PICKUP_CARDS = {
+    "one-inch": { card: [0, 1845, 1417, 555], band: [0, 1845, 3600, 555], family: "wide" },
+    "wedding": { card: [0, 1738, 1417, 600], band: [0, 1738, 3600, 662], family: "wide" },
+    "us-visa": { card: [2408, 1197, 1192, 600], band: [2408, 1197, 1192, 600], family: "wide" },
+    "us-visa-51": { card: [0, 1222, 1417, 470], band: [0, 1222, 1417, 470], family: "wide" },
+    "argentina": { card: [2916, 0, 600, 1417], band: [2916, 0, 684, 2400], family: "wide", vertical: true },
+    "hongkong-taiwan": { card: [2928, 0, 600, 1417], band: [2928, 0, 672, 2400], family: "wide", vertical: true },
+    "brazil": { card: [2903, 0, 600, 1417], band: [2903, 0, 697, 2400], family: "wide", vertical: true },
+    "graduation": { card: [2920, 0, 600, 1417], band: [2920, 0, 680, 2400], family: "wide", vertical: true },
+    "small-two-inch": { card: [3236, 0, 364, 1417], band: [3236, 0, 364, 2400], family: "medium", vertical: true },
+    "visa-two-inch": { card: [0, 2174, 1417, 226], band: [0, 2174, 3600, 226], family: "thin",
+      codeVariant: "coarse", codeReach: 12, codeEdge: 24, textPadding: [24, 36, 24, 48] },
+    "standard-two-inch": { card: [3386, 0, 214, 1417], band: [3386, 0, 214, 2400], family: "thin", vertical: true,
+      codeVariant: "coarse", codeReach: 2, codeEdge: 36, textPadding: [10, 48, 48, 36], packToCode: true }
+  };
+  function rect(values) { return { x: values[0], y: values[1], width: values[2], height: values[3] }; }
+
   function forDelivery(template, enabled) {
     var next = cloneObject(template);
     if (!next) return next;
@@ -581,12 +603,25 @@
     var area = next.deliveryArea || next.infoBar;
     next.infoBar = cloneObject(original);
     if (!enabled) return next;
-    var bar = cloneObject(area), vertical = bar.orientation === "vertical";
+    var bar = cloneObject(area), card = PICKUP_CARDS[next.id];
     bar.layoutVersion = 7;
     bar.pickupLayout = "v5";
     bar.safeMargin = 24;
-    bar.width = Math.min(bar.width, vertical ? 555 : 1417);
-    bar.height = Math.min(bar.height, vertical ? 1417 : 555);
+    if (card) {
+      Object.assign(bar, rect(card.card));
+      bar.orientation = card.vertical ? "vertical" : "horizontal";
+      bar.position = card.vertical ? "right" : "bottom";
+      bar.kind = bar.position;
+      bar.band = rect(card.band);
+      bar.pickupFamily = card.family;
+      ["codeVariant", "codeReach", "codeEdge", "textPadding", "packToCode"].forEach(function (key) {
+        if (card[key] !== undefined) bar[key] = cloneObject(card[key]);
+      });
+    } else {
+      var vertical = bar.orientation === "vertical";
+      bar.width = Math.min(bar.width, vertical ? 555 : 1417);
+      bar.height = Math.min(bar.height, vertical ? 1417 : 555);
+    }
     bar.background = { red: 151, green: 37, blue: 42 };
     bar.textColor = { red: 249, green: 233, blue: 160 };
     delete bar.textLayers;

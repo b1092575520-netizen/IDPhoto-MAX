@@ -1175,6 +1175,39 @@
     if (!isBoundsInsideRect(bounds, rectangle)) throw new Error("信息条内容超出安全位置：" + label);
     return bounds;
   }
+  // Pickup cards: vertical cards turn counter-clockwise so the heads point to the photos.
+  // Reading left is the sheet's bottom; text is centred across its row like the mockup.
+  async function placePickupLayer(layer, rectangle, reading, label, align, image) {
+    var size = getLayerSize(layer);
+    var slotW = reading.vertical ? rectangle.height : rectangle.width, slotH = reading.vertical ? rectangle.width : rectangle.height;
+    var scale = Math.min(slotW / size.width, slotH / size.height);
+    if (!image) scale = Math.min(1, scale);
+    if (Math.abs(scale - 1) > 0.001) await scaleLayerByPercent(layer, scale * 100, label);
+    if (reading.vertical) {
+      await batchPlay([{ _obj: "transform", _target: [{ _ref: "layer", _id: getLayerId(layer) }],
+        freeTransformCenterState: { _enum: "quadCenterState", _value: "QCSAverage" },
+        angle: { _unit: "angleUnit", _value: -90 }, _options: { dialogOptions: "dontDisplay" } }]);
+    }
+    for (var attempt = 0; attempt < 3; attempt++) {
+      var measured = getLayerSize(layer);
+      if (measured.width <= rectangle.width && measured.height <= rectangle.height) break;
+      await scaleLayerByPercent(layer, Math.min(1, Math.max(1, rectangle.width - 1) / measured.width,
+        Math.max(1, rectangle.height - 1) / measured.height) * 100, label);
+    }
+    var turned = getLayerSize(layer), x, y;
+    if (reading.vertical) {
+      x = rectangle.x + Math.floor((rectangle.width - turned.width) / 2);
+      y = align === "end" ? rectangle.y : rectangle.y + rectangle.height - turned.height;
+    } else {
+      x = align === "end" ? rectangle.x + rectangle.width - turned.width : rectangle.x;
+      y = rectangle.y + Math.floor((rectangle.height - turned.height) / 2);
+    }
+    var bounds = await getLayerService().moveLayerTo(layer, x, y, label);
+    // Half a pixel of slack for scaling round-off; the planner already keeps the margins.
+    if (!isBoundsInsideRect(bounds, { x: rectangle.x - 0.5, y: rectangle.y - 0.5, width: rectangle.width + 1, height: rectangle.height + 1 }))
+      throw new Error("信息条内容超出安全位置：" + label);
+    return bounds;
+  }
   async function renderPickupStrip(targetDocument, bar, settings, options) {
     var planner = window.IDPhotoPickupStripLayout;
     if (!planner) throw new Error("新版信息条布局模块未加载");
@@ -1185,13 +1218,13 @@
     var evidence = [];
     await window.IDPhotoPhotoshopExecution.executeAsModal(async function () {
       await activateDocument(targetDocument);
-      await createInfoBarBackground(bar, options);
+      await createInfoBarBackground(Object.assign({}, bar, bar.band || {}), options);
       for (var region of reading.regions) {
         var layer;
         if (region.key === "portrait") {
           layer = await duplicateSourceLayerToTarget(options.sourceDocument, targetDocument, source);
         } else {
-          if (!options.entryCodeDocument) throw new Error("小程序码资产未核实，不能印扫码说明");
+          if (!options.entryCodeDocument) throw new Error("小程序码图片没有打开，不能印扫码说明");
           layer = await duplicateSourceLayerToTarget(options.entryCodeDocument, targetDocument, getSourceLayer(options.entryCodeDocument));
         }
         await activateDocument(targetDocument);
@@ -1199,7 +1232,7 @@
           region.key === "portrait" ? "信息条小头像" : "完整小程序码";
         await moveLayerToFront(layer, targetDocument);
         var rectangle = planner.placed(bar, reading, region);
-        var bounds = await turnReadingLayer(layer, rectangle, reading, layer.name);
+        var bounds = await placePickupLayer(layer, rectangle, reading, layer.name, "start", true);
         evidence.push({ key: region.key, bounds: formatBounds(bounds), slot: rectangle });
       }
       var ids = getLayerService().getDocumentLayerIds(targetDocument);
@@ -1207,13 +1240,13 @@
         var textLayer = await createTextLayer(targetDocument, item.text, 0, 0, item.fontSize,
           isDebugRender(options) ? "DEBUG_text_" + item.key : item.key, item.color, "horizontal", ids, item.bold);
         var box = planner.placed(bar, reading, item);
-        var textBounds = await turnReadingLayer(textLayer, box, reading, item.key);
+        var textBounds = await placePickupLayer(textLayer, box, reading, item.key, item.align, false);
         evidence.push({ key: item.key, text: item.text, bounds: formatBounds(textBounds), slot: box });
       }
-    }, "绘制第五版取件信息条");
+    }, "绘制取件信息条");
     return { ok: true, createdCount: reading.items.length, layoutVersion: 7, evidence: evidence,
       entryCodeShown: reading.entryCodeShown, message: "电子照片领取信息条已生成" +
-        (reading.entryCodeShown ? "" : "；入口码未使用，请从已提供的小程序入口领取") };
+        (reading.entryCodeShown ? "" : "；小程序码没有印上，信息条改写“打开本店微信小程序”") };
   }
   // One-inch style ordinary strip for every template (no pickup code).
   async function renderClassicStrip(targetDocument, bar, settings, options) {
@@ -1271,16 +1304,19 @@
 
     infoBar = clampInfoBar(infoBar);
     if (options && options.pickupCodeMode && infoBar.pickupLayout === "v5") {
-      // Only sufficiently wide strips use the complete asset. No placeholder,
-      // clipping, or missing-asset fallback may retain a scan instruction.
-      if (infoBar.orientation !== "vertical" && infoBar.width >= 1370 && infoBar.height >= 500 &&
-          window.IDPhotoEntryCodeService) {
-        return await window.IDPhotoEntryCodeService.withAsset(async function (doc) {
-          return await renderPickupStrip(targetDocument, infoBar, settings || {},
-            Object.assign({}, options, { entryCodeAvailable: Boolean(doc), entryCodeDocument: doc }));
-        });
+      // Every pickup card carries the bundled code. If the image cannot be opened the card
+      // is still printed, with the scan step replaced, so no order stops on it.
+      var codeDoc = null;
+      if (window.IDPhotoEntryCodeService) {
+        try { codeDoc = await window.IDPhotoEntryCodeService.open(infoBar.codeVariant || "logo"); }
+        catch (error) { window.IDPhotoPhotoshopExecution.throwIfCancelled(error); console.warn("[infoBarRenderer] entry code unavailable", error); }
       }
-      return await renderPickupStrip(targetDocument, infoBar, settings || {}, options);
+      try {
+        return await renderPickupStrip(targetDocument, infoBar, settings || {},
+          Object.assign({}, options, { entryCodeAvailable: Boolean(codeDoc), entryCodeDocument: codeDoc }));
+      } finally {
+        if (codeDoc) await window.IDPhotoEntryCodeService.close(codeDoc);
+      }
     }
     if (infoBar.ordinaryLayout === "classic" && !(options && options.pickupCodeMode)) {
       return await renderClassicStrip(targetDocument, infoBar, settings || {}, options || {});

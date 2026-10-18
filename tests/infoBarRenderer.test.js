@@ -101,11 +101,11 @@ function makeRendererHarness(options) {
       async batchPlay(commands) {
         const command = commands[0];
         if(command && command._obj==='transform') {
-          assert.equal(command.angle._value,90);
+          assert.ok([90,-90].includes(command.angle._value));
           const layer=targetDocument.layers.find(l=>l.id===command._target[0]._id);
           const b=layer.bounds,w=b.right-b.left,h=b.bottom-b.top;
           layer.bounds={left:b.left,top:b.top,right:b.left+h,bottom:b.top+w};
-          layer.rotated=true;
+          layer.rotated=command.angle._value;
           return [];
         }
         if (command && command._obj === "move" && command._target[0]._id) {
@@ -146,6 +146,19 @@ function makeRendererHarness(options) {
     },
     window: { IDPhotoLayerService: layerService }
   };
+  const entryCode = { opened: [], closed: [] };
+  if (options && options.entryCode) {
+    context.window.IDPhotoEntryCodeService = {
+      async open(variant) {
+        if (options.entryCode === "broken") throw new Error("插件自带的小程序码图片已损坏");
+        const layer = { id: 800, bounds: { left: 0, top: 0, right: 1290, bottom: 1290 } };
+        const doc = { id: 80 + entryCode.opened.length, layers: [layer], activeLayers: [layer] };
+        entryCode.opened.push(variant);
+        return doc;
+      },
+      async close(doc) { entryCode.closed.push(doc.id); }
+    };
+  }
   vm.createContext(context);
   loadPhotoshopExecution(context);
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/core/deliveryProtocol.js"), "utf8"), context);
@@ -155,6 +168,7 @@ function makeRendererHarness(options) {
 
   return {
     renderer: context.window.IDPhotoInfoBarRenderer,
+    entryCode,
     sourceDocument,
     targetDocument,
     get activateCount() {
@@ -250,21 +264,28 @@ for (const templateName of ["香港台湾 3.0x4.0", "阿根廷 4.0x4.0"]) {
 
 for (const raw of loadTemplates().getAllTemplates()) {
   const template=loadTemplates().forDelivery(raw,true);
-  test(template.id + ' renders v5 content with the matching code and 1mm margins', async () => {
-    const harness=makeRendererHarness();
-    await harness.renderer.renderInfoBar(harness.targetDocument,template.infoBar,
+  for (const entryCode of [false,true,'broken']) test(template.id + ' renders the pickup card inside its band' + (entryCode===true?' with the code':entryCode?' when the code image is broken':''), async () => {
+    const harness=makeRendererHarness({entryCode});
+    const result=await harness.renderer.renderInfoBar(harness.targetDocument,template.infoBar,
       {shopName:'福清印象照相馆',shopPhone:'电话未填写'},
-      {dateText:'2026.09.27',pickupCodeMode:true,pickupCode:'A2B3C4',template,sourceDocument:harness.sourceDocument});
-    const text=harness.textCommands.map(c=>c.using.textKey);
+      {dateText:'2026.10.18',pickupCodeMode:true,pickupCode:'A2B3C4',template,sourceDocument:harness.sourceDocument});
+    const text=harness.textCommands.map(c=>c.using.textKey), r=template.infoBar, shown=entryCode===true;
+    assert.equal(result.entryCodeShown,shown);
     assert.ok(text.includes('A2B3C4'));
-    assert.ok(text.some(t=>/电子照片/.test(t)));
-    assert.ok(text.some(t=>/保存照片/.test(t)));
-    assert.equal(text.some(t=>/扫码|扫一扫|占位/.test(t)),false);
+    assert.ok(text.some(t=>/取件码/.test(t)));
+    assert.ok(text.some(t=>/7天内/.test(t)));
+    assert.equal(text.some(t=>/扫/.test(t)),shown,template.id+' scan step only with a printed code');
+    if(entryCode) assert.deepEqual(harness.entryCode.opened,shown?[r.codeVariant||'logo']:[]);
+    assert.equal(harness.entryCode.closed.length,shown?1:0,'the opened code copy is always closed');
+    const code=harness.targetDocument.layers.filter(l=>l.name==='完整小程序码');
+    assert.equal(code.length,shown?1:0);
     for(const layer of harness.targetDocument.layers) {
-      const b=layer.bounds,r=template.infoBar;
-      assert.ok(b.left>=r.x+24 && b.top>=r.y+24 && b.right<=r.x+r.width-24+0.001 && b.bottom<=r.y+r.height-24+0.001,template.id+' overflow');
-      assert.equal(Boolean(layer.rotated),r.orientation==='vertical');
+      const b=layer.bounds, box=layer.name==='完整小程序码'?{x:r.x-(r.orientation==='vertical'?r.codeReach||0:0),
+        y:r.y-(r.orientation==='vertical'?0:r.codeReach||0),width:r.width+(r.codeReach||0),height:r.height+(r.codeReach||0)}:r;
+      assert.ok(b.left>=box.x && b.top>=box.y && b.right<=box.x+box.width+0.001 && b.bottom<=box.y+box.height+0.001,template.id+' '+layer.name+' overflow');
+      assert.equal(layer.rotated||0,r.orientation==='vertical'?-90:0,template.id+' heads point to the photos');
     }
+    if(shown) { const b=code[0].bounds; assert.ok(Math.abs((b.right-b.left)-(b.bottom-b.top))<1 && b.right-b.left>=179,template.id+' code is a full square'); }
   });
 }
 test('invalid or missing code is rejected before any information-bar layers are created',async()=>{
@@ -301,7 +322,7 @@ test("debug mode gives v5 layers unique DEBUG names", async () => {
 
   assert.deepEqual(
     harness.textCommands.map((command) => command.using.name),
-    ["DEBUG_text_pickupLabel", "DEBUG_text_pickupCode", "DEBUG_text_steps", "DEBUG_text_details"]
+    ["DEBUG_text_pickupLabel", "DEBUG_text_pickupCode", "DEBUG_text_date", "DEBUG_text_steps", "DEBUG_text_details"]
   );
 });
 

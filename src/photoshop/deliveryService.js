@@ -442,7 +442,8 @@
         copy = await targetDocument.duplicate("信息条_" + task.id);
         if (!copy || copy === targetDocument || copy.id === targetDocument.id) { copy = null; throw new Error("信息条副本未独立创建，未裁切原文档"); }
         await window.IDPhotoPhotoshopExecution.activateDocument(copy);
-        await copy.crop({ left: infoBar.x, top: infoBar.y, right: infoBar.x + infoBar.width, bottom: infoBar.y + infoBar.height });
+        var box = window.IDPhotoPickupStripLayout ? window.IDPhotoPickupStripLayout.outline(infoBar) : infoBar;
+        await copy.crop({ left: box.x, top: box.y, right: box.x + box.width, bottom: box.y + box.height });
       }, "导出完整可剪信息条");
       return await saveJpeg(task, copy, filename || "info.jpg", "info");
     } finally { if (copy) await window.IDPhotoDocumentService.closeWithoutSaving(copy); }
