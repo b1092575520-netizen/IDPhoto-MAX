@@ -1237,10 +1237,9 @@
           layer = await duplicateSourceLayerToTarget(options.sourceDocument, targetDocument, source);
           await activateDocument(targetDocument);
           layer.name = name;
-          layer.visible = false;  // stays hidden until it sits in its slot, so the photo never flashes
+          // Stays visible: Photoshop refuses to transform a hidden layer (0.6.13 failed on vertical cards).
           await moveLayerToFront(layer, targetDocument);
           bounds = await placePickupLayer(layer, rectangle, reading, name, "start", true);
-          layer.visible = true;
         }
         evidence.push({ key: region.key, bounds: formatBounds(bounds), slot: rectangle });
       }

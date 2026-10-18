@@ -103,6 +103,7 @@ function makeRendererHarness(options) {
         if(command && command._obj==='transform') {
           assert.ok([90,-90].includes(command.angle._value));
           const layer=targetDocument.layers.find(l=>l.id===command._target[0]._id);
+          if(layer.visible===false) throw new Error('命令“变换”当前不可用');  // as Photoshop does for hidden layers
           const b=layer.bounds,w=b.right-b.left,h=b.bottom-b.top;
           layer.bounds={left:b.left,top:b.top,right:b.left+h,bottom:b.top+w};
           layer.rotated=command.angle._value;
