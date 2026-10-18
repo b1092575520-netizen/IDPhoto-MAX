@@ -1028,6 +1028,8 @@
           failures.map(function (item) {
             return getTemplateShortName(item.templateName);
           }).join("、") +
+          (failures.some(function (item) { return item.error && item.error.autoRedo; })
+            ? "；没保存、没打印，后台会自动重做，好了面板提示你点“打印”" : "") +
           (exportFailures.length
             ? "；另有 JPG 导出失败：" +
               exportFailures.map(function (item) {

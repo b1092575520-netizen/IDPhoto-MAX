@@ -472,3 +472,73 @@ test("a recovered print reuses the code its recovery confirmed minutes ago inste
   const printed = await h.service.printRecovered(task.id);
   assert.equal(printed.id, task.id); assert.equal(h.prints.length, 1);
 });
+
+// 10-18: a sheet that failed while drawing its info bar had saved and printed nothing,
+// yet its output marker locked that photo for good. It is now redone in the background.
+const abortRecords = async folder => (await folder.getEntries()).filter(entry => /^output-aborted-.+\.json$/.test(entry.name));
+test("a sheet that fails while drawing the info bar is redone in the background and then offered for printing", async () => {
+  const h = harness(), original = h.source(), render = h.window.IDPhotoInfoBarRenderer.renderInfoBar;
+  h.window.IDPhotoInfoBarRenderer.renderInfoBar = async () => { throw new Error("Photoshop 命令失败：transform"); };
+  const result = await h.runPrint(original);
+  assert.equal(result.ok, false); assert.equal(result.failures[0].error.autoRedo, true);
+  const task = h.service.latest();
+  await assert.rejects(task.folder.getEntry("output-started.json"));
+  const records = await abortRecords(task.folder);
+  assert.equal(records.length, 1);
+  const record = JSON.parse(await records[0].read());
+  assert.equal(record.taskId, task.id); assert.equal(record.marker, "output-started.json"); assert.match(record.reason, /transform/);
+  assert.equal(h.automation.store().tasks()[0].state, "retryable");
+  assert.equal(h.prints.length, 0); assert.equal(h.exports.length, 0);
+  h.window.IDPhotoInfoBarRenderer.renderInfoBar = render;
+  assert.equal(await h.service.primeRecovery(), task.id);
+  const notice = await h.service.recoverNext(task.id);
+  assert.equal(notice.canPrint, true, JSON.stringify(notice)); assert.match(notice.text, /已补好/);
+  assert.equal(h.prints.length, 0, "the background never prints by itself");
+  await h.service.printRecovered(task.id);
+  assert.equal(h.prints.length, 1);
+});
+
+test("a drawing that keeps failing stops after two background redos and stays locked", async () => {
+  const h = harness(), original = h.source();
+  let attempts = 0;
+  h.window.IDPhotoInfoBarRenderer.renderInfoBar = async () => { attempts++; throw new Error("Photoshop 命令失败：transform"); };
+  await h.runPrint(original);
+  const task = h.service.latest();
+  for (let n = 0; n < 2; n++) {
+    assert.equal(await h.service.primeRecovery(), task.id);
+    assert.equal((await h.service.recoverNext(task.id)).canPrint, false);
+  }
+  assert.equal(attempts, 3);
+  assert.equal((await abortRecords(task.folder)).length, 2);
+  await task.folder.getEntry("output-started.json");
+  const parked = await h.service.primeRecovery();
+  assert.equal(parked.id, task.id);
+  assert.equal(h.automation.store().tasks()[0].state, "blocked");
+  h.reload();
+  const again = await h.service.primeRecovery();
+  assert.ok(again === null || again.id === task.id);
+  assert.equal(h.automation.store().tasks()[0].state, "blocked");
+  assert.equal(attempts, 3); assert.equal(h.prints.length, 0);
+});
+
+test("a task locked only by its marker goes back to the queue once an abort record replaces the marker", async () => {
+  const h = harness({ receipt: false }), original = h.source();
+  await assert.rejects(h.service.electronic(original.document, original.info, {}), /超时/);
+  const task = h.service.latest();
+  const marker = await task.folder.createFile("output-started.json", { overwrite: false });
+  await marker.write("{}");
+  h.options.receipt = true; h.reload();
+  assert.match((await h.service.primeRecovery()).text, /输出痕迹/);
+  assert.equal(h.automation.store().tasks()[0].state, "blocked");
+  await marker.delete();
+  h.reload();
+  await h.service.primeRecovery();
+  assert.equal(h.automation.store().tasks()[0].state, "blocked", "no abort record, no release");
+  await (await task.folder.createFile("output-aborted-" + id(77) + ".json", { overwrite: false }))
+    .write(JSON.stringify({ version: 1, taskId: task.id, stage: "info-bar", reason: "repaired from the log" }));
+  h.reload();
+  assert.equal(await h.service.primeRecovery(), task.id);
+  assert.ok(await h.service.recoverNext(task.id));
+  assert.equal(h.renders.length, 1, "the electronic delivery draws its own info bar once"); assert.equal(h.prints.length, 0);
+  await task.folder.getEntry("complete.json");
+});

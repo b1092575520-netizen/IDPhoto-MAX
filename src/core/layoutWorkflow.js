@@ -489,6 +489,12 @@
         await closeTargetDocument(targetDocument, "layout failed");
         targetDocument = null;
         await closeWorkingCopies(processResult, "layout failed");
+        // Nothing was saved or printed yet: release the task so the background redoes it.
+        if (deliveryTask && !earlyPrint && !isCancellation(layoutError)) {
+          try {
+            if (await requireMethod("IDPhotoDeliveryService", "abortOutput")(deliveryTask, layoutError)) layoutError.autoRedo = true;
+          } catch (abortError) { reportError("delivery-abort", abortError); }
+        }
         throw layoutError;
       }
       if (deliveryTask && deliveryTask.fingerprint && !earlyPrint) {

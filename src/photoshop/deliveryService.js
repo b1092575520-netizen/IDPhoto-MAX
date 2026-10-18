@@ -457,6 +457,61 @@
     await writeAtomic(task.folder, marker, JSON.stringify({ version: 1, taskId: task.id, outputAttemptId: task.outputAttemptId || "",
       manifestFingerprint: task.fingerprint, requestId: task.confirmationId, at: new Date().toISOString() }), false);
   }
+  // The sheet failed after output started but before anything was saved or printed
+  // (e.g. while drawing the info bar, 10-18). The marker would lock this photo for good,
+  // so it is replaced by a record of why, and the background redoes the task. Two
+  // automatic redos at most; a third failure keeps the lock for a person to look at.
+  var MAX_ABORTED_OUTPUTS = 2;
+  var ABORT_PATTERN = /^output-aborted-[A-Za-z0-9_-]+\.json$/;
+  async function abortedOutputs(folder) {
+    return (await folder.getEntries()).filter(function (entry) { return ABORT_PATTERN.test(entry.name); }).length;
+  }
+  async function hasOutput(folder, suffix) {
+    for (var name of ["layout" + suffix + ".jpg", "info" + suffix + ".jpg", "complete.json"])
+      if (await optionalEntry(folder, name)) return true;
+    return false;
+  }
+  function markAutomation(task, patch) {
+    var automation = window.IDPhotoDeliveryAutomationService;
+    if (!automation || !automation.store().tasks().some(function (item) { return item.id === task.id; })) return;
+    try { automation.store().markTask(task.id, patch); } catch (error) { console.warn("[delivery] task state not updated", error); }
+  }
+  async function abortOutput(task, error) {
+    var suffix = task.outputAttemptId ? "-" + task.outputAttemptId : "";
+    var marker = "output-started" + suffix + ".json", reason = errorText(error);
+    var started = await optionalEntry(task.folder, marker);
+    if (!started || await hasOutput(task.folder, suffix)) return false;
+    if (await abortedOutputs(task.folder) >= MAX_ABORTED_OUTPUTS) {
+      markAutomation(task, { state: "blocked", error: "这单排版连续三次没画成，已停下，请找 Claude 查原因：" + reason });
+      return false;
+    }
+    await writeAtomic(task.folder, "output-aborted-" + protocol().id() + ".json", JSON.stringify({ version: 1, taskId: task.id,
+      manifestFingerprint: task.fingerprint, marker: marker, markerContent: await started.read({ format: format(false) }),
+      stage: "layout", reason: reason, at: new Date().toISOString() }), false);
+    await started.delete();
+    markAutomation(task, { state: "retryable", error: "排版没画完（没保存、没打印），后台自动重做：" + reason });
+    return true;
+  }
+  // Once per session: a task locked only by its marker, whose marker has since been
+  // replaced by an abort record, goes back to the background queue.
+  var releaseChecked = false;
+  async function releaseAbortedOutputs() {
+    if (releaseChecked) return;
+    releaseChecked = true;
+    var automation = window.IDPhotoDeliveryAutomationService;
+    var locked = automation.store().tasks().filter(function (item) {
+      return !item.legacy && item.state === "blocked" && /输出痕迹/.test(item.error || "");
+    });
+    for (var item of locked) {
+      try {
+        var folder = await fs().getEntryForPersistentToken(item.token);
+        if (!folder || await optionalEntry(folder, "output-started.json") || await hasOutput(folder, "")) continue;
+        var count = await abortedOutputs(folder);
+        if (count < 1 || count > MAX_ABORTED_OUTPUTS) continue;
+        automation.store().markTask(item.id, { state: "retryable", error: "排版没画完（没保存、没打印），后台自动重做" });
+      } catch (error) { console.warn("[delivery] aborted output not released", item.id, error); }
+    }
+  }
   async function writeCompletion(task, artifacts) {
     var payload = JSON.stringify({ version: 1, taskId: task.id,
       manifestFingerprint: task.fingerprint, processingComplete: true, artifacts: artifacts });
@@ -732,6 +787,7 @@
   async function primeRecovery() {
     if (creatingTask || retryingTask || activeWait) return null;
     var automation = window.IDPhotoDeliveryAutomationService;
+    await releaseAbortedOutputs();
     var item = automation.store().pendingTasks().sort(function (a, b) { return a.updatedAt - b.updatedAt; })[0];
     if (!item) return null;
     var folder, task;
@@ -1152,7 +1208,7 @@
   window.IDPhotoDeliveryService = { begin: begin, prepare: prepare, savePhoto: savePhoto, requestCode: requestCode,
     markEarlyPrint: markEarlyPrint, archivePhoto: archivePhoto, complete: complete, electronic: electronic, multi: multi, regenerate: regenerate,
     receiveInformationTasks: receiveInformationTasks,
-    pending: pending, retryPending: function (id) { return retryPending(id, false); }, deferPending: deferPending, startOutput: startOutput,
+    pending: pending, retryPending: function (id) { return retryPending(id, false); }, deferPending: deferPending, startOutput: startOutput, abortOutput: abortOutput,
     current: current, currentPreview: currentPreview, nextCustomer: nextCustomer, chooseCurrent: chooseCurrent,
     reprintCurrent: reprintCurrent, verifyOutput: verifyOutput, retryCurrentArchives: retryCurrentArchives,
     previewTask: previewTask, primeRecovery: primeRecovery, recoverNext: recoverNext, recoveredNotice: recoveredNotice,
