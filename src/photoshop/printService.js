@@ -80,9 +80,14 @@
   // Shown in the panel: Chinese only, and say plainly that nothing was printed.
   var PERMISSION_DENIED_MESSAGE = "没有打印：Photoshop 权限框点了“阻止”。要打印就重新排一次，在权限框里点“允许”；勾上“记住我的选择”以后就不再问";
 
+  // "阻止" in the permission box means the staff do not want this now (10-18): remembered so
+  // the background stops starting new work that would ask again.
+  var lastDeniedAt = 0;
   function isPermissionDenied(error) {
     var text = error && error.message ? error.message : String(error || "");
-    return /denied|拒绝/i.test(text);
+    var denied = /denied|拒绝/i.test(text);
+    if (denied) lastDeniedAt = Date.now();
+    return denied;
   }
 
   function getBridgeFailureMessage(reason) {
@@ -425,6 +430,7 @@
   }
 
   window.IDPhotoPrintService = {
+    lastDeniedAt: function () { return lastDeniedAt; },
     hideArchiveRecord: function (file, options) { return archiveIndexOperation(file, "hide-archive-record", options); },
     commitArchiveRecord: function (file, options) { return archiveIndexOperation(file, "commit-archive-record", options); },
     hideArchiveIndex: function (file, options) { return archiveIndexOperation(file, "hide-archive-index", options); },

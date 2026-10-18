@@ -14,7 +14,22 @@
   }
 
   function isCancellation(error) {
-    return Boolean(error && (error.cancelled === true || error.number === -128 || error.code === -128));
+    return Boolean(error && (error.cancelled === true || error.number === -128 || error.code === -128 ||
+      /user cancel/i.test(String(error.message || error))));
+  }
+  // Esc in the panel (10-18): every running layout stops at its next step. Photoshop's own
+  // Esc already cancels a running progress bar; this covers the steps in between.
+  var cancelRequests = [];
+  function stopAll() {
+    cancelRequests.forEach(function (request) { request.requested = true; });
+    return cancelRequests.length > 0;
+  }
+  function checkCancel(request) {
+    if (request && request.requested) {
+      var stopped = new Error("已按 Esc 停止");
+      stopped.cancelled = true;
+      throw stopped;
+    }
   }
 
   function requireMethod(moduleName, methodName) {
@@ -360,6 +375,7 @@
           deliveryTask = runOptions.resumeDeliveryTask ||
             await requireMethod("IDPhotoDeliveryService", "begin")(docInfo, "print", template, getSettings(), runOptions.deliveryIntent, runOptions);
           if (!deliveryTask) throw new Error("未创建有效的交付任务。");
+          runOptions.activeDeliveryTask = deliveryTask;
           runOptions.historicalDelivery = deliveryTask.historical === true;
           runOptions.deliveryDateText = deliveryTask.dateText || "";
           runOptions.deliverySettings = deliveryTask.settings;
@@ -368,6 +384,7 @@
         }
       }
 
+      checkCancel(runOptions.cancelRequest);
       step("ratio", "checking", { document: docInfo, template: template });
       status("步骤2：比例检测 " + index + "/" + total + " · " + templateLabel(template));
       ratioResult = requireMethod("IDPhotoRatioChecker", "checkDocumentRatio")(docInfo, template);
@@ -375,6 +392,7 @@
         throw new Error(ratioResult && ratioResult.message ? ratioResult.message : "比例检测未返回有效结果");
       }
 
+      checkCancel(runOptions.cancelRequest);
       step("crop", "preparing single photo", {
         document: docInfo,
         template: template,
@@ -420,6 +438,7 @@
 
       try {
         try {
+          checkCancel(runOptions.cancelRequest);
           step("canvas", "creating 3600x2400 600ppi document");
           status("步骤4：" + templateLabel(template) + " 创建 3600x2400px / 600ppi 6 寸拼版画布");
           canvasResult = await requireMethod("IDPhotoCanvasService", "createSixInchCanvas")(getDocumentName(template));
@@ -435,6 +454,7 @@
           canvasError.canvasStage = true;
           throw canvasError;
         }
+        checkCancel(runOptions.cancelRequest);
         placed = await placeLayout(processResult.document, targetDocument, template, runOptions);
       } catch (layoutError) {
         if (codePromise) {
@@ -484,6 +504,7 @@
       }
 
       try {
+        checkCancel(runOptions.cancelRequest);
         layoutResult = await finishLayout(targetDocument, placed, template, docInfo, runOptions);
       } catch (layoutError) {
         await closeTargetDocument(targetDocument, "layout failed");
@@ -522,6 +543,10 @@
           if (deliveryTask && !earlyPrint && runOptions.quickPrint && !runOptions.skipPrint)
             await requireMethod("IDPhotoDeliveryService", "verifyOutput")(deliveryTask, runOptions.pickupCode);
           printResult = await printLayout(targetDocument, runOptions, archiveOperations);
+          // A background "已补好，可以打印" for this code and size is now done (10-18).
+          if (printResult && printResult.printed === true && runOptions.pickupCode && window.IDPhotoDeliveryService &&
+              typeof window.IDPhotoDeliveryService.notePrinted === "function")
+            window.IDPhotoDeliveryService.notePrinted(runOptions.pickupCode, template.id);
         } catch (printError) {
           reportError("print", printError);
           printResult = { ok: false, cancelled: isCancellation(printError), error: errorToText(printError),
@@ -628,6 +653,10 @@
         runOptions || {}
       );
       templateNames = runOptions.templateNames.slice();
+      var cancelRequest = { requested: false };
+      runOptions.cancelRequest = cancelRequest;
+      cancelRequests.push(cancelRequest);
+      try {
       runOptions.historicalDelivery = false;
       runOptions.deliveryDateText = "";
       // Several sizes for one customer (user 10-17): each prints its own sheet, all with one code.
@@ -652,6 +681,7 @@
       }
 
       for (index = 0; index < templateNames.length; index += 1) {
+        runOptions.activeDeliveryTask = null;
         try {
           status("开始执行：" + templateNames[index] + " · 已完成：" + successes.length + "/" + templateNames.length);
           singleResult = await runOne(
@@ -666,6 +696,8 @@
           successResults.push({ templateName: templateNames[index], result: singleResult });
         } catch (error) {
           failures.push({ templateName: templateNames[index], error: error });
+          // A cancelled order is the staff's decision: the background must not redo it.
+          if (isCancellation(error)) markDeliveryFailure(runOptions.activeDeliveryTask, error);
           reportError("execute " + templateNames[index], error);
           if (isCancellation(error)) {
             cancelled = true;
@@ -706,6 +738,9 @@
           return entry.result && entry.result.exportResult && entry.result.exportResult.replacedSmaller === true;
         })
       };
+      } finally {
+        cancelRequests = cancelRequests.filter(function (request) { return request !== cancelRequest; });
+      }
     }
 
     return {
@@ -714,6 +749,7 @@
   }
 
   window.IDPhotoLayoutWorkflow = {
-    create: create
+    create: create,
+    stopAll: stopAll
   };
 })();

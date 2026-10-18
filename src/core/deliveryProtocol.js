@@ -50,6 +50,7 @@
     if (reason && typeof reason === "object") {
       error.causeCode = reason.code || reason.causeCode || "";
       if (typeof reason.retryable === "boolean") error.retryable = reason.retryable;
+      if (reason.cancelled === true) error.cancelled = true;
     }
     return error;
   }

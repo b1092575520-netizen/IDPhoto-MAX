@@ -38,8 +38,10 @@
     return results;
   }
 
+  // Esc during a Photoshop progress bar rejects with "user cancelled" and no code (seen 10-18).
   function isCancellation(error) {
-    return Boolean(error && (error.cancelled === true || error.number === -128 || error.code === -128));
+    return Boolean(error && (error.cancelled === true || error.number === -128 || error.code === -128 ||
+      /user cancel/i.test(String(error.message || error))));
   }
 
   function throwIfCancelled(error) {

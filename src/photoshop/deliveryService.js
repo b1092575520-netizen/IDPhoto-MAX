@@ -784,8 +784,15 @@
     return "data:image/jpeg;base64," + chunks.join("") + part;
   }
   var primedTask = null;
+  // After "阻止" in a permission box the background waits this long before new work.
+  var DENIED_PAUSE_MS = 10 * 60 * 1000;
+  function deniedAt() {
+    var print = window.IDPhotoPrintService;
+    return print && typeof print.lastDeniedAt === "function" ? print.lastDeniedAt() : 0;
+  }
   async function primeRecovery() {
     if (creatingTask || retryingTask || activeWait) return null;
+    if (deniedAt() && Date.now() - deniedAt() < DENIED_PAUSE_MS) return null;
     var automation = window.IDPhotoDeliveryAutomationService;
     await releaseAbortedOutputs();
     var item = automation.store().pendingTasks().sort(function (a, b) { return a.updatedAt - b.updatedAt; })[0];
@@ -859,17 +866,21 @@
     var automation = window.IDPhotoDeliveryAutomationService, item = automation.store().tasks().find(function (record) { return record.id === expectedId; });
     if (!item || !["pending", "retryable"].includes(item.state)) return null;
     var sourceDocument = window.IDPhotoDocumentService.getActiveDocument && window.IDPhotoDocumentService.getActiveDocument();
+    var startedAt = Date.now();
     try {
       var task = await retryPending(item.id, false, { confirmedTask: taskToResume });
       // A size printed at once with the shared code (multi-size layout) is never offered again.
       var early = await readEarlyPrint(task);
-      var printAvailable = !early && task.mode === "print" && Boolean(task.outputOptions && task.outputOptions.quickPrint);
+      // "阻止" while the background finished it: the photo is delivered, but no print is offered.
+      var declined = deniedAt() >= startedAt;
+      var printAvailable = !early && !declined && task.mode === "print" && Boolean(task.outputOptions && task.outputOptions.quickPrint);
       var notice = early && early.code !== task.code ?
-        "纸上印的取件码 " + early.code + " 已不能用，现在是 " + task.code + "，请重排这个尺寸" : "";
+        "纸上印的取件码 " + early.code + " 已不能用，现在是 " + task.code + "，请重排这个尺寸" :
+        declined ? task.code + " 电子版已补好；权限框点了“阻止”，没存档、不打印" : "";
       await writeAtomic(task.folder, "automatic-recovery.json", JSON.stringify({ version: 1, taskId: task.id,
         manifestFingerprint: task.fingerprint, code: task.code, printAvailable: printAvailable, earlyPrinted: Boolean(early),
         notice: notice, confirmedAt: task.codeConfirmedAt || Date.now(), groupStamp: task.codeGroupStamp || groupStamp() }));
-      if (early) return notice ? { id: task.id, code: task.code, canPrint: false, text: notice } : null;
+      if (early || declined) return notice ? { id: task.id, code: task.code, canPrint: false, text: notice } : null;
       return { id: task.id, code: task.code, canPrint: printAvailable, text: task.code + " 已补好，可以打印" };
     } catch (error) {
       var record = automation.store().tasks().find(function (value) { return value.id === item.id; });
@@ -906,6 +917,26 @@
     if (record.error !== diagnostic) window.IDPhotoDeliveryAutomationService.store().markTask(record.id, { error: diagnostic });
     return { id: record.id, canPrint: false, text: text };
   }
+  // Codes printed from the panel, by size (10-18): a background "可以打印" for the same code
+  // and size is retired instead of waiting on the panel after the sheet is already out.
+  var PRINTED_KEY = "IDPhotoMAX.printedCodes.v1", PRINTED_KEEP_MS = 3 * 24 * 60 * 60 * 1000;
+  function printedCodes() {
+    try {
+      var value = JSON.parse(window.localStorage.getItem(PRINTED_KEY) || "{}");
+      return value && typeof value === "object" ? value : {};
+    } catch (error) { return {}; }
+  }
+  function notePrinted(code, templateId) {
+    if (!protocol().isPickupCode(code)) return;
+    var now = Date.now(), value = printedCodes(), kept = {};
+    Object.keys(value).forEach(function (key) { if (now - value[key] < PRINTED_KEEP_MS) kept[key] = value[key]; });
+    kept[code + "|" + (templateId || "")] = now;
+    try { window.localStorage.setItem(PRINTED_KEY, JSON.stringify(kept)); } catch (error) { console.warn("[delivery] printed code not kept", error); }
+  }
+  function printedAfter(code, templateId, since) {
+    var at = printedCodes()[code + "|" + (templateId || "")];
+    return Number.isFinite(at) && Number.isFinite(since) && at > since;
+  }
   async function recoveredNotice() {
     var records = window.IDPhotoDeliveryAutomationService.store().tasks().filter(function (item) { return item.state === "completed" && item.mode === "print"; });
     var issue = null;
@@ -920,6 +951,11 @@
           throw new Error("恢复打印记录身份不匹配");
         if (value.printStarted && value.printState !== "submitted" && !value.printError)
           throw new Error("原恢复打印已开始但结果未确认，请人工核对，避免重复出纸");
+        if (value.printAvailable && printedAfter(value.code, task.template && task.template.id, value.confirmedAt)) {
+          await writeAtomic(folder, "automatic-recovery.json", JSON.stringify(Object.assign({}, value,
+            { printAvailable: false, printState: "printed-from-panel", printedFromPanelAt: new Date().toISOString() })));
+          continue;
+        }
         if (value.printAvailable) return { id: record.id, code: value.code, canPrint: true, text: value.code + " 已补好，可以打印" };
         if (value.printError) {
           var printIssue = recordPrintNoticeIssue(record, new Error(value.printError));
@@ -1208,7 +1244,7 @@
   window.IDPhotoDeliveryService = { begin: begin, prepare: prepare, savePhoto: savePhoto, requestCode: requestCode,
     markEarlyPrint: markEarlyPrint, archivePhoto: archivePhoto, complete: complete, electronic: electronic, multi: multi, regenerate: regenerate,
     receiveInformationTasks: receiveInformationTasks,
-    pending: pending, retryPending: function (id) { return retryPending(id, false); }, deferPending: deferPending, startOutput: startOutput, abortOutput: abortOutput,
+    pending: pending, retryPending: function (id) { return retryPending(id, false); }, deferPending: deferPending, startOutput: startOutput, abortOutput: abortOutput, notePrinted: notePrinted,
     current: current, currentPreview: currentPreview, nextCustomer: nextCustomer, chooseCurrent: chooseCurrent,
     reprintCurrent: reprintCurrent, verifyOutput: verifyOutput, retryCurrentArchives: retryCurrentArchives,
     previewTask: previewTask, primeRecovery: primeRecovery, recoverNext: recoverNext, recoveredNotice: recoveredNotice,

@@ -989,7 +989,9 @@
     } catch (workflowError) {
       logStepError("layout-workflow", workflowError);
       setStatus("排版任务失败：" + errorToText(workflowError));
-      if (workflowError && workflowError.code === "PICKUP_CODE_REQUIRED") await showPickupCodeFailure(workflowError);
+      var execution = window.IDPhotoPhotoshopExecution;
+      if (execution && execution.isCancellation && execution.isCancellation(workflowError)) setStatus("已停止：这单不再自动重做");
+      else if (workflowError && workflowError.code === "PICKUP_CODE_REQUIRED") await showPickupCodeFailure(workflowError);
       return;
     } finally {
       if (settingsViewController && settingsViewController.refreshNasAuthorization) {
@@ -1008,7 +1010,9 @@
     duplicateExports = runResult.duplicateExports;
     replacedExports = runResult.replacedExports;
 
-    var pickupFailure = failures.find(function (entry) { return entry.error && entry.error.code === "PICKUP_CODE_REQUIRED"; });
+    // Esc is not a missing code: a cancelled run only reports that it stopped.
+    var pickupFailure = runResult.cancelled ? null :
+      failures.find(function (entry) { return entry.error && entry.error.code === "PICKUP_CODE_REQUIRED"; });
     if (pickupFailure) {
       // Keep the selection so the operator can correct the connection or choose
       // ordinary mode deliberately. A failure must never look like completion.
@@ -1096,7 +1100,7 @@
       if (delivery && delivery.requested) completionMessage += "；" + delivery.message;
     });
     state.lastClickedTemplateId = null;
-    if (runResult.cancelled) completionMessage += "；用户已取消，后续模板未执行";
+    if (runResult.cancelled) completionMessage += "；已停止：这单不再自动重做，后面的尺寸也没做";
     if (plainSourceMessage) completionMessage += "；" + plainSourceMessage;
     state.lastTemplateRangeAnchor = null;
     applySelectedTemplateIds(window.IDPhotoTemplateSelectionService.clear(), null, null, true);
@@ -1164,6 +1168,13 @@
   }
 
   function bindModifierTracking() {
+    // Esc in the panel stops a running layout at its next step (10-18); Photoshop's own
+    // Esc still cancels a progress bar that is showing.
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && window.IDPhotoLayoutWorkflow && window.IDPhotoLayoutWorkflow.stopAll()) {
+        setStatus("正在停止：做完当前这一步就停，不保存、不打印");
+      }
+    });
     document.addEventListener("keydown", function (event) {
       if (event.key === "Control") {
         state.modifierKeys.ctrlKey = true;
@@ -1453,13 +1464,17 @@
         if (!state.activePhotoshopOperation) {
           var pendingRecovery = await window.IDPhotoDeliveryService.primeRecovery();
           if (pendingRecovery && typeof pendingRecovery === "object") automaticNotice = pendingRecovery;
+          var justRecovered = false;
           if (typeof pendingRecovery === "string" && beginPhotoshopOperation("auto-recovery")) {
             try {
               var recovered = await window.IDPhotoDeliveryService.recoverNext(pendingRecovery);
-              if (recovered) automaticNotice = recovered;
+              if (recovered) { automaticNotice = recovered; justRecovered = true; }
             } finally { endPhotoshopOperation("auto-recovery"); }
           }
-          automaticNotice = await window.IDPhotoDeliveryService.recoveredNotice() || automaticNotice;
+          // Nothing left to print: a remembered "可以打印" is gone too (it was printed or retired).
+          var currentNotice = await window.IDPhotoDeliveryService.recoveredNotice();
+          if (currentNotice) automaticNotice = currentNotice;
+          else if (!justRecovered && automaticNotice && automaticNotice.canPrint) automaticNotice = null;
           showAutomaticNotice();
           if (beginPhotoshopOperation("auto-plan")) {
             try { await refreshDeliveryPlan(); }

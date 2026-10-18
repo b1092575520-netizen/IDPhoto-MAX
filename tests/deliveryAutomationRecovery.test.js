@@ -127,7 +127,7 @@ function harness(options = {}) {
   reload();
   async function json(folder, name) { return JSON.parse(await (await folder.getEntry(name)).read()); }
   return { options, memory, files, tokens, renders, prints, opened, saves, exports, closed, source, reload, json, window,
-    advance: amount => { clock += amount; },
+    advance: amount => { clock += amount; }, now: () => clock,
     get service() { return window.IDPhotoDeliveryService; }, get automation() { return window.IDPhotoDeliveryAutomationService; },
     printOptions: { templateNames: [template.name], exportJpg: true, nasArchive: true, quickPrint: true,
       skipPrint: false, closeAfterPrint: false, rowGap: 10, colGap: 10, delivery: true },
@@ -541,4 +541,83 @@ test("a task locked only by its marker goes back to the queue once an abort reco
   assert.ok(await h.service.recoverNext(task.id));
   assert.equal(h.renders.length, 1, "the electronic delivery draws its own info bar once"); assert.equal(h.prints.length, 0);
   await task.folder.getEntry("complete.json");
+});
+
+// 10-18 at the counter: Esc on a running order made the background start it again twice,
+// "阻止" did not stop it, and a "可以打印" stayed after the sheet was printed from the panel.
+test("Esc during a layout parks the order: no background redo, and the same photo can be laid out again", async () => {
+  const h = harness(), original = h.source();
+  h.window.IDPhotoInfoBarRenderer.renderInfoBar = async () => { throw new Error("user cancelled"); };
+  const result = await h.runPrint(original);
+  assert.equal(result.cancelled, true);
+  const first = h.automation.store().tasks()[0];
+  assert.equal(first.state, "stopped"); assert.equal(first.error, "店员取消了这单");
+  assert.equal(await h.service.primeRecovery(), null, "a cancelled order is not redone in the background");
+  assert.equal((await abortRecords(h.service.latest().folder)).length, 0, "Esc is not a failed drawing");
+  h.window.IDPhotoInfoBarRenderer.renderInfoBar = async (document, bar, settings, values) => {
+    h.renders.push({ documentId: document.id, code: values.pickupCode }); return { ok: true, createdCount: 1 };
+  };
+  // The test double cannot answer the delivery-manager lookup a repeat order makes; what
+  // matters is that the cancelled order no longer refuses the photo as "unfinished".
+  const again = await h.runPrint(original);
+  assert.equal(again.failures.some(f => /未完成任务/.test(f.error && f.error.message)), false);
+  assert.equal(h.automation.store().tasks().length, 2, "a new order was started for the same photo");
+});
+
+test("Esc in the panel stops the run at its next step and parks the order", async () => {
+  const h = harness(), original = h.source();
+  const place = h.window.IDPhotoLayerService.placePhotoCopies;
+  h.window.IDPhotoLayerService.placePhotoCopies = async (...values) => { assert.equal(h.window.IDPhotoLayoutWorkflow.stopAll(), true); return place(...values); };
+  const result = await h.runPrint(original);
+  assert.equal(result.cancelled, true); assert.equal(h.renders.length, 0); assert.equal(h.prints.length, 0);
+  assert.equal(h.automation.store().tasks()[0].state, "stopped");
+  assert.equal(h.window.IDPhotoLayoutWorkflow.stopAll(), false, "nothing left running");
+});
+
+test("Esc during a background redo parks it instead of starting it again", async () => {
+  const h = harness(), original = h.source();
+  h.window.IDPhotoInfoBarRenderer.renderInfoBar = async () => { throw new Error("Photoshop 命令失败：transform"); };
+  await h.runPrint(original);
+  const task = h.service.latest();
+  h.window.IDPhotoInfoBarRenderer.renderInfoBar = async () => { throw new Error("user cancelled"); };
+  assert.equal(await h.service.primeRecovery(), task.id);
+  assert.equal((await h.service.recoverNext(task.id)).canPrint, false);
+  assert.equal(h.automation.store().tasks()[0].state, "stopped");
+  assert.equal(await h.service.primeRecovery(), null);
+});
+
+test("after 阻止 the background waits ten minutes, and an order it finished meanwhile offers no print", async () => {
+  const h = harness(), original = h.source();
+  let denied = 0;
+  h.window.IDPhotoPrintService.lastDeniedAt = () => denied;
+  const render = h.window.IDPhotoInfoBarRenderer.renderInfoBar;
+  h.window.IDPhotoInfoBarRenderer.renderInfoBar = async () => { throw new Error("Photoshop 命令失败：transform"); };
+  await h.runPrint(original);
+  const task = h.service.latest();
+  h.window.IDPhotoInfoBarRenderer.renderInfoBar = async (...values) => { denied = h.now(); return render(...values); };
+  assert.equal(await h.service.primeRecovery(), task.id);
+  const notice = await h.service.recoverNext(task.id);
+  assert.equal(notice.canPrint, false); assert.match(notice.text, /阻止/);
+  assert.equal((await h.json(task.folder, "automatic-recovery.json")).printAvailable, false);
+  const second = h.source(2);
+  h.window.IDPhotoInfoBarRenderer.renderInfoBar = async () => { throw new Error("Photoshop 命令失败：transform"); };
+  await h.runPrint(second);
+  const waiting = h.service.latest();
+  assert.equal(await h.service.primeRecovery(), null, "paused right after 阻止");
+  h.advance(10 * 60 * 1000);
+  assert.equal(await h.service.primeRecovery(), waiting.id);
+});
+
+test("a background '可以打印' is retired once the same code and size is printed from the panel", async () => {
+  const h = harness({ connection: false }), { task } = await recoveredPrint(h);
+  assert.equal((await h.service.recoveredNotice()).canPrint, true);
+  h.service.notePrinted("A7K3P9", "another-size");
+  assert.equal((await h.service.recoveredNotice()).canPrint, true, "another size of the same customer is still owed");
+  h.advance(60000);
+  h.service.notePrinted("A7K3P9", template.id);
+  assert.equal(await h.service.recoveredNotice(), null);
+  const saved = await h.json(task.folder, "automatic-recovery.json");
+  assert.equal(saved.printAvailable, false); assert.equal(saved.printState, "printed-from-panel");
+  await assert.rejects(h.service.printRecovered(task.id));
+  assert.equal(h.prints.length, 0);
 });

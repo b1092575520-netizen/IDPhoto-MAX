@@ -3,6 +3,12 @@
   var stateStore;
   var activeBridge = null;
   var PROTOCOL = "pickup-automation-1";
+  var CANCELLED_TEXT = "店员取消了这单";
+  // Same test as IDPhotoPhotoshopExecution.isCancellation; Esc arrives as "user cancelled".
+  function cancelled(error) {
+    return Boolean(error && (error.cancelled === true || error.number === -128 || error.code === -128 ||
+      /user cancel/i.test(String(error.message || error))));
+  }
   function store() {
     if (!stateStore) stateStore = window.IDPhotoDeliveryAutomationStore.create({ storage: window.localStorage });
     return stateStore;
@@ -49,7 +55,9 @@
     var tasks = store().tasks().filter(function (item) { return item.sourceKey === source; });
     var lastBySpec = {};
     tasks.forEach(function (item) { lastBySpec[item.specKey] = item; });
-    var existing = tasks.filter(function (item) { return item.specKey === spec && ["pending", "retryable", "stopped", "blocked"].includes(item.state); });
+    // An order the staff cancelled never blocks laying the same photo out again.
+    var existing = tasks.filter(function (item) { return item.specKey === spec && ["pending", "retryable", "stopped", "blocked"].includes(item.state) &&
+      !(item.state === "stopped" && item.error === CANCELLED_TEXT); });
     return { kind: group.on ? "group" : previous ? "same" : "new", sourceKey: source, specKey: spec,
       code: group.on ? group.code : previous && previous.code || "", previousTaskIds: Object.keys(lastBySpec).map(function (key) { return lastBySpec[key].id; }),
       groupTaskIds: group.on ? group.members.slice() : [], groupSessionId: group.on ? group.sessionId : "",
@@ -205,6 +213,8 @@
     // A completed task (e.g. a failed recovery print) keeps its state; the caller
     // reports the real error instead of a store "cannot restart" refusal.
     if (current && (current.state === "stopped" || current.state === "completed")) return;
+    // Esc (10-18): the staff cancelled this order, so it is parked instead of redone in the background.
+    if (cancelled(error)) { store().markTask(task.id, { state: "stopped", error: CANCELLED_TEXT }); return; }
     if (error.code === "AUTO_STOPPED" || error.causeCode === "AUTO_STOPPED") { store().markTask(task.id, { state: "stopped", error: error.message }); return; }
     var hard = error.retryable === false || error.retryable !== true && /变化|改变|冲突|损坏|不匹配|不一致|已失效|成员归属|唯一确认|输出痕迹/.test(error.message || "");
     store().markTask(task.id, { state: hard ? "blocked" : "retryable", error: error.message || String(error) });
