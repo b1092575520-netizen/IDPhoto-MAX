@@ -233,16 +233,17 @@
         })
       })),
       photoSlots: [
-        // 1.5 mm (35 px) down from the reference (user 10-20): the printer trims top and
-        // bottom, and the bottom row no longer leaves a white strip to cut away.
-        slot(0, 35, 0, 0, 0, 827, 1158),
-        slot(851, 35, 0, 1, 0, 829, 1159),
-        slot(1704, 35, 0, 2, 0, 827, 1158),
-        slot(2555, 35, 0, 3, 0, 829, 1159),
-        slot(0, 1220, 1, 0, 0, 826, 1159),
-        slot(851, 1221, 1, 1, 0, 829, 1158),
-        slot(1705, 1221, 1, 2, 0, 829, 1158),
-        slot(2555, 1221, 1, 3, 0, 829, 1158)
+        // 32 px (about 1.35 mm) down from the reference (user 10-20): the printer trims top
+        // and bottom, and the bottom row no longer leaves a white strip to cut away. First set
+        // at 1.5 mm; the user's test print sat best 3 px higher.
+        slot(0, 32, 0, 0, 0, 827, 1158),
+        slot(851, 32, 0, 1, 0, 829, 1159),
+        slot(1704, 32, 0, 2, 0, 827, 1158),
+        slot(2555, 32, 0, 3, 0, 829, 1159),
+        slot(0, 1217, 1, 0, 0, 826, 1159),
+        slot(851, 1218, 1, 1, 0, 829, 1158),
+        slot(1705, 1218, 1, 2, 0, 829, 1158),
+        slot(2555, 1218, 1, 3, 0, 829, 1158)
       ],
       allowRotation: false
     }),
