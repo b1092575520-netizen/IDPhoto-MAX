@@ -7,7 +7,15 @@
   var EXPECTED_HEIGHT_PX = 2400;
   var JOB_SCHEMA_VERSION = 1;
   var DEFAULT_TIMEOUT_MS = 30000;
-  var DEFAULT_POLL_INTERVAL_MS = 250;
+  var DEFAULT_POLL_INTERVAL_MS = 50;
+  // 10-20: after a job the Windows bridge stays in the background (it ends after 30 idle
+  // minutes or when Photoshop closes). Later jobs only drop "<job>.go" beside the job file
+  // instead of launching PowerShell again, which also skips the permission prompt. When it
+  // does not claim the job in time, the bridge is launched as before; the bridge's claim
+  // file keeps one job from ever running twice.
+  var RESIDENT_TRUST_MS = 25 * 60 * 1000;
+  var CLAIM_WAIT_MS = 1500;
+  var residentUntil = 0;
 
   function getUxp() {
     var uxp;
@@ -184,6 +192,42 @@
     };
   }
 
+  async function hasEntry(folder, name) {
+    try { return Boolean(await folder.getEntry(name)); } catch (missing) { return false; }
+  }
+
+  async function deleteNamed(folder, names) {
+    for (var name of names) {
+      var entry = null;
+      try { entry = await folder.getEntry(name); } catch (missing) { entry = null; }
+      if (entry) await safeDelete(entry);
+    }
+  }
+
+  // True when the resident bridge took the job; false means it has to be launched.
+  async function handToResident(folder, base) {
+    if (Date.now() >= residentUntil) return false;
+    var trigger;
+    try {
+      trigger = await folder.createFile(base + ".go", { overwrite: true });
+      await trigger.write("go");
+    } catch (error) {
+      return false;
+    }
+    var deadline = Date.now() + CLAIM_WAIT_MS;
+    do {
+      if (await hasEntry(folder, base + ".idprint.claim") || await hasEntry(folder, base + ".result.json")) return true;
+      await wait(25);
+    } while (Date.now() < deadline);
+    residentUntil = 0;
+    await safeDelete(trigger);
+    return false;
+  }
+
+  function noteBridgeAnswered() {
+    residentUntil = Date.now() + RESIDENT_TRUST_MS;
+  }
+
   // Photoshop has returned from saveAs without writing the file (10-17, 14:33).
   // Check before launching, so no permission prompt is spent on an empty job.
   async function hasWrittenImage(folder, file) {
@@ -269,28 +313,33 @@
           expectedWidthPx: EXPECTED_WIDTH_PX,
           expectedHeightPx: EXPECTED_HEIGHT_PX,
           archiveIndex: archiveOperations ? undefined : options.archiveIndex || undefined,
-          archiveOperations: archiveOperations
+          archiveOperations: archiveOperations,
+          resident: true
         },
         uxp.storage.formats
       );
 
       launchAttempted = true;
       timing.job = Date.now();
-      try {
-        launchMessage = await uxp.shell.openPath(jobFile.nativePath);
-        timing.launched = Date.now();
-      } catch (launchError) {
-        if (!isPermissionDenied(launchError)) throw launchError;
-        // The bridge never started: nothing can be in the printer queue.
-        completed = true;
-        return {
-          ok: false,
-          printed: false,
-          blocked: true,
-          reason: "permission-denied",
-          message: PERMISSION_DENIED_MESSAGE
-        };
+      timing.via = "resident";
+      if (!await handToResident(jobFolder, "idphoto-" + jobId)) {
+        timing.via = "launch";
+        try {
+          launchMessage = await uxp.shell.openPath(jobFile.nativePath);
+        } catch (launchError) {
+          if (!isPermissionDenied(launchError)) throw launchError;
+          // The bridge never started: nothing can be in the printer queue.
+          completed = true;
+          return {
+            ok: false,
+            printed: false,
+            blocked: true,
+            reason: "permission-denied",
+            message: PERMISSION_DENIED_MESSAGE
+          };
+        }
       }
+      timing.launched = Date.now();
       if (typeof launchMessage === "string" && launchMessage.trim()) {
         completed = true;
         return {
@@ -308,7 +357,8 @@
         : DEFAULT_POLL_INTERVAL_MS;
       bridgeResponse = await waitForBridgeResult(jobFolder, resultName, jobId, timeoutMs, pollIntervalMs);
       console.log("[print] timing ms: jpeg=" + (timing.jpeg - timing.start) + " job=" + (timing.job - timing.jpeg) +
-        " launch=" + (timing.launched - timing.job) + " bridge=" + (Date.now() - timing.launched));
+        " launch=" + (timing.launched - timing.job) + " bridge=" + (Date.now() - timing.launched) + " via=" + timing.via);
+      if (bridgeResponse.result.reason !== "bridge-timeout") noteBridgeAnswered();
       if (archiveOperations) {
         try {
           checkArchiveBatch(bridgeResponse.result.archiveIndexResult, archiveOperations);
@@ -337,6 +387,7 @@
       if (!launchAttempted || completed) {
         await safeDelete(jobFile);
         await safeDelete(imageFile);
+        if (jobFolder && jobId) await deleteNamed(jobFolder, ["idphoto-" + jobId + ".go", "idphoto-" + jobId + ".idprint.claim", "idphoto-" + jobId + ".idprint.submitted"]);
       }
     }
   }
@@ -368,15 +419,17 @@
     var completed = false;
     var launched = false;
     try {
-      await writeJson(jobFile, Object.assign({ schemaVersion: JOB_SCHEMA_VERSION, jobId: jobId }, fields), uxp.storage.formats);
+      await writeJson(jobFile, Object.assign({ schemaVersion: JOB_SCHEMA_VERSION, jobId: jobId, resident: true }, fields), uxp.storage.formats);
       launched = true;
       var launchError;
-      try {
-        launchError = await uxp.shell.openPath(jobFile.nativePath);
-      } catch (openError) {
-        if (!isPermissionDenied(openError)) throw openError;
-        launched = false;
-        throw new Error("Photoshop 权限框点了“阻止”，这次没存档");
+      if (!await handToResident(folder, "hide-" + jobId)) {
+        try {
+          launchError = await uxp.shell.openPath(jobFile.nativePath);
+        } catch (openError) {
+          if (!isPermissionDenied(openError)) throw openError;
+          launched = false;
+          throw new Error("Photoshop 权限框点了“阻止”，这次没存档");
+        }
       }
       if (launchError) throw new Error(String(launchError));
       var deadline = Date.now() + (options.timeoutMs || 5000);
@@ -387,6 +440,7 @@
           if (result.schemaVersion !== JOB_SCHEMA_VERSION || result.jobId !== jobId) {
             throw new Error("隐藏索引的回执不匹配");
           }
+          noteBridgeAnswered();
           completed = true;
           return checkResult(result);
         }
@@ -397,6 +451,7 @@
       if (!launched || completed) {
         await safeDelete(jobFile);
         await safeDelete(resultFile);
+        await deleteNamed(folder, ["hide-" + jobId + ".go", "hide-" + jobId + ".idprint.claim"]);
       }
     }
   }

@@ -435,14 +435,52 @@
     return code;
     } finally { if (activeWait === attempt) { activeWait = null; waitingChanged(false); } }
   }
+  function cancelled(error) {
+    return Boolean(error && (error.cancelled === true || error.number === -128 || error.code === -128 ||
+      /user cancel/i.test(String(error.message || error))));
+  }
+  // 10-20: the strip is read straight from the sheet's pixels and encoded in memory, so no
+  // extra document window opens. Returns null when this Photoshop has no pixel access.
+  async function encodeInfo(task, targetDocument, box, name) {
+    var imaging = window.IDPhotoPhotoshopExecution.getPhotoshop().imaging, bytes = null;
+    if (!imaging || typeof imaging.getPixels !== "function" || typeof imaging.encodeImageData !== "function") return null;
+    var started = Date.now();
+    await window.IDPhotoPhotoshopExecution.executeAsModal(async function () {
+      var imageData = null;
+      try {
+        var result = await imaging.getPixels({ documentID: targetDocument.id, colorSpace: "RGB", colorProfile: "sRGB IEC61966-2.1",
+          componentSize: 8, applyAlpha: true, sourceBounds: { left: box.x, top: box.y, right: box.x + box.width, bottom: box.y + box.height } });
+        imageData = result && result.imageData;
+        if (!imageData || imageData.width !== box.width || imageData.height !== box.height) throw new Error("信息条像素范围不符");
+        var encoded = await imaging.encodeImageData({ imageData: imageData, base64: false });
+        if (!encoded || typeof encoded === "string") throw new Error("信息条没有编码成图片");
+        bytes = new Uint8Array(encoded);
+      } finally { if (imageData && typeof imageData.dispose === "function") imageData.dispose(); }
+    }, "读取信息条像素");
+    var size = window.IDPhotoDeliverySpecifications.jpegDimensions(bytes);
+    if (size.width !== box.width || size.height !== box.height) throw new Error("信息条图片尺寸不符");
+    var file = await task.folder.createFile(name, { overwrite: false });
+    try { await file.write(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), { format: format(true) }); }
+    catch (error) { try { await file.delete(); } catch (_) { } throw error; }
+    console.log("[delivery] info strip encoded without a copy +" + (Date.now() - started) + "ms");
+    return { path: name, role: "info", sha256: protocol().sha256(bytes), sizeBytes: bytes.byteLength, width: box.width, height: box.height };
+  }
   async function cropInfo(task, targetDocument, infoBar, filename) {
+    var box = window.IDPhotoPickupStripLayout ? window.IDPhotoPickupStripLayout.outline(infoBar) : infoBar;
+    box = { x: Math.round(box.x), y: Math.round(box.y), width: Math.round(box.width), height: Math.round(box.height) };
+    try {
+      var encoded = await encodeInfo(task, targetDocument, box, filename || "info.jpg");
+      if (encoded) return encoded;
+    } catch (error) {
+      if (cancelled(error)) throw error;
+      console.warn("[delivery] info strip pixels unavailable, using a cropped copy", error);
+    }
     var copy;
     try {
       await window.IDPhotoPhotoshopExecution.executeAsModal(async function () {
         copy = await targetDocument.duplicate("信息条_" + task.id);
         if (!copy || copy === targetDocument || copy.id === targetDocument.id) { copy = null; throw new Error("信息条副本未独立创建，未裁切原文档"); }
         await window.IDPhotoPhotoshopExecution.activateDocument(copy);
-        var box = window.IDPhotoPickupStripLayout ? window.IDPhotoPickupStripLayout.outline(infoBar) : infoBar;
         await copy.crop({ left: box.x, top: box.y, right: box.x + box.width, bottom: box.y + box.height });
       }, "导出完整可剪信息条");
       return await saveJpeg(task, copy, filename || "info.jpg", "info");

@@ -375,3 +375,64 @@ test("archive records and the index travel with the print, or in one archive-onl
   const denied = loadService({ launchThrow: "User denied." });
   await assert.rejects(denied.service.runArchiveOperations(records), /阻止/);
 });
+
+// 10-20: after one answered job the bridge is resident; the next job is handed over with a
+// "<job>.go" trigger instead of launching PowerShell (and its permission prompt) again.
+function residentBridge(loaded, answer) {
+  const jobs = loaded.root.entries.get("print-jobs");
+  const createFile = jobs.createFile.bind(jobs);
+  const triggers = [];
+  jobs.createFile = async (name, options) => {
+    const file = await createFile(name, options);
+    if (name.endsWith(".go")) {
+      triggers.push(name);
+      if (answer) {
+        const base = name.replace(/\.go$/, "");
+        const job = JSON.parse(jobs.entries.get(base + ".idprint").data);
+        assert.equal(job.resident, true);
+        await (await createFile(base + ".idprint.claim")).write("");
+        await (await createFile(base + ".result.json", { overwrite: true })).write(JSON.stringify({ schemaVersion: 1, jobId: job.jobId,
+          ok: true, printed: true, printerName: "DS-RX1", paperName: "(6x4)", copies: 1, message: "printed" }));
+      }
+    }
+    return file;
+  };
+  return { jobs, triggers };
+}
+
+test("a later print goes to the resident bridge without launching it again, and leaves no files", async () => {
+  const loaded = loadService();
+  assert.equal((await loaded.service.printOneCopy(loaded.documentRef)).printed, true);
+  assert.equal(loaded.getWrittenJob().resident, true, "the first job asks the bridge to stay");
+  const { jobs, triggers } = residentBridge(loaded, true);
+  const second = await loaded.service.printOneCopy(loaded.documentRef);
+  assert.equal(second.printed, true);
+  assert.equal(loaded.openedPaths.length, 1, "no second launch");
+  assert.equal(triggers.length, 1);
+  assert.deepEqual(Array.from(jobs.entries.keys()), [], "job, image, trigger, claim and result cleaned");
+});
+
+test("when the resident bridge does not claim the job it is launched as before", async () => {
+  const loaded = loadService();
+  await loaded.service.printOneCopy(loaded.documentRef);
+  const { jobs, triggers } = residentBridge(loaded, false);
+  const second = await loaded.service.printOneCopy(loaded.documentRef);
+  assert.equal(second.printed, true);
+  assert.equal(triggers.length, 1);
+  assert.equal(loaded.openedPaths.length, 2, "fell back to launching the bridge");
+  assert.equal(Array.from(jobs.entries.keys()).some(name => name.endsWith(".go")), false, "unanswered trigger removed");
+  // The bridge is trusted again only after it answers: the third job is handed over first.
+  await loaded.service.printOneCopy(loaded.documentRef);
+  assert.equal(triggers.length, 2);
+});
+
+test("a fresh plugin session launches the bridge directly instead of waiting on a trigger", async () => {
+  const loaded = loadService();
+  const jobs = await loaded.root.createFolder("print-jobs");
+  const created = [];
+  const createFile = jobs.createFile.bind(jobs);
+  jobs.createFile = async (name, options) => { created.push(name); return createFile(name, options); };
+  await loaded.service.printOneCopy(loaded.documentRef);
+  assert.equal(created.some(name => name.endsWith(".go")), false);
+  assert.equal(loaded.openedPaths.length, 1);
+});

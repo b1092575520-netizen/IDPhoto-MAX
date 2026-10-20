@@ -236,3 +236,49 @@ test("one launch commits a batch of records and the index in order and stops at 
     assert.deepEqual(Object.keys(JSON.parse(fs.readFileSync(path.join(directory, ".idphoto-jpg-index.json"), "utf8")).entries), ["printed"]);
   } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });
+
+// 10-20: the first job opts in to stay resident; later jobs only drop "<job>.go" and are
+// handled by that same process. Stale triggers and jobs without a trigger are never run.
+test("a resident bridge takes later jobs from fresh triggers, ignores old ones, and exits when idle", { skip: process.platform !== "win32", timeout: 60000 }, async () => {
+  const { spawn } = require("node:child_process");
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "idphoto-resident-"));
+  const indexPath = path.join(directory, ".idphoto-jpg-index.json");
+  fs.writeFileSync(indexPath, JSON.stringify({ version: 1, entries: {} }));
+  const job = (id, extra) => {
+    const jobPath = path.join(directory, "hide-" + id + ".idprint");
+    fs.writeFileSync(jobPath, JSON.stringify(Object.assign({ schemaVersion: 1, jobId: id, operation: "hide-archive-index", indexPath }, extra)));
+    return jobPath;
+  };
+  const result = id => path.join(directory, "hide-" + id + ".result.json");
+  const waitFor = async (check, ms) => { const end = Date.now() + ms; while (Date.now() < end) { if (check()) return true; await new Promise(r => setTimeout(r, 25)); } return check(); };
+  // An old trigger left behind before the bridge starts must not run.
+  job("old111-old111");
+  const stale = path.join(directory, "hide-old111-old111.go");
+  fs.writeFileSync(stale, "");
+  const past = new Date(Date.now() - 5 * 60 * 1000); fs.utimesSync(stale, past, past);
+  const first = job("aaa111-bbb222", { resident: true });
+  const started = Date.now();
+  const bridge = spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", bridgePath, first,
+    "-ResidentHost", "powershell", "-ResidentIdleSeconds", "6"], { stdio: "ignore" });
+  const exited = new Promise(resolve => bridge.on("exit", code => resolve(code)));
+  try {
+    assert.ok(await waitFor(() => fs.existsSync(result("aaa111-bbb222")), 20000), "first job answered");
+    job("ccc333-ddd444");
+    job("eee555-fff666"); // never triggered
+    const triggered = Date.now();
+    fs.writeFileSync(path.join(directory, "hide-ccc333-ddd444.go"), "");
+    assert.ok(await waitFor(() => fs.existsSync(result("ccc333-ddd444")), 3000), "triggered job answered by the resident bridge");
+    const latency = Date.now() - triggered;
+    assert.equal(JSON.parse(fs.readFileSync(result("ccc333-ddd444"), "utf8")).hidden, true);
+    assert.equal(fs.existsSync(path.join(directory, "hide-ccc333-ddd444.go")), false, "trigger consumed");
+    const code = await exited;
+    assert.equal(code, 0);
+    assert.equal(fs.existsSync(result("old111-old111")), false, "stale trigger ignored");
+    assert.equal(fs.existsSync(result("eee555-fff666")), false, "untriggered job ignored");
+    assert.ok(Date.now() - started < 40000, "resident bridge exits after its idle time");
+    console.log("resident trigger-to-result ms:", latency);
+  } finally {
+    bridge.kill();
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});

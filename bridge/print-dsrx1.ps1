@@ -2,7 +2,9 @@
   [Parameter(Position = 0)]
   [string]$JobPath = "",
   [switch]$ValidateOnly,
-  [switch]$RenderOnly
+  [switch]$RenderOnly,
+  [string]$ResidentHost = "Photoshop",
+  [int]$ResidentIdleSeconds = 1800
 )
 
 $ErrorActionPreference = "Stop"
@@ -278,6 +280,264 @@ function Invoke-ArchiveOperationBatch {
   return [ordered]@{ ok = $true; printed = $false; results = @($results) }
 }
 
+# Resident mode (10-20): after its first job the bridge may stay in the background for
+# later jobs, so a print no longer starts a new PowerShell. It waits on a file-system
+# notification (no polling, no CPU while idle), runs below normal priority, handles only
+# fresh "<job>.go" triggers (never older jobs left in the folder), and exits after
+# $ResidentIdleSeconds without work or once Photoshop ($ResidentHost) is closed.
+$ResidentTriggerSeconds = 60
+$script:ResidentFolder = ""
+
+# One job: validate, claim, archive operations, print. Returns the exit code; every
+# outcome is written to <job>.result.json. A job claimed by another bridge is left alone.
+function Invoke-BridgeJob {
+  param([string]$Path)
+  $resultPath = ""
+  $jobId = ""
+  $image = $null
+  $printDocument = $null
+  $renderBitmap = $null
+  $renderGraphics = $null
+  $submissionAttempted = $false
+  $archiveIndexResult = $null
+  try {
+    if (-not $Path) {
+      Throw-BridgeError "missing-job" "The .idprint job path is missing; no print job was submitted"
+    }
+    $Path = [System.IO.Path]::GetFullPath($Path)
+    if ([System.IO.Path]::GetExtension($Path) -cne ".idprint") {
+      Throw-BridgeError "invalid-job-extension" "The job extension is not .idprint; no print job was submitted"
+    }
+    $resultPath = [System.IO.Path]::ChangeExtension($Path, ".result.json")
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+      Throw-BridgeError "job-not-found" "The print job file was not found; no print job was submitted"
+    }
+    # The resident bridge and a launched bridge can both see one job: the first claim wins.
+    if (-not (Try-ClaimPrintJob ($Path + ".claim"))) {
+      $resultPath = ""
+      return 0
+    }
+
+    $job = Get-Content -Raw -Encoding UTF8 -LiteralPath $Path | ConvertFrom-Json
+    $jobId = [string]$job.jobId
+    if ([int]$job.schemaVersion -ne $SchemaVersion) {
+      Throw-BridgeError "invalid-schema" "The print job schema is unsupported; no print job was submitted"
+    }
+    if (-not $jobId -or $jobId -notmatch '^[a-z0-9]+-[a-z0-9]+$') {
+      Throw-BridgeError "invalid-job-id" "The print job id is invalid; no print job was submitted"
+    }
+    if ($job.PSObject.Properties['resident'] -and $job.resident -eq $true) {
+      $script:ResidentFolder = [System.IO.Path]::GetDirectoryName($Path)
+    }
+    if ($job.PSObject.Properties['operation']) {
+      $archiveReceipt = Invoke-ArchiveIndexOperation $job
+      $archiveReceipt.schemaVersion = $SchemaVersion
+      $archiveReceipt.jobId = $jobId
+      Write-JsonUtf8NoBom $resultPath $archiveReceipt
+      return 0
+    }
+    if ($job.PSObject.Properties['operations']) {
+      $batchReceipt = Invoke-ArchiveOperationBatch $job.operations
+      $batchReceipt.schemaVersion = $SchemaVersion
+      $batchReceipt.jobId = $jobId
+      Write-JsonUtf8NoBom $resultPath $batchReceipt
+      return 0
+    }
+    if ($job.archiveOperations) {
+      try { $archiveIndexResult = Invoke-ArchiveOperationBatch $job.archiveOperations }
+      catch { $archiveIndexResult = [ordered]@{ ok = $false; printed = $false; results = @(); failedIndex = 0; message = $_.Exception.Message } }
+    } elseif ($job.archiveIndex) {
+      try { $archiveIndexResult = Invoke-ArchiveIndexOperation $job.archiveIndex }
+      catch { $archiveIndexResult = [ordered]@{ ok = $false; operation = [string]$job.archiveIndex.operation; message = $_.Exception.Message } }
+    }
+    if ([string]$job.printerName -cne $ExpectedPrinterName) {
+      Throw-BridgeError "wrong-printer" "The job does not target DS-RX1; no print job was submitted"
+    }
+    if ([string]$job.paperName -cne $ExpectedPaperName) {
+      Throw-BridgeError "wrong-paper" "The job does not target exact paper (6x4); no print job was submitted"
+    }
+    if ([int]$job.copies -ne 1) {
+      Throw-BridgeError "wrong-copies" "The job copy count is not one; no print job was submitted"
+    }
+    if ([int]$job.expectedWidthPx -ne $ExpectedWidthPx -or [int]$job.expectedHeightPx -ne $ExpectedHeightPx) {
+      Throw-BridgeError "wrong-expected-size" "The expected canvas is not 3600x2400; no print job was submitted"
+    }
+
+    $printer = Get-ValidatedPrinter
+
+    $imagePath = [System.IO.Path]::GetFullPath([string]$job.imagePath)
+    if (-not (Test-Path -LiteralPath $imagePath -PathType Leaf)) {
+      Throw-BridgeError "image-not-found" "The temporary print JPG was not found; no print job was submitted"
+    }
+    if ([System.IO.Path]::GetExtension($imagePath) -cne ".jpg") {
+      Throw-BridgeError "invalid-image-extension" "The temporary image is not JPG; no print job was submitted"
+    }
+
+    $image = [System.Drawing.Image]::FromFile($imagePath)
+    if ($image.Width -ne $ExpectedWidthPx -or $image.Height -ne $ExpectedHeightPx) {
+      Throw-BridgeError "wrong-image-size" "The temporary image is not 3600x2400; no print job was submitted"
+    }
+
+    if ($RenderOnly) {
+      $renderBitmap = New-Object System.Drawing.Bitmap([int]$printer.Paper.Width, [int]$printer.Paper.Height)
+      $renderGraphics = [System.Drawing.Graphics]::FromImage($renderBitmap)
+      Draw-ImageActualSize $renderGraphics $image $printer.Paper.Width $printer.Paper.Height
+      [Console]::Out.WriteLine(([pscustomobject]@{
+        schemaVersion = $SchemaVersion
+        jobId = $jobId
+        ok = $true
+        renderedOnly = $true
+        printed = $false
+        archiveIndexResult = $archiveIndexResult
+        printerName = $ExpectedPrinterName
+        paperName = $ExpectedPaperName
+        message = "RenderOnly completed; no print job was submitted"
+      } | ConvertTo-Json -Compress))
+      return 0
+    }
+
+    $printDocument = New-Object System.Drawing.Printing.PrintDocument
+    $printDocument.PrinterSettings = $printer.Settings
+    $printDocument.PrinterSettings.Copies = 1
+    $printDocument.PrintController = New-Object System.Drawing.Printing.StandardPrintController
+    $printDocument.DocumentName = "IDPhoto MAX $jobId"
+    $printDocument.OriginAtMargins = $false
+    $printDocument.DefaultPageSettings.PaperSize = $printer.Paper
+    $printDocument.DefaultPageSettings.Landscape = $false
+    $printDocument.DefaultPageSettings.Color = $true
+    $printDocument.DefaultPageSettings.Margins = New-Object System.Drawing.Printing.Margins(0, 0, 0, 0)
+
+    $printHandler = [System.Drawing.Printing.PrintPageEventHandler] {
+      param($sender, $eventArgs)
+      Draw-ImageActualSize $eventArgs.Graphics $image $eventArgs.PageBounds.Width $eventArgs.PageBounds.Height
+      $eventArgs.HasMorePages = $false
+    }
+    $printDocument.add_PrintPage($printHandler)
+    # Retain a tiny claim after completion: a second launch must never print this job again.
+    if (-not (Try-ClaimPrintJob ($Path + ".submitted"))) { return 0 }
+    $submissionAttempted = $true
+    $printDocument.Print()
+    # Release the JPEG lock before publishing success; UXP cleans the job immediately.
+    $printDocument.Dispose()
+    $printDocument = $null
+    $image.Dispose()
+    $image = $null
+
+    Write-JsonUtf8NoBom $resultPath ([ordered]@{
+      schemaVersion = $SchemaVersion
+      jobId = $jobId
+      ok = $true
+      printed = $true
+      printerName = $ExpectedPrinterName
+      paperName = $ExpectedPaperName
+      copies = 1
+      message = "Submitted one (6x4) copy to DS-RX1"
+      archiveIndexResult = $archiveIndexResult
+      completedAt = [DateTime]::UtcNow.ToString("o")
+    })
+    return 0
+  } catch {
+    $reason = "bridge-error"
+    if ($_.Exception.Data -and $_.Exception.Data.Contains("Reason")) {
+      $reason = [string]$_.Exception.Data["Reason"]
+    }
+    $failure = [ordered]@{
+      schemaVersion = $SchemaVersion
+      jobId = $jobId
+      ok = $false
+      printed = $(if ($submissionAttempted) { $null } else { $false })
+      outcomeUnknown = $submissionAttempted
+      reason = $reason
+      message = $_.Exception.Message
+      archiveIndexResult = $archiveIndexResult
+      completedAt = [DateTime]::UtcNow.ToString("o")
+    }
+    if ($resultPath) {
+      try {
+        Write-JsonUtf8NoBom $resultPath $failure
+      } catch {
+        # The caller will time out if even the result file cannot be written.
+      }
+    } else {
+      [Console]::Out.WriteLine(([pscustomobject]$failure | ConvertTo-Json -Compress))
+    }
+    return 2
+  } finally {
+    if ($renderGraphics) {
+      $renderGraphics.Dispose()
+    }
+    if ($renderBitmap) {
+      $renderBitmap.Dispose()
+    }
+    if ($printDocument) {
+      $printDocument.Dispose()
+    }
+    if ($image) {
+      $image.Dispose()
+    }
+  }
+}
+
+function Get-FreshTriggers {
+  param([string]$Folder)
+  $limit = [DateTime]::UtcNow.AddSeconds(-$ResidentTriggerSeconds)
+  return @(Get-ChildItem -LiteralPath $Folder -Filter '*.go' -File -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -cmatch '^(?:idphoto|hide)-[a-z0-9]+-[a-z0-9]+\.go$' -and $_.LastWriteTimeUtc -ge $limit } |
+    Sort-Object LastWriteTimeUtc)
+}
+
+function Invoke-Trigger {
+  param([string]$TriggerPath)
+  $jobPath = [System.IO.Path]::ChangeExtension($TriggerPath, '.idprint')
+  try { [System.IO.File]::Delete($TriggerPath) } catch { }
+  if ([System.IO.File]::Exists($jobPath)) { [void]@(Invoke-BridgeJob $jobPath) }
+}
+
+function Start-ResidentWatch {
+  param([string]$Folder)
+  # One resident bridge per job folder; a second one simply ends.
+  $hasher = [System.Security.Cryptography.SHA256]::Create()
+  try { $folderKey = [BitConverter]::ToString($hasher.ComputeHash([Text.Encoding]::UTF8.GetBytes($Folder.ToLowerInvariant()))).Replace('-', '').Substring(0, 16) }
+  finally { $hasher.Dispose() }
+  $mutex = New-Object System.Threading.Mutex($false, ('Local\IDPhotoMAX.PrintBridge.' + $folderKey))
+  $owned = $false
+  try { $owned = $mutex.WaitOne(0) } catch [System.Threading.AbandonedMutexException] { $owned = $true }
+  if (-not $owned) { $mutex.Dispose(); return }
+  $watcher = $null
+  $source = 'IDPhotoPrintTrigger'
+  try {
+    try { [System.Diagnostics.Process]::GetCurrentProcess().PriorityClass = [System.Diagnostics.ProcessPriorityClass]::BelowNormal } catch { }
+    $watcher = New-Object System.IO.FileSystemWatcher($Folder, '*.go')
+    $watcher.IncludeSubdirectories = $false
+    $watcher.NotifyFilter = [System.IO.NotifyFilters]::FileName
+    $null = Register-ObjectEvent -InputObject $watcher -EventName Created -SourceIdentifier $source
+    $watcher.EnableRaisingEvents = $true
+    $lastWork = [DateTime]::UtcNow
+    while ($true) {
+      $worked = $false
+      foreach ($trigger in (Get-FreshTriggers $Folder)) {
+        Invoke-Trigger $trigger.FullName
+        $worked = $true
+      }
+      if ($worked) {
+        $lastWork = [DateTime]::UtcNow
+        [System.GC]::Collect()
+      }
+      $idleSeconds = ([DateTime]::UtcNow - $lastWork).TotalSeconds
+      if ($idleSeconds -ge $ResidentIdleSeconds) { break }
+      if (-not (Get-Process -Name $ResidentHost -ErrorAction SilentlyContinue)) { break }
+      $waitSeconds = [int][Math]::Max(1, [Math]::Min(60, $ResidentIdleSeconds - $idleSeconds))
+      $null = Wait-Event -SourceIdentifier $source -Timeout $waitSeconds
+      Get-Event -SourceIdentifier $source -ErrorAction SilentlyContinue | Remove-Event
+    }
+  } finally {
+    Unregister-Event -SourceIdentifier $source -ErrorAction SilentlyContinue
+    if ($watcher) { $watcher.Dispose() }
+    $mutex.ReleaseMutex()
+    $mutex.Dispose()
+  }
+}
+
 try {
   Add-Type -AssemblyName System.Drawing
 
@@ -295,170 +555,24 @@ try {
     exit 0
   }
 
-  if (-not $JobPath) {
-    Throw-BridgeError "missing-job" "The .idprint job path is missing; no print job was submitted"
+  $exitCode = @(Invoke-BridgeJob $JobPath)[-1]
+  # The job's result is already written: the plugin is not waiting on this process.
+  if ($script:ResidentFolder -and -not $RenderOnly) {
+    try { Start-ResidentWatch $script:ResidentFolder } catch { }
   }
-  $JobPath = [System.IO.Path]::GetFullPath($JobPath)
-  if ([System.IO.Path]::GetExtension($JobPath) -cne ".idprint") {
-    Throw-BridgeError "invalid-job-extension" "The job extension is not .idprint; no print job was submitted"
-  }
-  $resultPath = [System.IO.Path]::ChangeExtension($JobPath, ".result.json")
-  if (-not (Test-Path -LiteralPath $JobPath -PathType Leaf)) {
-    Throw-BridgeError "job-not-found" "The print job file was not found; no print job was submitted"
-  }
-
-  $job = Get-Content -Raw -Encoding UTF8 -LiteralPath $JobPath | ConvertFrom-Json
-  $jobId = [string]$job.jobId
-  if ([int]$job.schemaVersion -ne $SchemaVersion) {
-    Throw-BridgeError "invalid-schema" "The print job schema is unsupported; no print job was submitted"
-  }
-  if (-not $jobId -or $jobId -notmatch '^[a-z0-9]+-[a-z0-9]+$') {
-    Throw-BridgeError "invalid-job-id" "The print job id is invalid; no print job was submitted"
-  }
-  if ($job.PSObject.Properties['operation']) {
-    $archiveReceipt = Invoke-ArchiveIndexOperation $job
-    $archiveReceipt.schemaVersion = $SchemaVersion
-    $archiveReceipt.jobId = $jobId
-    Write-JsonUtf8NoBom $resultPath $archiveReceipt
-    exit 0
-  }
-  if ($job.PSObject.Properties['operations']) {
-    $batchReceipt = Invoke-ArchiveOperationBatch $job.operations
-    $batchReceipt.schemaVersion = $SchemaVersion
-    $batchReceipt.jobId = $jobId
-    Write-JsonUtf8NoBom $resultPath $batchReceipt
-    exit 0
-  }
-  if ($job.archiveOperations) {
-    try { $archiveIndexResult = Invoke-ArchiveOperationBatch $job.archiveOperations }
-    catch { $archiveIndexResult = [ordered]@{ ok = $false; printed = $false; results = @(); failedIndex = 0; message = $_.Exception.Message } }
-  } elseif ($job.archiveIndex) {
-    try { $archiveIndexResult = Invoke-ArchiveIndexOperation $job.archiveIndex }
-    catch { $archiveIndexResult = [ordered]@{ ok = $false; operation = [string]$job.archiveIndex.operation; message = $_.Exception.Message } }
-  }
-  if ([string]$job.printerName -cne $ExpectedPrinterName) {
-    Throw-BridgeError "wrong-printer" "The job does not target DS-RX1; no print job was submitted"
-  }
-  if ([string]$job.paperName -cne $ExpectedPaperName) {
-    Throw-BridgeError "wrong-paper" "The job does not target exact paper (6x4); no print job was submitted"
-  }
-  if ([int]$job.copies -ne 1) {
-    Throw-BridgeError "wrong-copies" "The job copy count is not one; no print job was submitted"
-  }
-  if ([int]$job.expectedWidthPx -ne $ExpectedWidthPx -or [int]$job.expectedHeightPx -ne $ExpectedHeightPx) {
-    Throw-BridgeError "wrong-expected-size" "The expected canvas is not 3600x2400; no print job was submitted"
-  }
-
-  $printer = Get-ValidatedPrinter
-
-  $imagePath = [System.IO.Path]::GetFullPath([string]$job.imagePath)
-  if (-not (Test-Path -LiteralPath $imagePath -PathType Leaf)) {
-    Throw-BridgeError "image-not-found" "The temporary print JPG was not found; no print job was submitted"
-  }
-  if ([System.IO.Path]::GetExtension($imagePath) -cne ".jpg") {
-    Throw-BridgeError "invalid-image-extension" "The temporary image is not JPG; no print job was submitted"
-  }
-
-  $image = [System.Drawing.Image]::FromFile($imagePath)
-  if ($image.Width -ne $ExpectedWidthPx -or $image.Height -ne $ExpectedHeightPx) {
-    Throw-BridgeError "wrong-image-size" "The temporary image is not 3600x2400; no print job was submitted"
-  }
-
-  if ($RenderOnly) {
-    $renderBitmap = New-Object System.Drawing.Bitmap([int]$printer.Paper.Width, [int]$printer.Paper.Height)
-    $renderGraphics = [System.Drawing.Graphics]::FromImage($renderBitmap)
-    Draw-ImageActualSize $renderGraphics $image $printer.Paper.Width $printer.Paper.Height
-    [pscustomobject]@{
-      schemaVersion = $SchemaVersion
-      jobId = $jobId
-      ok = $true
-      renderedOnly = $true
-      printed = $false
-      archiveIndexResult = $archiveIndexResult
-      printerName = $ExpectedPrinterName
-      paperName = $ExpectedPaperName
-      message = "RenderOnly completed; no print job was submitted"
-    } | ConvertTo-Json -Compress
-    exit 0
-  }
-
-  $printDocument = New-Object System.Drawing.Printing.PrintDocument
-  $printDocument.PrinterSettings = $printer.Settings
-  $printDocument.PrinterSettings.Copies = 1
-  $printDocument.PrintController = New-Object System.Drawing.Printing.StandardPrintController
-  $printDocument.DocumentName = "IDPhoto MAX $jobId"
-  $printDocument.OriginAtMargins = $false
-  $printDocument.DefaultPageSettings.PaperSize = $printer.Paper
-  $printDocument.DefaultPageSettings.Landscape = $false
-  $printDocument.DefaultPageSettings.Color = $true
-  $printDocument.DefaultPageSettings.Margins = New-Object System.Drawing.Printing.Margins(0, 0, 0, 0)
-
-  $printHandler = [System.Drawing.Printing.PrintPageEventHandler] {
-    param($sender, $eventArgs)
-    Draw-ImageActualSize $eventArgs.Graphics $image $eventArgs.PageBounds.Width $eventArgs.PageBounds.Height
-    $eventArgs.HasMorePages = $false
-  }
-  $printDocument.add_PrintPage($printHandler)
-  # Retain a tiny claim after completion: a second launch must never print this job again.
-  if (-not (Try-ClaimPrintJob ($JobPath + ".submitted"))) { exit 0 }
-  $submissionAttempted = $true
-  $printDocument.Print()
-  # Release the JPEG lock before publishing success; UXP cleans the job immediately.
-  $printDocument.Dispose()
-  $printDocument = $null
-  $image.Dispose()
-  $image = $null
-
-  Write-JsonUtf8NoBom $resultPath ([ordered]@{
-    schemaVersion = $SchemaVersion
-    jobId = $jobId
-    ok = $true
-    printed = $true
-    printerName = $ExpectedPrinterName
-    paperName = $ExpectedPaperName
-    copies = 1
-    message = "Submitted one (6x4) copy to DS-RX1"
-    archiveIndexResult = $archiveIndexResult
-    completedAt = [DateTime]::UtcNow.ToString("o")
-  })
-  exit 0
+  exit $exitCode
 } catch {
   $reason = "bridge-error"
   if ($_.Exception.Data -and $_.Exception.Data.Contains("Reason")) {
     $reason = [string]$_.Exception.Data["Reason"]
   }
-  $failure = [ordered]@{
+  [pscustomobject]([ordered]@{
     schemaVersion = $SchemaVersion
-    jobId = $jobId
     ok = $false
-    printed = $(if ($submissionAttempted) { $null } else { $false })
-    outcomeUnknown = $submissionAttempted
+    printed = $false
+    outcomeUnknown = $false
     reason = $reason
     message = $_.Exception.Message
-    archiveIndexResult = $archiveIndexResult
-    completedAt = [DateTime]::UtcNow.ToString("o")
-  }
-  if ($resultPath) {
-    try {
-      Write-JsonUtf8NoBom $resultPath $failure
-    } catch {
-      # The caller will time out if even the result file cannot be written.
-    }
-  } else {
-    [pscustomobject]$failure | ConvertTo-Json -Compress
-  }
+  }) | ConvertTo-Json -Compress
   exit 2
-} finally {
-  if ($renderGraphics) {
-    $renderGraphics.Dispose()
-  }
-  if ($renderBitmap) {
-    $renderBitmap.Dispose()
-  }
-  if ($printDocument) {
-    $printDocument.Dispose()
-  }
-  if ($image) {
-    $image.Dispose()
-  }
 }

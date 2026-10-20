@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const path = require('node:path');
 
 function harness(options = {}) {
-  const files = new Map(), memory = new Map(), closed = [], renders = [], canvases = [];
+  const files = new Map(), memory = new Map(), closed = [], renders = [], canvases = [], duplicates = [];
   let window, clock = 0, sequence = 20, active = null, modalDepth = 0;
   class Entry {
     constructor(name, parent, folder = true) { this.name = name; this.parent = parent; this.isFolder = folder; this.nativePath = parent ? parent.nativePath + '/' + name : name; this.children = new Map(); }
@@ -46,7 +46,7 @@ function harness(options = {}) {
   function doc(width,height) { const d={id:++sequence,width,height,saveAs:{jpg:async(file,opts)=>{
     if(!options.multi)return file.write(pixels);
     const data=new Uint8Array(500+opts.quality*100);data.set([255,216,255,192,0,11,8,d.height>>8,d.height&255,d.width>>8,d.width&255,1,1,17,0,255,218]);data[data.length-2]=255;data[data.length-1]=217;await file.write(data.buffer);
-  }},crop:async()=>{},resizeImage:async(w,h)=>{d.width=w;d.height=h;},duplicate:async()=>doc(d.width,d.height)}; return d; }
+  }},crop:async()=>{},resizeImage:async(w,h)=>{d.width=w;d.height=h;},duplicate:async()=>{duplicates.push(d.id);return doc(d.width,d.height);}}; return d; }
   const photo=doc(3000,4000), original=doc(3000,4000);
   const app={documents:[],open:async()=>{const d=doc(3000,4000);app.documents.push(d);return d;},get activeDocument(){return active},set activeDocument(d){active=d}};
   app.documents.add=async({width,height,name})=>{const d=doc(width,height);d.name=name;canvases.push(d);app.documents.push(d);return d;};
@@ -55,7 +55,7 @@ function harness(options = {}) {
     IDPhotoSourceEligibilityService:{checkSource:()=>({eligible:true})},
     IDPhotoPathService:{getDateFolders:()=>({year:'2026',month:'2026-09',day:'2026-09-27'})},
     IDPhotoDateService:{formatDisplayDate:()=> '2026.9.27'},
-    IDPhotoPhotoshopExecution:{executeAsModal:async cb=>{modalDepth++;try{return await cb();}finally{modalDepth--;}},activateDocument:async d=>{active=d},getPhotoshop:()=>({app}),resolveCreatedDocument:(ids,expected)=>{const d=app.documents.filter(d=>!ids.includes(d.id));assert.equal(d.length,1);assert.equal(d[0].name,expected.name);return d[0];}},
+    IDPhotoPhotoshopExecution:{executeAsModal:async cb=>{modalDepth++;try{return await cb();}finally{modalDepth--;}},activateDocument:async d=>{active=d},getPhotoshop:()=>({app,imaging:options.imaging}),resolveCreatedDocument:(ids,expected)=>{const d=app.documents.filter(d=>!ids.includes(d.id));assert.equal(d.length,1);assert.equal(d[0].name,expected.name);return d[0];}},
     IDPhotoDocumentService:{closeWithoutSaving:async d=>{closed.push(d.id);if(options.cleanupFail&&d===photo)throw Error('close failure');}},
     IDPhotoCropService:{prepareSinglePhoto:async(d,info,shape,ratio,opts)=>{assert.equal(d,original);assert.equal(opts.preservePixels,true);return {document:photo};}},
     IDPhotoTemplates:{getTemplateById:()=>({infoBar:{x:0,y:100,width:1653,height:555,avatar:{x:20,y:120},texts:[{x:100,y:140}]}})},
@@ -69,7 +69,7 @@ function harness(options = {}) {
   const reload=()=>vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/photoshop/deliveryService.js'),'utf8'),context);
   const taskCount=()=>{let count=0;function walk(entry){if(entry.children.has('context.json'))count++;for(const child of entry.children.values())if(child.isFolder)walk(child);}walk(root);return count;};
   const loadWorkflow=()=>vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/core/layoutWorkflow.js'),'utf8'),context);
-  return {options,get service(){return window.IDPhotoDeliveryService;},reload,loadWorkflow,taskCount,window,doc,app,original,photo,files,closed,renders,canvases,info:{id:original.id,name:'test',widthPx:3000,heightPx:4000,sourceMetadata:{}}};
+  return {options,get service(){return window.IDPhotoDeliveryService;},reload,loadWorkflow,taskCount,window,doc,app,original,photo,files,closed,renders,canvases,duplicates,info:{id:original.id,name:'test',widthPx:3000,heightPx:4000,sourceMetadata:{}}};
 }
 test('timeout and reload retain one immutable logical task; explicit electronic retry confirms a new attempt without new delivery', async () => {
   const h=harness({receipt:false});
@@ -554,4 +554,40 @@ test('a code confirmed moments ago is not asked for again; one confirmed over tw
   task.codeConfirmedAt -= 130000;
   assert.equal(await h.service.verifyOutput(task, task.code), task.code);
   assert.notEqual(await requestId(), before);
+});
+
+// 10-20: the info strip is encoded from the sheet's pixels; no third document window opens.
+function stripJpeg(width,height){const data=new Uint8Array(64);data.set([255,216,255,192,0,11,8,height>>8,height&255,width>>8,width&255,1,1,17,0,255,218]);data[62]=255;data[63]=217;return data;}
+function fakeImaging(log,options={}){return {
+  getPixels:async request=>{log.push(['pixels',request]);if(options.fail)throw options.fail;const b=request.sourceBounds;
+    return {imageData:{width:options.width||b.right-b.left,height:b.bottom-b.top,dispose:()=>log.push(['dispose'])}};},
+  encodeImageData:async({imageData,base64})=>{log.push(['encode',base64]);return stripJpeg(imageData.width,imageData.height).buffer;}};}
+test('the info strip is encoded straight from the sheet without duplicating it',async()=>{
+  const log=[],h=harness({imaging:fakeImaging(log)}),task=await h.service.electronic(h.original,h.info,{});
+  const completion=JSON.parse(await(await task.folder.getEntry('complete.json')).read());
+  const info=completion.artifacts.find(f=>f.role==='info');
+  assert.deepEqual([info.path,info.width,info.height,info.sizeBytes],['info.jpg',1653,555,64]);
+  const bytes=await(await task.folder.getEntry('info.jpg')).read();
+  assert.equal(info.sha256,h.window.IDPhotoDeliveryProtocol.sha256(bytes));
+  assert.equal(JSON.stringify(log[0][1].sourceBounds),JSON.stringify({left:0,top:0,right:1653,bottom:555}));
+  assert.equal(log[0][1].colorProfile,'sRGB IEC61966-2.1');
+  assert.deepEqual(log.slice(1).map(item=>item[0]),['encode','dispose'],'pixels released after encoding');
+  assert.equal(h.duplicates.length,0,'no copy of the sheet');
+  assert.equal(task.status.info,'saved');
+});
+test('when the pixels do not come back right the strip is cropped from a copy as before',async()=>{
+  for(const fault of [{width:1600},{fail:new Error('pixels unavailable')}]){
+    const log=[],h=harness({imaging:fakeImaging(log,fault)}),task=await h.service.electronic(h.original,h.info,{});
+    assert.equal(h.duplicates.length,1);
+    const info=JSON.parse(await(await task.folder.getEntry('complete.json')).read()).artifacts.find(f=>f.role==='info');
+    assert.equal(info.path,'info.jpg');assert.equal(task.status.info,'saved');
+    if(fault.width)assert.equal(log.some(item=>item[0]==='dispose'),true);
+  }
+});
+test('a cancelled pixel read does not fall back to a copy',async()=>{
+  const cancel=Object.assign(new Error('User cancelled the operation'),{number:-128});
+  const h=harness({imaging:fakeImaging([],{fail:cancel})}),task=await h.service.electronic(h.original,h.info,{});
+  assert.equal(h.duplicates.length,0);
+  assert.equal(task.status.info,'failed');
+  await assert.rejects(task.folder.getEntry('info.jpg'));
 });
