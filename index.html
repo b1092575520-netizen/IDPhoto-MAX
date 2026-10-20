@@ -66,6 +66,16 @@
               <button class="panel-btn" id="groupPickerSkip" type="button">都不并入</button>
             </div>
           </div>
+          <div id="backgroundPicker" class="delivery-draft-panel" style="display: none;">
+            <p class="panel-title">认不出这张照片的底色</p>
+            <p class="hint">点一下底色，照常出取件码；按 Esc 取消这次排版。</p>
+            <div class="pair-row">
+              <button class="panel-btn background-btn background-red" id="backgroundRed" type="button">红底</button>
+              <button class="panel-btn background-btn background-blue" id="backgroundBlue" type="button">蓝底</button>
+              <button class="panel-btn background-btn background-white" id="backgroundWhite" type="button">白底</button>
+            </div>
+            <button class="panel-btn wide-btn" id="backgroundPlain" type="button">只排版，不出码</button>
+          </div>
           <div id="deliveryRecoveryBar" class="recovery-bar" style="display: none;">
             <p id="deliveryRecoveryText" class="recovery-text"></p>
             <button class="panel-btn primary" id="deliveryRecoveryPrint" type="button">打印</button>

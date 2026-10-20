@@ -20,8 +20,10 @@ function element(attributes = {}) {
 
 function harness(options = {}) {
   const memory = options.memory || new Map(), runs = [], alerts = [], automaticTicks = [];
-  const buttons = Object.fromEntries(["runButton", "runVisualAcceptance", "statusText", "stopDeliveryWait", "deliveryPlanHint"]
+  const buttons = Object.fromEntries(["runButton", "runVisualAcceptance", "statusText", "stopDeliveryWait", "deliveryPlanHint",
+    "backgroundPicker", "backgroundRed", "backgroundBlue", "backgroundWhite", "backgroundPlain"]
     .map(id => [id, element()]));
+  const documentListeners = {};
   const toggle = element({ "data-key": "pickupCodeMode" }), size = element({ "data-template": "模板一" });
   let shortcuts, electronicCalls = 0, electronicIntents = [], retryCalls = [], deferCalls = [];
   const source = { id: 10 }, template = { id: "one", name: "模板一", infoBar: {} };
@@ -29,7 +31,7 @@ function harness(options = {}) {
   const date = [today.getFullYear(), String(today.getMonth() + 1).padStart(2, "0"), String(today.getDate()).padStart(2, "0")].join("-");
   const photo = { id: 10, name: "test.jpg", sourceMetadata: { serialNumber: "SHOP", captureDate: date } };
   const document = {
-    readyState: "complete", addEventListener() {},
+    readyState: "complete", addEventListener: (type, callback) => { (documentListeners[type] = documentListeners[type] || []).push(callback); },
     querySelector: selector => selector.startsWith("#") ? buttons[selector.slice(1).split(" ")[0]] || null :
       selector.includes('[data-key="pickupCodeMode"]') ? toggle : null,
     querySelectorAll: selector => selector === ".size-btn" ? [size] : selector === ".toggle-btn[data-key]" ? [toggle] : []
@@ -47,7 +49,7 @@ function harness(options = {}) {
       alerts.push(message);
       if (options.alertWait) await options.alertWait;
     } } }) },
-    IDPhotoLayoutWorkflow: { create: () => ({ run: async run => {
+    IDPhotoLayoutWorkflow: { stopAll: () => false, create: () => ({ run: async run => {
       runs.push(run);
       const error = options.failureError || Object.assign(Error("后台未确认取件码"), { code: "PICKUP_CODE_REQUIRED" });
       if (options.throwFailure) throw error;
@@ -87,7 +89,7 @@ function harness(options = {}) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/ui/deliveryStatusView.js"), "utf8"), context);
     window.IDPhotoVariantService = { analyzeDocument: async () => ({ backgroundColor: options.backgroundColor || "white" }) };
     window.IDPhotoDeliveryAutomationService = {
-      store: () => ({ group: () => ({ on: false }), mergeIntent: () => null }),
+      store: () => ({ group: () => ({ on: false }), mergeIntent: () => null, source: () => null }),
       plan: () => ({ kind: "new" })
     };
   }
@@ -99,7 +101,8 @@ function harness(options = {}) {
   }
   return { options, memory, runs, alerts, buttons, toggle, size, shortcuts, photo, date, retryCalls, deferCalls, get electronicCalls() { return electronicCalls; }, electronicIntents,
     tick: async () => { assert.ok(automaticTicks.length, "automatic plan tick is scheduled"); await automaticTicks.shift()(); },
-    advance: () => { tick += 1000; }, select: () => shortcuts.selectTemplate("模板一") };
+    advance: () => { tick += 1000; }, select: () => shortcuts.selectTemplate("模板一"),
+    key: key => (documentListeners.keydown || []).forEach(callback => callback({ key, target: {}, preventDefault() {} })) };
 }
 const flush = async () => { await new Promise(resolve => setImmediate(resolve)); };
 
@@ -245,17 +248,49 @@ for (const [reason, text] of Object.entries({
   });
 }
 
-test("a photo whose background colour is not recognised is laid out and printed without a code", async () => {
+// 10-20: a shop photo whose background cannot be read asks for it on the panel instead of
+// silently printing without a code.
+async function askedForBackground(answer) {
   const h = harness({ realIdentity: true, automatic: true, backgroundColor: "unknown" });
   h.photo.sourceMetadata = { serialNumber: "SHOP", captureDate: h.date + "T12:34:56", captureSubsecond: "53" };
   h.toggle.fire(); h.select(); await h.tick();
-  assert.equal(h.buttons.deliveryPlanHint.textContent, "只排版 · 认不出底色（只认白、蓝、红底），不出码");
-  await h.shortcuts.execute();
-  assert.equal(h.runs.length, 1);
-  assert.equal(h.runs.at(-1).delivery, false);
+  assert.equal(h.buttons.deliveryPlanHint.textContent, "认不出底色 · 排版时点一下红、蓝或白底");
+  const running = h.shortcuts.execute();
+  for (let i = 0; i < 20 && h.buttons.backgroundPicker.style.display !== "block"; i++) await flush();
+  assert.equal(h.buttons.backgroundPicker.style.display, "block", "the picker opens");
+  assert.equal(h.runs.length, 0, "nothing is laid out while the operator decides");
+  assert.match(h.buttons.statusText.textContent, /认不出底色：请在面板上点/);
+  if (answer === "escape") h.key("Escape"); else h.buttons[answer].fire();
+  await running;
+  assert.equal(h.buttons.backgroundPicker.style.display, "none", "the picker closes");
   assert.equal(h.alerts.length, 0);
-  assert.equal(h.buttons.deliveryPlanHint.textContent, "只排版 · 认不出底色（只认白、蓝、红底），不出码");
-  assert.match(h.buttons.statusText.textContent, /认不出底色/);
+  return h;
+}
+
+for (const [button, colour] of [["backgroundRed", "red"], ["backgroundBlue", "blue"], ["backgroundWhite", "white"]]) {
+  test("an unreadable background picked as " + colour + " still gets a pickup code", async () => {
+    const h = await askedForBackground(button);
+    assert.equal(h.runs.length, 1);
+    assert.equal(h.runs[0].delivery, true);
+    assert.equal(h.runs[0].docInfo.sourceVariant.backgroundColor, colour);
+    assert.equal(h.runs[0].docInfo.sourceVariant.backgroundPicked, true);
+  });
+}
+
+test("an unreadable background with 只排版 prints without a code", async () => {
+  const h = await askedForBackground("backgroundPlain");
+  assert.equal(h.runs.length, 1);
+  assert.equal(h.runs[0].delivery, false);
+  assert.equal(h.buttons.deliveryPlanHint.textContent, "只排版 · 认不出底色，不出码");
+  assert.match(h.buttons.statusText.textContent, /认不出底色，按你的选择只排版/);
+});
+
+test("Esc on the background question makes nothing and the next Esc stays harmless", async () => {
+  const h = await askedForBackground("escape");
+  assert.equal(h.runs.length, 0);
+  assert.match(h.buttons.statusText.textContent, /没选底色，这次没排版/);
+  h.key("Escape");
+  assert.equal(h.runs.length, 0);
 });
 
 test("pickup alerts say what actually happened: auto-continue, no code, or which sizes already came out", async () => {

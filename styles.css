@@ -508,6 +508,23 @@ p {
   margin: 4px 2px 0;
 }
 
+/* Background picker (10-20): a colour stripe on the left of each choice. */
+.background-btn {
+  border-left-width: 6px;
+}
+
+.background-red {
+  border-left-color: #c8262e;
+}
+
+.background-blue {
+  border-left-color: #2f7fd8;
+}
+
+.background-white {
+  border-left-color: #f2f2f2;
+}
+
 /* ---------- Settings ---------- */
 
 .section-block {

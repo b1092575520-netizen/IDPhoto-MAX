@@ -52,7 +52,28 @@
       }
     }
 
-    return borderCount > 0 && winnerCount / borderCount >= 0.55 ? winner : "unknown";
+    if (borderCount > 0 && winnerCount / borderCount >= 0.55) return winner;
+    // A tight crop of long hair or dark clothes can cover the sides (10-19, 1M9A5780: 51%
+    // white). Then only coloured pixels vote: the background must still be a third of the
+    // border and 80% of its coloured pixels, and the two top corners must show it too.
+    // Checked on 268 archived photos (10-20): 3 more recognised, none recognised wrongly.
+    var voted = counts.red + counts.blue + counts.white;
+    if (winner === "unknown" || !borderCount || winnerCount / borderCount < 0.35 || winnerCount / voted < 0.8) return "unknown";
+    return topCornersShow(data, width, height, components, winner) ? winner : "unknown";
+  }
+
+  function topCornersShow(data, width, height, components, label) {
+    var size = Math.max(1, Math.round(width / 8)), rows = Math.max(1, Math.round(height / 8));
+    var matching = 0, total = 0, x, y, offset;
+    for (y = 0; y < rows; y += 1) {
+      for (x = 0; x < width; x += 1) {
+        if (x >= size && x < width - size) continue;
+        offset = (y * width + x) * components;
+        total += 1;
+        if (classifyPixel(Number(data[offset]) || 0, Number(data[offset + 1]) || 0, Number(data[offset + 2]) || 0) === label) matching += 1;
+      }
+    }
+    return total > 0 && matching / total >= 0.8;
   }
 
   function readGray(sample, x, y) {

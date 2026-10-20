@@ -696,10 +696,13 @@
           runOptions.sourceDocument.id !== runOptions.docInfo.id) {
         throw new Error("读取原片后活动文档已改变，请重新执行排版");
       }
-      // Freeze one identity before any template crops/resizes the original.
+      // Freeze one identity before any template crops/resizes the original. The panel has
+      // already read this original for a pickup run (and the operator may have picked its
+      // background, 10-20); that reading is kept instead of being taken again.
       runOptions.docInfo = Object.assign({}, runOptions.docInfo, {
-        sourceVariant: runOptions.resumeDeliveryTask ? runOptions.resumeDeliveryTask.docInfo.sourceVariant : null });
-      if (!runOptions.resumeDeliveryTask && !runOptions.skipExport && (runOptions.exportJpg || runOptions.tryExportSingle) &&
+        sourceVariant: runOptions.resumeDeliveryTask ? runOptions.resumeDeliveryTask.docInfo.sourceVariant :
+          runOptions.docInfo && runOptions.docInfo.sourceVariant || null });
+      if (!runOptions.resumeDeliveryTask && !runOptions.docInfo.sourceVariant && !runOptions.skipExport && (runOptions.exportJpg || runOptions.tryExportSingle) &&
           window.IDPhotoVariantService && window.IDPhotoVariantService.analyzeDocument) {
         try {
           runOptions.docInfo.sourceVariant = await window.IDPhotoVariantService.analyzeDocument(runOptions.sourceDocument);

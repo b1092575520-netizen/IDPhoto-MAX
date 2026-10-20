@@ -952,12 +952,23 @@
     try {
       if (delivery && window.IDPhotoVariantService && window.IDPhotoDeliveryAutomationService) {
         docInfo.sourceVariant = await window.IDPhotoVariantService.analyzeDocument(sourceDocument);
-        // The delivery specification needs the background colour; without it the
-        // sheet is laid out and printed as usual, only without a code (10-17).
+        // The delivery specification needs the background colour. When it cannot be read
+        // the operator picks it on the panel (10-20); "只排版" keeps the plain sheet
+        // without a code (10-17), Esc or no answer stops before anything is made.
         if (unknownBackground(docInfo)) {
-          delivery = false;
-          plainSourceMessage = UNKNOWN_BACKGROUND_MESSAGE;
-          setStatus(plainSourceMessage);
+          var picked = await askBackground();
+          if (picked === null) {
+            setStatus("没选底色，这次没排版");
+            if (deliveryStatusView) deliveryStatusView.showPlan(null);
+            return;
+          }
+          if (picked === "plain") {
+            delivery = false;
+            plainSourceMessage = UNKNOWN_BACKGROUND_MESSAGE;
+            setStatus(plainSourceMessage);
+          } else {
+            docInfo.sourceVariant = Object.assign({}, docInfo.sourceVariant, { backgroundColor: picked, backgroundPicked: true });
+          }
         }
       }
       if (deliveryStatusView && window.IDPhotoDeliveryAutomationService) {
@@ -965,7 +976,7 @@
           if (templateNames.length === 1) showDeliveryPlan(docInfo, getEffectiveTemplateByName(templateNames[0]));
           else deliveryStatusView.showPlan(MULTI_SIZE_PLAN);
         } else deliveryStatusView.showPlan(state.pickupCodeMode ?
-          (plainSourceMessage === UNKNOWN_BACKGROUND_MESSAGE ? UNKNOWN_BACKGROUND_PLAN : plainDeliveryPlan(sourceDecision)) : null);
+          (plainSourceMessage === UNKNOWN_BACKGROUND_MESSAGE ? UNKNOWN_BACKGROUND_PLAIN_PLAN : plainDeliveryPlan(sourceDecision)) : null);
       }
       runResult = await getLayoutWorkflow().run({
         templateNames: templateNames,
@@ -1171,7 +1182,9 @@
     // Esc in the panel stops a running layout at its next step (10-18); Photoshop's own
     // Esc still cancels a progress bar that is showing.
     document.addEventListener("keydown", function (event) {
-      if (event.key === "Escape" && window.IDPhotoLayoutWorkflow && window.IDPhotoLayoutWorkflow.stopAll()) {
+      if (event.key !== "Escape") return;
+      if (deliveryStatusView && deliveryStatusView.cancelBackground && deliveryStatusView.cancelBackground()) return;
+      if (window.IDPhotoLayoutWorkflow && window.IDPhotoLayoutWorkflow.stopAll()) {
         setStatus("正在停止：做完当前这一步就停，不保存、不打印");
       }
     });
@@ -1367,12 +1380,23 @@
   }
 
   var MULTI_SIZE_PLAN = { kind: "plain", text: "多个尺寸 · 共用一个取件码，各打一张" };
-  var UNKNOWN_BACKGROUND_PLAN = { kind: "plain", text: "只排版 · 认不出底色（只认白、蓝、红底），不出码" };
-  var UNKNOWN_BACKGROUND_MESSAGE = "认不出底色（只认白、蓝、红底），本次只排版、不出取件码";
+  var UNKNOWN_BACKGROUND_PLAN = { kind: "plain", text: "认不出底色 · 排版时点一下红、蓝或白底" };
+  var UNKNOWN_BACKGROUND_PLAIN_PLAN = { kind: "plain", text: "只排版 · 认不出底色，不出码" };
+  var UNKNOWN_BACKGROUND_MESSAGE = "认不出底色，按你的选择只排版、不出取件码";
 
   function unknownBackground(info) {
     var color = info && info.sourceVariant && info.sourceVariant.backgroundColor;
     return !color || color === "unknown";
+  }
+
+  // "red" / "blue" / "white", "plain", or null when the operator cancels.
+  async function askBackground() {
+    if (!deliveryStatusView || typeof deliveryStatusView.askBackground !== "function") return "plain";
+    setStatus("认不出底色：请在面板上点红底、蓝底或白底");
+    logStep("background", "asking the operator");
+    var picked = await deliveryStatusView.askBackground();
+    logStep("background", "operator picked " + picked);
+    return picked;
   }
 
   function plainDeliveryPlan(sourceDecision) {

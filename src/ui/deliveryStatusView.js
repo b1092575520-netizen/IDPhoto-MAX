@@ -10,6 +10,8 @@
     var groupHandler = null;
     var groupBusy = false;
     var pickerHandler = null;
+    var backgroundAnswer = null;
+    var backgroundTimer = null;
 
     function one(id) {
       return root.querySelector("#" + id);
@@ -115,6 +117,37 @@
       if (handler) handler(ids);
     }
 
+    // Asked when the background colour of a shop photo cannot be read (10-20). Resolves
+    // "red" / "blue" / "white", "plain" for layout without a code, or null when the
+    // operator cancels (Esc) or leaves it for three minutes.
+    function askBackground() {
+      var panel = one("backgroundPicker");
+      if (!panel) return Promise.resolve("plain");
+      finishBackground(null);
+      panel.style.display = "block";
+      return new Promise(function (resolve) {
+        backgroundAnswer = resolve;
+        backgroundTimer = setTimeout(function () { finishBackground(null); }, 3 * 60 * 1000);
+      });
+    }
+
+    function finishBackground(choice) {
+      var answer = backgroundAnswer;
+      var panel = one("backgroundPicker");
+      backgroundAnswer = null;
+      if (backgroundTimer) clearTimeout(backgroundTimer);
+      backgroundTimer = null;
+      if (panel) panel.style.display = "none";
+      if (answer) answer(choice);
+      return Boolean(answer);
+    }
+
+    [["backgroundRed", "red"], ["backgroundBlue", "blue"], ["backgroundWhite", "white"], ["backgroundPlain", "plain"]]
+      .forEach(function (entry) {
+        var button = one(entry[0]);
+        if (button && button.addEventListener) button.addEventListener("click", function () { finishBackground(entry[1]); });
+      });
+
     var printButton = one("deliveryRecoveryPrint");
     if (printButton && printButton.addEventListener) {
       printButton.addEventListener("click", function () {
@@ -163,7 +196,10 @@
       showRecovery: showRecovery,
       enableGroup: enableGroup,
       showGroup: showGroup,
-      showGroupPicker: showGroupPicker
+      showGroupPicker: showGroupPicker,
+      askBackground: askBackground,
+      // true when an open background question was cancelled
+      cancelBackground: function () { return finishBackground(null); }
     };
   }
 

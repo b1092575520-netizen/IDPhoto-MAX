@@ -576,3 +576,17 @@ test('photos from other cameras get no larger saved copy; shop photos still do, 
     else assert.ok(loaded.calls.includes('close:processed-1'),serial);
   }
 });
+
+test("the panel's reading of the original (or the background the operator picked) is kept, not taken again", async () => {
+  const picked = { backgroundColor: "white", backgroundPicked: true, personFingerprint: "0123456789abcdef" };
+  let analyses = 0;
+  const seen = [];
+  const loaded = loadWorkflow({
+    async analyzeDocument() { analyses++; return { backgroundColor: "unknown" }; },
+    inspectExport(options) { seen.push(options.docInfo.sourceVariant); }
+  });
+  await loaded.workflow.run({ sourceDocument: { id: 5 }, docInfo: { id: 5, name: "a.jpg", sourceVariant: picked },
+    templateNames: ["模板一"], exportJpg: true });
+  assert.equal(analyses, 0);
+  assert.deepEqual(seen, [picked]);
+});
