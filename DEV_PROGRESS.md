@@ -1,4 +1,8 @@
-## 当前阶段 v0.6.19 常驻打印桥、信息条免复制（10-20）
+## 当前阶段 v0.6.20 重新排版只留一张存档（10-20）
+
+- 10-20 用户报：取件码模式点“阻止”后改好再排，存档出现两张（U2BWCS 12:00:45 / 12:02:01）。原因：存档去重只认同一任务，重排是新任务（交付里已用 replaceFileId 替换旧文件）。exportService.replacedArchives：本任务请求带 replaceFileId 且 targetDeliveryId 为本交付时，自动交付记录里同 sourceKey+specKey、同交付的旧任务，其交接目录 archive-<id>.json 核对目录、底色、尺寸和字节后，按原退役流程（先由打印桥发布 retired 记录再删）删除；同任务重试（keptLargest 分支）也补删。
+
+## v0.6.19 常驻打印桥、信息条免复制（10-20）
 
 - 第三批：print-dsrx1.ps1 拆出 Invoke-BridgeJob，任务带 resident:true 时做完留在后台（Local 互斥锁按文件夹一个，BelowNormal，FileSystemWatcher 等 *.go，只接 60 秒内的新触发，不碰旧任务；空闲 30 分钟或 Photoshop 进程没了就退出）；实测空闲 CPU 0、工作集 86.6 MB、触发到回执 30 ms。printService 收到回执后 25 分钟内先放 <job>.go，1.5 秒内没被认领就删触发、照旧 openPath；认领文件保证一单只做一次。
 - deliveryService.cropInfo 先用 imaging.getPixels+encodeImageData 直接编码信息条（核对 JPG 尺寸），失败（非取消）才复制版面裁切。

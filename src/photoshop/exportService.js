@@ -570,6 +570,46 @@
     return deletedCount;
   }
 
+  // 10-20: the same photo laid out again for the same customer (e.g. after "阻止" and a fix)
+  // replaces its earlier file in the delivery, so the archive keeps only the new JPG. Only
+  // explicit records count: this task's request names a replaced file, the earlier task has the
+  // same source photo, size and background in the same delivery, and its own archive record
+  // names this folder, file and exact bytes. Never a similarity guess.
+  async function replacedArchives(task, folder, identityIndex, template, backgroundColor) {
+    var automation = window.IDPhotoDeliveryAutomationService, utf8 = require("uxp").storage.formats.utf8;
+    if (!task.automation || !task.deliveryId || !automation || typeof automation.store !== "function") return [];
+    var payload = await (await task.folder.getEntry("request.json")).read({ format: utf8 });
+    if (window.IDPhotoDeliveryProtocol.sha256(payload) !== task.fingerprint) return [];
+    var request = JSON.parse(payload), descriptor = request.files && request.files[task.archiveOrdinal || 0];
+    if (!descriptor || !descriptor.replaceFileId || request.targetDeliveryId !== task.deliveryId) return [];
+    var earlier = automation.store().tasks().filter(function (item) {
+      return item.id !== task.id && item.token && item.sourceKey === task.automation.sourceKey &&
+        item.specKey === task.automation.specKey && item.target && item.target.deliveryId === task.deliveryId;
+    });
+    if (!earlier.length) return [];
+    var directory = String(folder.nativePath || "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase(), found = [];
+    for (var entry of await folder.getEntries()) {
+      var value = identityIndex[entry.name], owner = value && earlier.find(function (item) { return item.id === value.deliveryTaskId; });
+      var size = owner && entry.isFile && getExistingExportSize(entry.name);
+      if (!owner || !value.archiveId || value.backgroundColor !== backgroundColor || !size ||
+          size.widthPx !== template.widthPx || size.heightPx !== template.heightPx) continue;
+      try {
+        var handoff = await getLocalFileSystem().getEntryForPersistentToken(owner.token);
+        var record = JSON.parse(await (await handoff.getEntry("archive-" + value.archiveId + ".json")).read({ format: utf8 }));
+        var bytes = await entry.read({ format: require("uxp").storage.formats.binary });
+        if (record.archiveId !== value.archiveId || record.taskId !== owner.id || record.deliveryId !== task.deliveryId ||
+            String(record.directory || "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase() !== directory ||
+            record.backgroundColor !== backgroundColor || record.width !== template.widthPx ||
+            record.height !== template.heightPx || bytes.byteLength !== record.localSize ||
+            window.IDPhotoDeliveryProtocol.sha256(bytes) !== record.localChecksum) continue;
+        found.push({ file: entry, widthPx: size.widthPx, heightPx: size.heightPx, area: getPixelArea(size.widthPx, size.heightPx) });
+      } catch (unverified) {
+        console.warn("[export] earlier archive of this photo kept: its record could not be checked", entry.name, unverified);
+      }
+    }
+    return found;
+  }
+
   async function deleteCreatedFile(file) {
     if (file && typeof file.delete === "function") {
       await file.delete();
@@ -711,7 +751,7 @@
       finally { if (naming && naming.discardBatch) await naming.discardBatch(); }
     }
     async function saveStaged() {
-    var plainDuplicates = [];
+    var plainDuplicates = [], superseded = [];
     try {
       identityIndex = await readJpgIdentityIndex(dateFolder, Boolean(options.deliveryTask));
       if (options.deliveryTask && window.IDPhotoArchiveNamingService &&
@@ -733,6 +773,8 @@
         return entry && !entry.archiveId && !entry.deliveryTaskId && candidate.area <= currentArea &&
           String(entry.identityMarker || "").toLowerCase() === String(variant.identityMarker || "").toLowerCase();
       });
+      try { superseded = await replacedArchives(options.deliveryTask, dateFolder, identityIndex, template, variant.backgroundColor); }
+      catch (replacedError) { console.warn("[export] earlier archives of this photo not checked", replacedError); }
     }
     // Identical source bytes never authorize joining two explicit customers.
     if (options.deliveryTask) existingExports = existingExports.filter(function (candidate) {
@@ -765,6 +807,7 @@
         keeperItems.push(await stageJpgIdentityIndex(dateFolder, identityIndex));
       }
       var keeperRemoval = await prepareRemoval(existingExports, largestExisting.file, dateFolder, identityIndex);
+      var keeperReplaced = await prepareRemoval(superseded, null, dateFolder, identityIndex);
       var duplicate = await withHiddenIndex({
         ok: true,
         skipped: true,
@@ -778,6 +821,7 @@
       }, dateFolder, keeperItems, options.archiveIndexExecutor);
       removedCount = await finishRemoval(keeperRemoval, !duplicate.indexVisibilityWarning);
       duplicate.removedCount = removedCount;
+      duplicate.removedReplacedCount = await finishRemoval(keeperReplaced, !duplicate.indexVisibilityWarning);
       duplicate.cleanupIncomplete = removedCount < existingExports.length - 1;
       if (duplicate.cleanupIncomplete) duplicate.message += " · 较小 JPG 清理失败，请检查目录权限";
       return duplicate;
@@ -826,10 +870,11 @@
         catch (syncError) { indexSyncError = syncError; }
       }
     }
-    var removal = [], plainRemoval = [];
+    var removal = [], plainRemoval = [], replacedRemoval = [];
     if (!indexError) {
       if (replacedSmaller) removal = await prepareRemoval(existingExports, null, dateFolder, identityIndex);
       plainRemoval = await prepareRemoval(plainDuplicates, null, dateFolder, identityIndex);
+      replacedRemoval = await prepareRemoval(superseded, null, dateFolder, identityIndex);
     }
     // Records staged for this photo are published even when the index is unavailable.
     var bridgeError = await flushArchiveBridge(bridgeItems, options.archiveIndexExecutor);
@@ -850,6 +895,7 @@
     }
     removedCount = await finishRemoval(removal, !bridgeError);
     var plainRemoved = await finishRemoval(plainRemoval, !bridgeError);
+    var replacedRemoved = await finishRemoval(replacedRemoval, !bridgeError);
 
     return {
       ok: true,
@@ -861,6 +907,7 @@
       replacedSmaller: replacedSmaller,
       removedCount: removedCount,
       removedPlainCount: plainRemoved,
+      removedReplacedCount: replacedRemoved,
       cleanupIncomplete: removedCount < existingExports.length,
       mode: rootResult.mode,
       picked: rootResult.picked,
@@ -869,6 +916,7 @@
         fileName +
         (replacedSmaller ? (removedCount < existingExports.length ? " · 较小 JPG 清理失败，请检查目录权限" : " · 已替换同组较小 JPG") : "") +
         (plainRemoved ? " · 已替换同一张没带码的存档" : "") +
+        (replacedRemoved ? " · 已替换这位顾客上次排的同一张" : "") +
         (nasArchive ? " · NAS 日期归档" : " · 插件数据目录测试输出") +
         (rootResult.picked ? " · 已选择输出根目录" : "") +
         (indexSyncError ? " · 本机去重记录已保存，目录索引同步失败：" + (indexSyncError.message || String(indexSyncError)) : "")

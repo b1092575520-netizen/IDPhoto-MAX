@@ -1147,3 +1147,72 @@ test("a private index path mismatch refuses cleanup instead of trusting a cache 
   assert.equal(result.indexUnavailable,true);
   assert.equal(jpgNames(root).length,2);
 });
+
+// 10-20: the same photo laid out again for the same customer replaces its file in the
+// delivery; the archive then keeps only the new JPG (U2BWCS left two after "阻止").
+async function replacementFixture(options = {}) {
+  const root = makeFolder("root"), tokens = new Map();
+  const loaded = loadExportService(root, { async getEntryForPersistentToken(token) { return tokens.get(token); } });
+  for (const module of ["core/deliveryProtocol", "photoshop/archiveNamingService"])
+    vm.runInContext(fs.readFileSync(path.join(__dirname, "../src", module + ".js"), "utf8"), loaded.context);
+  const window = loaded.context.window, protocol = window.IDPhotoDeliveryProtocol;
+  const delivery = "b".repeat(64), records = [];
+  window.IDPhotoDeliveryAutomationService = { store: () => ({ tasks: () => records.map(item => Object.assign({}, item)) }) };
+  async function task(request, record = {}) {
+    const folder = await root.createFolder(protocol.id()), payload = JSON.stringify(request);
+    await (await folder.createFile("request.json", { overwrite: false })).write(payload);
+    tokens.set("token-" + folder.name, folder);
+    records.push(Object.assign({ id: folder.name, token: "token-" + folder.name, sourceKey: "source-1", specKey: "827x1157-red",
+      target: { deliveryId: delivery } }, record));
+    return { id: folder.name, folder, fingerprint: protocol.sha256(payload), contextKey: "a".repeat(64), deliveryId: delivery,
+      automation: { sourceKey: "source-1", specKey: "827x1157-red" } };
+  }
+  const variant = variantFixture(window.IDPhotoVariantService, "red");
+  const photo = byte => ({ saveAs: { jpg: async file => file.write(new Uint8Array([255, 216, byte, 2, 255, 217]).buffer) } });
+  const first = await task({ version: 3, files: [{ role: "photo", sha256: "c".repeat(64) }] });
+  const old = await loaded.service.exportSingleJpg(photo(1), { ...exportOptions(827, 1157, variant), deliveryTask: first });
+  const day = root.entries.get("2026").entries.get("2026-07").entries.get("2026-07-13");
+  const replacing = { role: "photo", sha256: "d".repeat(64) };
+  if (options.replace !== false) replacing.replaceFileId = "e".repeat(64);
+  const second = await task({ version: 3, files: [replacing], targetDeliveryId: delivery }, options.record || {});
+  return { loaded, window, day, old, first, second, variant, photo, records };
+}
+
+test("laying the same photo out again for the same customer keeps one archive JPG", async () => {
+  const f = await replacementFixture();
+  const oldId = JSON.parse(f.day.entries.get(".idphoto-jpg-index.json").content).entries[f.old.fileName].archiveId;
+  const saved = await f.loaded.service.exportSingleJpg(f.photo(3), { ...exportOptions(827, 1157, f.variant), deliveryTask: f.second });
+  assert.equal(saved.removedReplacedCount, 1);
+  assert.match(saved.message, /已替换这位顾客上次排的同一张/);
+  assert.deepEqual(Array.from(f.day.entries.keys()).filter(name => /\.jpg$/i.test(name)), [saved.fileName]);
+  assert.ok(f.day.entries.has(".idphoto-archive-retired-" + oldId + ".json"), "the delivery manager is told first");
+});
+
+test("an earlier archive stays when the redo is not a recorded replacement of it", async () => {
+  const cases = [
+    { name: "no replaced file", options: { replace: false } },
+    { name: "another delivery", options: {}, change: f => { f.records[0].target = { deliveryId: "f".repeat(64) }; } },
+    { name: "another source photo", options: {}, change: f => { f.records[0].sourceKey = "source-2"; } },
+    { name: "photo changed since saved", options: {}, change: f => { f.day.entries.get(f.old.fileName).content = new Uint8Array([255, 216, 9, 9, 255, 217]).buffer; } }
+  ];
+  for (const item of cases) {
+    const f = await replacementFixture(item.options);
+    if (item.change) item.change(f);
+    const saved = await f.loaded.service.exportSingleJpg(f.photo(3), { ...exportOptions(827, 1157, f.variant), deliveryTask: f.second });
+    assert.equal(saved.removedReplacedCount, 0, item.name);
+    assert.equal(f.day.entries.has(f.old.fileName), true, item.name);
+  }
+});
+
+test("a blocked bridge keeps the earlier archive until the redo is saved again", async () => {
+  const f = await replacementFixture();
+  const options = { ...exportOptions(827, 1157, f.variant), deliveryTask: f.second };
+  const blocked = await f.loaded.service.exportSingleJpg(f.photo(3), { ...options, archiveIndexExecutor: async () => { throw Error("User denied."); } });
+  assert.equal(blocked.removedReplacedCount, 0);
+  assert.equal(f.day.entries.has(f.old.fileName), true, "nothing is deleted before the retirement is published");
+  const again = await f.loaded.service.exportSingleJpg(f.photo(3), options);
+  assert.equal(again.keptLargest, true);
+  assert.equal(again.removedReplacedCount, 1);
+  assert.equal(f.day.entries.has(f.old.fileName), false);
+  assert.equal(f.day.entries.has(blocked.fileName), true);
+});
