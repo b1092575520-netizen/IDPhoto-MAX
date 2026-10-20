@@ -167,6 +167,29 @@
     };
   }
 
+  // Several working copies in one modal scope: fewer tab switches and repaints at the end
+  // of a sheet (user 10-20). Returns the documents that are closed; stops at a failure.
+  async function closeManyWithoutSaving(documentRefs) {
+    var closed = [];
+    var list = (documentRefs || []).filter(Boolean);
+    if (!list.length) return { ok: true, closed: closed };
+    try {
+      await window.IDPhotoPhotoshopExecution.executeAsModal(
+        async function () {
+          for (var documentRef of list) {
+            await closeDocumentDirect(documentRef);
+            closed.push(documentRef);
+          }
+        },
+        "关闭未保存文档"
+      );
+    } catch (error) {
+      error.closedDocuments = closed;
+      throw error;
+    }
+    return { ok: true, closed: closed };
+  }
+
   async function renameLayer(layer, name) {
     var layerId = getLayerId(layer);
     if (!layerId) {
@@ -370,6 +393,7 @@
     getTopLayer: getTopLayer,
     getLayerId: getLayerId,
     closeWithoutSaving: closeWithoutSaving,
+    closeManyWithoutSaving: closeManyWithoutSaving,
     prepareCompositeSourceLayer: prepareCompositeSourceLayer,
     createStampedVisibleLayer: createStampedVisibleLayer,
     cleanupTempSourceLayer: cleanupTempSourceLayer

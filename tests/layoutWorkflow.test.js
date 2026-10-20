@@ -158,6 +158,10 @@ function loadWorkflow(options = {}) {
     markEarlyPrint: async (_task, code) => { calls.push("early-print:" + code); }
   }, options.delivery);
   if (options.analyzeDocument) context.window.IDPhotoVariantService = { analyzeDocument: options.analyzeDocument };
+  if (options.closeMany) context.window.IDPhotoDocumentService.closeManyWithoutSaving = async (documents) => {
+    calls.push("close-many:" + documents.map((d) => d.name).join(","));
+    return { ok: true, closed: documents };
+  };
   if (options.saveSizes) context.window.IDPhotoTemplates = { getSaveSize: (template) => options.saveSizes[template.id] || { widthPx: template.widthPx, heightPx: template.heightPx } };
   vm.runInContext(fs.readFileSync(workflowPath, "utf8"), context, { filename: workflowPath });
   return {
@@ -553,4 +557,22 @@ test("cancelling combined print stops later templates and cleans only the proces
   assert.equal(loaded.calls.includes("crop:two"), false);
   assert.equal(loaded.calls.filter(call => call === "close:processed-1").length, 1);
   assert.equal(loaded.calls.includes("close:target-1"), false);
+});
+
+function todayCapture() {
+  const d=new Date(), p=n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T10:00:00';
+}
+
+test('photos from other cameras get no larger saved copy; shop photos still do, and both copies close together',async()=>{
+  for(const [serial,expectCopy] of [['OTHER',false],['SHOP',true]]) {
+    const loaded=loadWorkflow({templates:shapeTemplates,saveSizes:shapeSizes,realEligibility:true,closeMany:true});
+    const result=await loaded.workflow.run({templateNames:['1寸'],sourceDocument:{id:101},
+      docInfo:{id:101,name:'IMG_1.JPG',sourceMetadata:{serialNumber:serial,captureDate:todayCapture()}},
+      quickPrint:true,exportJpg:true,nasArchive:true});
+    assert.equal(result.ok,true,serial);
+    assert.equal(loaded.calls.some(c=>c.includes('save-1-827x1157')),expectCopy,serial);
+    if(expectCopy) assert.ok(loaded.calls.includes('close-many:save-1-827x1157,processed-1'),serial);
+    else assert.ok(loaded.calls.includes('close:processed-1'),serial);
+  }
 });

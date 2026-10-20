@@ -54,7 +54,7 @@ test("all reference templates have unique in-bounds slots", () => {
 
 // Pickup cards (user 10-18): red band to the paper edge, card <= 60 mm, text 2 mm from paper edges.
 const bands = {
-  'one-inch':[0,1845,3600,555], 'standard-two-inch':[3386,0,214,2400],
+  'one-inch':[0,1845,3600,555], 'standard-two-inch':[3400,0,200,2400],
   'visa-two-inch':[0,2174,3600,226], 'small-two-inch':[3236,0,364,2400],
   'hongkong-taiwan':[2928,0,672,2400], brazil:[2903,0,697,2400],
   argentina:[2916,0,684,2400], 'us-visa':[2408,1197,1192,600],
@@ -131,10 +131,11 @@ test('ordinary bars use the one-inch style on every template; US 5x5 keeps five 
   }
   assert.equal(templates.getTemplateById('us-visa').photoSlots.length,5);
 });
-test('only US 5x5 loses its lower-right photo; all other slots match the frozen pre-stage5 baseline',()=>{
+test('only US 5x5 loses its lower-right photo and 标准2寸 sits 35px lower; all other slots match the frozen pre-stage5 baseline',()=>{
   const baseline=JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures','stage5-original-slots.json'),'utf8'));
   for(const t of loadTemplateModules().IDPhotoTemplates.getAllTemplates()) {
     const expected=baseline[t.id]; if(t.id==='us-visa') expected.pop();
+    if(t.id==='standard-two-inch') expected.forEach(s=>{ s.y+=35; });
     assert.deepEqual(JSON.parse(JSON.stringify(t.photoSlots)),expected,t.id);
   }
   const t=loadTemplateModules().IDPhotoTemplates.getTemplateById('us-visa-51');
@@ -166,4 +167,16 @@ test("saved photos use the largest pixels among the same or nearly the same shap
     assert.equal(save(template.id), template.widthPx + "x" + template.heightPx, template.id);
   }
   assert.equal(templates.getSaveSize({ widthPx: 0, heightPx: 10 }), null);
+});
+
+test('结婚照 keeps the one-inch text size beside its landscape thumbnail (user 10-20)',()=>{
+  const modules=loadTemplateModules(), layout=modules.IDPhotoPickupStripLayout;
+  const bar=modules.IDPhotoTemplates.forDelivery(modules.IDPhotoTemplates.getTemplateById('wedding'),true).infoBar;
+  const plan=r=>layout.plan(bar,{shopName:'福清印象照相馆',shopPhone:'13003825982'},{pickupCode:'A97HF3',dateText:'2026.10.18',entryCodeAvailable:true},r);
+  const wide=plan(1252/827), upright=plan(0.71);
+  const font=(p,k)=>p.items.find(x=>x.key===k).fontSize;
+  for(const key of ['title','step1','step2','pickupCode']) assert.ok(font(wide,key)>=font(upright,key)*0.95,key+' '+font(wide,key)+'/'+font(upright,key));
+  const thumb=wide.regions.find(r=>r.key==='portrait'), title=wide.items.find(x=>x.key==='title'), code=wide.items.find(x=>x.key==='pickupCode');
+  assert.ok(Math.abs(thumb.width/thumb.height-1252/827)<0.03,'thumbnail keeps the photo shape');
+  assert.ok(thumb.y>title.y&&thumb.y+thumb.height<code.y+code.height,'thumbnail centred beside the text block');
 });

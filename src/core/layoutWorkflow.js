@@ -301,6 +301,15 @@
       return !runOptions.skipExport && Boolean(runOptions.exportJpg || runOptions.tryExportSingle);
     }
 
+    // Photos from other cameras are never archived, so they need no larger saved copy:
+    // one Photoshop document fewer per sheet (user 10-20).
+    function archivesSource(docInfo) {
+      var eligibility = window.IDPhotoSourceEligibilityService;
+      if (!eligibility || typeof eligibility.checkSource !== "function") return true;
+      return eligibility.checkSource(docInfo && docInfo.sourceMetadata ? docInfo.sourceMetadata : null,
+        docInfo && docInfo.name ? docInfo.name : "").eligible === true;
+    }
+
     async function exportSingleJpg(processedDocument, template, docInfo, runOptions) {
       if (runOptions.skipExport || (!runOptions.exportJpg && !runOptions.tryExportSingle)) {
         return {
@@ -332,6 +341,25 @@
 
     // The larger saved copy (if any) and the layout copy; the original is never touched.
     async function closeWorkingCopies(processResult, reason, documentToReactivate) {
+      var documentService = window.IDPhotoDocumentService;
+      if (processResult && processResult.saveDocument && processResult.document && documentService &&
+          typeof documentService.closeManyWithoutSaving === "function" &&
+          !sameDocument(processResult.document, documentToReactivate) && !sameDocument(processResult.saveDocument, documentToReactivate)) {
+        try {
+          await documentService.closeManyWithoutSaving([processResult.saveDocument, processResult.document]);
+          processResult.saveDocument = null;
+          processResult.document = null;
+          step("cleanup", "closed temporary processed documents", { reason: reason || "", count: 2 });
+          if (documentToReactivate && typeof documentToReactivate.activate === "function") await documentToReactivate.activate();
+          return;
+        } catch (error) {
+          // Whatever is still open goes through the one-by-one path below.
+          var closed = error && error.closedDocuments || [];
+          if (closed.indexOf(processResult.saveDocument) !== -1) processResult.saveDocument = null;
+          if (closed.indexOf(processResult.document) !== -1) processResult.document = null;
+          reportError("cleanup", error);
+        }
+      }
       if (processResult && processResult.saveDocument) {
         await closeProcessedDocument({ document: processResult.saveDocument }, reason + " (saved size)");
         processResult.saveDocument = null;
@@ -400,7 +428,8 @@
         strategy: runOptions.cropStrategy
       });
       status("步骤3：" + templateLabel(template) + " 裁剪与扩图策略：" + getCropStrategyLabel(runOptions.cropStrategy));
-      var needsSaveCopy = !sharedOnly && (Boolean(deliveryTask) || exportEnabled(runOptions)) && saveTemplate !== template;
+      var needsSaveCopy = !sharedOnly && saveTemplate !== template &&
+        (Boolean(deliveryTask) || (exportEnabled(runOptions) && archivesSource(docInfo)));
       processResult = await requireMethod("IDPhotoCropService", "prepareSinglePhoto")(
         sourceDocument,
         docInfo,

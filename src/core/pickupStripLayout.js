@@ -79,10 +79,14 @@
       var step2 = Wd > 1200 ? "② 输入下方取件码，保存照片" : "② 输入取件码，保存照片";
       var body = 67 * 1.15 + 46 * 2.4 + 129 * 0.95, nat = body + 18 + 60 + 57.6;
       var f = Math.min(1.15, Hd / nat);
+      // A landscape photo (结婚照) gets the one-inch portrait's width and its own height, so
+      // the text stays the one-inch size instead of shrinking beside a wide thumbnail (10-20).
+      var thumb = ratio > 1 ? 0.75 : ratio;
       // Sized for a typical code (4.4 em); an unusually wide one only shrinks itself.
-      while (body * f * ratio + 32 + Math.max(textWidth(step2, 46 * f), 4.4 * 129 * f) > L) f *= 0.98;
+      while (body * f * thumb + 32 + Math.max(textWidth(step2, 46 * f), 4.4 * 129 * f) > L) f *= 0.98;
       var y = Y + (Hd - nat * f) / 2;
-      var portrait = region("portrait", X, y, body * f * ratio, body * f);
+      var tw0 = body * f * thumb, th0 = ratio > 1 ? tw0 / ratio : body * f;
+      var portrait = region("portrait", X, y + (body * f - th0) / 2, tw0, th0);
       var tx = X + portrait.width + 32, tw = right - tx;
       [["title", TITLE, 67, 1.15, true], ["step1", step1, 46, 1.2, false], ["step2", step2, 46, 1.2, false],
         ["pickupCode", code, 129, 0.95, true]].forEach(function (row) {

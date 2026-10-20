@@ -233,14 +233,16 @@
         })
       })),
       photoSlots: [
-        slot(0, 0, 0, 0, 0, 827, 1158),
-        slot(851, 0, 0, 1, 0, 829, 1159),
-        slot(1704, 0, 0, 2, 0, 827, 1158),
-        slot(2555, 0, 0, 3, 0, 829, 1159),
-        slot(0, 1185, 1, 0, 0, 826, 1159),
-        slot(851, 1186, 1, 1, 0, 829, 1158),
-        slot(1705, 1186, 1, 2, 0, 829, 1158),
-        slot(2555, 1186, 1, 3, 0, 829, 1158)
+        // 1.5 mm (35 px) down from the reference (user 10-20): the printer trims top and
+        // bottom, and the bottom row no longer leaves a white strip to cut away.
+        slot(0, 35, 0, 0, 0, 827, 1158),
+        slot(851, 35, 0, 1, 0, 829, 1159),
+        slot(1704, 35, 0, 2, 0, 827, 1158),
+        slot(2555, 35, 0, 3, 0, 829, 1159),
+        slot(0, 1220, 1, 0, 0, 826, 1159),
+        slot(851, 1221, 1, 1, 0, 829, 1158),
+        slot(1705, 1221, 1, 2, 0, 829, 1158),
+        slot(2555, 1221, 1, 3, 0, 829, 1158)
       ],
       allowRotation: false
     }),
@@ -591,8 +593,9 @@
     "small-two-inch": { card: [3236, 0, 364, 1417], band: [3236, 0, 364, 2400], family: "medium", vertical: true },
     "visa-two-inch": { card: [0, 2174, 1417, 226], band: [0, 2174, 3600, 226], family: "thin",
       codeVariant: "coarse", codeReach: 12, codeEdge: 24, textPadding: [24, 36, 24, 48] },
-    "standard-two-inch": { card: [3386, 0, 214, 1417], band: [3386, 0, 214, 2400], family: "thin", vertical: true,
-      codeVariant: "coarse", codeReach: 2, codeEdge: 36, textPadding: [10, 48, 48, 36], packToCode: true }
+    // 标准2寸 keeps a 16 px white gap to the photos (user 10-20), where the ordinary strip sits too.
+    "standard-two-inch": { card: [3400, 0, 200, 1417], band: [3400, 0, 200, 2400], family: "thin", vertical: true,
+      codeVariant: "coarse", codeReach: 6, codeEdge: 26, textPadding: [4, 48, 48, 36], packToCode: true }
   };
   function rect(values) { return { x: values[0], y: values[1], width: values[2], height: values[3] }; }
 
