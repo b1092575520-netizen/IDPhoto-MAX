@@ -131,11 +131,11 @@ test('ordinary bars use the one-inch style on every template; US 5x5 keeps five 
   }
   assert.equal(templates.getTemplateById('us-visa').photoSlots.length,5);
 });
-test('only US 5x5 loses its lower-right photo and 标准2寸 sits 32px lower; all other slots match the frozen pre-stage5 baseline',()=>{
+test('only US 5x5 loses its lower-right photo and 标准2寸 sits 28px lower; all other slots match the frozen pre-stage5 baseline',()=>{
   const baseline=JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures','stage5-original-slots.json'),'utf8'));
   for(const t of loadTemplateModules().IDPhotoTemplates.getAllTemplates()) {
     const expected=baseline[t.id]; if(t.id==='us-visa') expected.pop();
-    if(t.id==='standard-two-inch') expected.forEach(s=>{ s.y+=32; });
+    if(t.id==='standard-two-inch') expected.forEach(s=>{ s.y+=28; });
     assert.deepEqual(JSON.parse(JSON.stringify(t.photoSlots)),expected,t.id);
   }
   const t=loadTemplateModules().IDPhotoTemplates.getTemplateById('us-visa-51');
