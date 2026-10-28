@@ -343,7 +343,7 @@ test('regeneration preserves original task/complete signal and selects that phot
 test('regeneration refuses cached, terminal, failed and cross-connection confirmations; never creates supplement',async()=>{
  for(const change of [{receipt:false},{staleNonce:true},{terminal:'cancelled'},{terminal:'withdrawn'},{denied:true},{foreignContext:true}]){
   const h=harness(),task=await h.service.electronic(h.original,h.info,{});Object.assign(h.options,change);
-  await assert.rejects(h.service.regenerate(task.folder),/待核对|超时/);
+  await assert.rejects(h.service.regenerate(task.folder),/待核对|超时|已取消或撤回/);
   assert.equal(h.renders.length,1);await assert.rejects(task.folder.getEntry('supplements.json'));
  }
 });

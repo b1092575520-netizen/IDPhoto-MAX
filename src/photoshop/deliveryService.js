@@ -18,6 +18,8 @@
   var REPRINT_CODE_WAIT_MS = 90000;
   // Archive and customer photos (user 2026-10-17): 10 looks the same and is about half the size.
   var SAVE_JPEG_QUALITY = 10;
+  // Cancelled or withdrawn in the delivery manager (10-28): that order is over for good.
+  var ENDED_TEXT = "交付管理里这单已取消或撤回，不再取码";
   var latestTask = null;
   var creatingTask = false, retryingTask = false, activeWait = null;
   var preparingTask = null;
@@ -345,6 +347,17 @@
     } catch (missing) { /* no receipt yet */ }
     return "";
   }
+  // receipt.json also records a cancel or withdrawal made later in the delivery manager.
+  async function readEnded(task) {
+    try {
+      var receipt = JSON.parse(await (await task.folder.getEntry("receipt.json")).read({ format: format(false) }));
+      return Boolean(receipt && receipt.taskId === task.id && task.fingerprint && receipt.manifestFingerprint === task.fingerprint &&
+        receipt.accepted === true && ["cancelled", "withdrawn"].includes(receipt.status) && (!task.deliveryId || receipt.deliveryId === task.deliveryId));
+    } catch (missing) { return false; }
+  }
+  function endedError() {
+    return protocol().pickupCodeError({ message: ENDED_TEXT, code: "DELIVERY_ENDED", retryable: false });
+  }
   async function readCode(task) {
     var receipt;
     try {
@@ -370,7 +383,9 @@
         receipt.taskId === task.id && receipt.manifestFingerprint === task.fingerprint && receipt.accepted === true) {
       if ((task.contextKey && receipt.contextKey !== task.contextKey) || (task.deliveryId && receipt.deliveryId !== task.deliveryId)) {
         task.confirmationFailure = "回执与原任务的云端连接或交付不一致，请恢复原连接核对";
-      } else if (["cancelled", "withdrawn", "frozen", "split"].includes(receipt.status)) {
+      } else if (["cancelled", "withdrawn"].includes(receipt.status)) {
+        task.confirmationFailure = ENDED_TEXT; task.confirmationEnded = true;
+      } else if (["frozen", "split"].includes(receipt.status)) {
         task.confirmationFailure = "原交付已取消、撤回或停止共享，不能继续输出";
       } else if (receipt.confirmed === false && receipt.errorCode) {
         var messages = {
@@ -408,7 +423,7 @@
     if (activeWait) throw new Error("已有取码请求正在等待，请勿重复重试");
     waitMs = waitMs || CODE_WAIT_MS;
     notify("正在等待后台核对云端并获取取件码，最多 " + Math.round(waitMs / 1000) + " 秒；可停止等待并保留原任务");
-    task.code = ""; task.entryLink = null; task.confirmationId = protocol().id(); task.confirmationFailure = ""; task.confirmationRejected = false;
+    task.code = ""; task.entryLink = null; task.confirmationId = protocol().id(); task.confirmationFailure = ""; task.confirmationRejected = false; task.confirmationEnded = false;
     var attempt = { cancelled: false, requestId: task.confirmationId, taskId: task.id, automation: Boolean(task.automation) };
     activeWait = attempt;
     waitingChanged(true);
@@ -423,6 +438,7 @@
       if (Date.now() >= deadline) { code = ""; break; }
       if (code) break;
       if (task.confirmationFailure) {
+        if (task.confirmationEnded) throw endedError();
         var confirmationError = protocol().pickupCodeError(task.confirmationFailure + "，取件码待核对");
         if (task.confirmationRejected) confirmationError.retryable = false;
         throw confirmationError;
@@ -871,6 +887,9 @@
         automation.store().markTask(task.id, { state: "blocked", error: "交付管理拒收了这单：" + rejected });
         return null;
       }
+      // Cancelled or withdrawn for good (10-28): parked quietly instead of asking every minute;
+      // the same photo can still be laid out again as a new order.
+      if (await readEnded(task)) { automation.failure(task, endedError()); return null; }
       var codeRequest = await optionalEntry(folder, "code-request.json"), existing;
       if (codeRequest) existing = JSON.parse(await codeRequest.read({ format: format(false) }));
       var automaticWaitFile = await optionalEntry(folder, "automatic-code-wait.json"), automaticWait;
@@ -885,6 +904,7 @@
       } else task.confirmationId = existing.requestId;
       task.code = await readCode(task);
       if (!task.code) {
+        if (task.confirmationEnded) { automation.failure(task, endedError()); return null; }
         if (task.confirmationFailure) {
           var response = JSON.parse(await (await folder.getEntry("code-response.json")).read({ format: format(false) }));
           if (["NETWORK", "TIMEOUT"].includes(response.errorCode)) {

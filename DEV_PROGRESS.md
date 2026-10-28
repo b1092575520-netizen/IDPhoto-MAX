@@ -1,4 +1,9 @@
-## 当前阶段 v0.6.26 美签5.0 实打修正、标准2寸 24px、去掉同行（10-28）
+## 当前阶段 v0.6.27 已取消/撤回的单停掉自动恢复（10-28）
+
+- 交付管理会话发现 17eb3b7d（10-18 取消）每 60 秒重发 code-request，后台回 STATE_UNCONFIRMED、status cancelled。readCode 认出了 cancelled，但 confirmationFailure 文案不含 failure() 的“硬错误”字眼，被记 retryable。
+- 改：readCode 对 cancelled/withdrawn 设 confirmationEnded；新增 readEnded 读 receipt.json（同 taskId、指纹、accepted、deliveryId）；primeRecovery 在写新 code-request 之前和 readCode 之后都检查，confirmCode 等码中也立即抛 DELIVERY_ENDED。automation.failure 把 DELIVERY_ENDED 记 stopped“交付管理里这单已取消或撤回”，plan 的 existing 像 Esc 取消一样排除它。frozen/split 不变。新增 3 项测试，旧代码上 3 项都失败。
+
+## v0.6.26 美签5.0 实打修正、标准2寸 24px、去掉同行（10-28）
 
 - 用户实打美签5.0 字很小。根因：layoutEngine.createLayoutPlan 按白名单复制 infoBar，漏了 `stacked`（还有 `exclusiveCode`），Photoshop 按普通宽卡排；测试图直接用 templateRegistry 的 infoBar，绕过了这一步。白名单补上两项，测试改用 createLayoutPlan 的 infoBar 核对字号、码边长和两行标记。
 - 标准2寸 photoSlots 第一行 y 28→24、第二行 1213/1214→1209/1210。

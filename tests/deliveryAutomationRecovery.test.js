@@ -33,6 +33,14 @@ function harness(options = {}) {
           protocol: request.protocol, sourceRoot: this.nativePath, consumerId: "consumer-A", sourceIdentity: "source-directory-A",
           state: "running", ready: true, automationProtocol: "pickup-automation-1" }) };
       }
+      if (name === "code-response.json" && options.ended) {
+        // What the delivery manager answered for 17eb3b7d (10-28): accepted, not confirmed, order cancelled.
+        const confirmation = JSON.parse(await (await this.getEntry("code-request.json")).read());
+        const payload = await (await this.getEntry("request.json")).read();
+        return { read: async () => JSON.stringify({ version: 2, requestId: confirmation.requestId, accepted: true, confirmed: false,
+          status: options.ended, contextKey: "", taskId: JSON.parse(payload).taskId, manifestFingerprint: window.IDPhotoDeliveryProtocol.sha256(payload),
+          deliveryId: "", code: "", errorCode: "STATE_UNCONFIRMED", error: "本次取件码待核对；本次交付状态尚未完成取件码核对。" }) };
+      }
       if (name === "code-response.json" && options.receipt !== false) {
         const confirmation = JSON.parse(await (await this.getEntry("code-request.json")).read());
         const payload = await (await this.getEntry("request.json")).read();
@@ -620,4 +628,42 @@ test("a background '可以打印' is retired once the same code and size is prin
   assert.equal(saved.printAvailable, false); assert.equal(saved.printState, "printed-from-panel");
   await assert.rejects(h.service.printRecovered(task.id));
   assert.equal(h.prints.length, 0);
+});
+
+test("an order cancelled in the delivery manager stops automatic recovery instead of asking every minute (10-28)", async () => {
+  const h = harness({ receipt: false }), original = h.source();
+  await assert.rejects(h.service.electronic(original.document, original.info, {}), /超时/);
+  const task = h.service.latest();
+  h.options.receipt = true; h.options.ended = "cancelled"; h.reload();
+  assert.equal(await h.service.primeRecovery(), null, "parked quietly, no recovery notice");
+  const record = h.automation.store().tasks().find(item => item.id === task.id);
+  assert.equal(record.state, "stopped"); assert.match(record.error, /已取消或撤回/);
+  const asked = (await h.json(task.folder, "code-request.json")).requestId;
+  h.reload();
+  assert.equal(await h.service.primeRecovery(), null);
+  assert.equal((await h.json(task.folder, "code-request.json")).requestId, asked, "no new code request after a restart");
+  assert.equal(h.automation.plan(original.info, "electronic", null, false).existing, null, "the same photo can be laid out again");
+  assert.equal(h.opened.length, 0); assert.equal(h.renders.length, 0); assert.equal(h.prints.length, 0);
+});
+
+test("a withdrawal recorded in receipt.json stops recovery before another code request is written", async () => {
+  const h = harness({ receipt: false }), original = h.source();
+  await assert.rejects(h.service.electronic(original.document, original.info, {}), /超时/);
+  const task = h.service.latest(), payload = await (await task.folder.getEntry("request.json")).read();
+  await (await task.folder.createFile("receipt.json", { overwrite: true })).write(JSON.stringify({ version: 2, taskId: task.id,
+    manifestFingerprint: h.window.IDPhotoDeliveryProtocol.sha256(payload), accepted: true, confirmed: false, status: "withdrawn",
+    deliveryId: "remote-" + task.id, code: "", completed: false, error: "" }));
+  h.reload();
+  const before = (await h.json(task.folder, "code-request.json")).requestId;
+  assert.equal(await h.service.primeRecovery(), null);
+  assert.equal((await h.json(task.folder, "code-request.json")).requestId, before);
+  assert.equal(h.automation.store().tasks().find(item => item.id === task.id).state, "stopped");
+});
+
+test("a cancel answered while waiting ends the wait at once and parks the order", async () => {
+  const h = harness({ ended: "withdrawn" }), original = h.source();
+  await assert.rejects(h.service.electronic(original.document, original.info, {}),
+    error => /已取消或撤回/.test(error.message) && error.retryable === false && !/待核对/.test(error.message));
+  const record = h.automation.store().tasks().find(item => item.id === h.service.latest().id);
+  assert.equal(record.state, "stopped");
 });
