@@ -70,6 +70,8 @@ test('all eleven pickup cards fit 80mm, keep clear of photos and paper bleed, an
     assert.equal(outputPlan.infoBar.pickupLayout,'v5',t.id+' real layout pipeline keeps renderer selection');
     assert.equal(outputPlan.infoBar.layoutVersion,7);
     assert.deepEqual({...outputPlan.infoBar.band},{...t.infoBar.band},t.id+' band survives the layout engine');
+    assert.equal(outputPlan.infoBar.stacked,t.infoBar.stacked,t.id+' stacked survives the layout engine');
+    assert.equal(outputPlan.infoBar.exclusiveCode,t.infoBar.exclusiveCode,t.id+' store-code switch survives the layout engine');
     const b=t.infoBar, [x,y,w,h]=bands[t.id], band={x,y,width:w,height:h};
     assert.deepEqual({...b.band},band,t.id+' band');
     assert.ok(Math.max(b.width,b.height)*25.4/600<=80,t.id+' long edge');
@@ -131,11 +133,11 @@ test('ordinary bars use the one-inch style on every template; US 5x5 keeps five 
   }
   assert.equal(templates.getTemplateById('us-visa').photoSlots.length,5);
 });
-test('only US 5x5 loses its lower-right photo and 标准2寸 sits 28px lower; all other slots match the frozen pre-stage5 baseline',()=>{
+test('only US 5x5 loses its lower-right photo and 标准2寸 sits 24px lower; all other slots match the frozen pre-stage5 baseline',()=>{
   const baseline=JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures','stage5-original-slots.json'),'utf8'));
   for(const t of loadTemplateModules().IDPhotoTemplates.getAllTemplates()) {
     const expected=baseline[t.id]; if(t.id==='us-visa') expected.pop();
-    if(t.id==='standard-two-inch') expected.forEach(s=>{ s.y+=28; });
+    if(t.id==='standard-two-inch') expected.forEach(s=>{ s.y+=24; });
     assert.deepEqual(JSON.parse(JSON.stringify(t.photoSlots)),expected,t.id);
   }
   const t=loadTemplateModules().IDPhotoTemplates.getTemplateById('us-visa-51');
@@ -188,7 +190,9 @@ test('per-order wording says how to open the mini-program without scanning; code
     brazil:427, graduation:427, 'small-two-inch':292, 'visa-two-inch':214, 'standard-two-inch':180 };
   for (const raw of modules.IDPhotoTemplates.getAllTemplates()) {
     const t = modules.IDPhotoTemplates.forDelivery(raw, true);
-    const plan = layout.plan(t.infoBar, { shopName:'福清印象照相馆', shopPhone:'13003825982' },
+    // The bar Photoshop really draws comes through the layout engine (10-28: it dropped `stacked`).
+    const bar = modules.IDPhotoLayoutEngine.createLayoutPlan({ template:t }).infoBar;
+    const plan = layout.plan(bar, { shopName:'福清印象照相馆', shopPhone:'13003825982' },
       { pickupCode:'CKCJW7', dateText:'2026.10.28', entryCodeAvailable:true, entryCodeExclusive:true }, t.widthPx / t.heightPx);
     const steps = plan.items.filter(x => /^step/.test(x.key)).map(x => x.text).join('');
     assert.match(steps, /扫不了.*微信搜小程序“福清印象照相馆”/, t.id + ' ' + steps);

@@ -28,11 +28,14 @@
       source: "reference-template"
     };
     ["background", "textColor", "avatar", "texts", "layoutVersion", "pickupLayout", "safeMargin",
-      "ordinaryLayout", "band", "pickupFamily", "codeVariant", "codeReach", "codeEdge", "textPadding", "packToCode"].forEach(function (key) {
+      "ordinaryLayout", "band", "pickupFamily", "codeVariant", "codeReach", "codeEdge", "textPadding", "packToCode", "stacked"].forEach(function (key) {
       if (infoBar[key]) {
         cloned[key] = JSON.parse(JSON.stringify(infoBar[key]));
       }
     });
+    // 10-28: 美签5.0's stacked card and a size's store-code-only switch reach the planner too
+    // (the stacked flag was dropped here, so Photoshop drew 5.0 as a narrow wide card).
+    if (infoBar.exclusiveCode === false) cloned.exclusiveCode = false;
     return cloned;
   }
 

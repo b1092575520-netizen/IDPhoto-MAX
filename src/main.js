@@ -1438,25 +1438,6 @@
   function initAutomaticDelivery() {
     if (!window.IDPhotoDeliveryStatusView || !window.IDPhotoDeliveryAutomationService) return;
     deliveryStatusView = window.IDPhotoDeliveryStatusView.create({ root: document });
-    async function chooseGroup(wantOn) {
-      if (!beginPhotoshopOperation("choose-group")) { setStatus("当前任务尚未结束，请稍候"); return; }
-      try {
-        if (!state.pickupCodeMode) return;
-        if (!wantOn) {
-          window.IDPhotoDeliveryAutomationService.store().setGroup({ on: false });
-          deliveryStatusView.showGroup(null); return;
-        }
-        var items = await window.IDPhotoDeliveryAutomationService.recent();
-        if (!items.length) await window.IDPhotoDeliveryAutomationService.openGroup([]);
-        else await new Promise(function (resolve) {
-          deliveryStatusView.showGroupPicker(items, function (ids) {
-            window.IDPhotoDeliveryAutomationService.openGroup(ids).then(resolve, function (error) { setStatus(errorToText(error)); resolve(); });
-          });
-        });
-        deliveryStatusView.showGroup(window.IDPhotoDeliveryAutomationService.store().group());
-      } catch (error) { setStatus(errorToText(error)); }
-      finally { endPhotoshopOperation("choose-group"); }
-    }
     function showAutomaticNotice() {
       var notice = automaticNotice;
       deliveryStatusView.showRecovery(notice, async function () {
@@ -1475,11 +1456,11 @@
       if (automaticTickBusy) return;
       automaticTickBusy = true;
       try {
-        var group = window.IDPhotoDeliveryAutomationService.store().group();
-        if (!state.pickupCodeMode && group.on) { window.IDPhotoDeliveryAutomationService.store().setGroup({ on: false }); group = null; }
-        deliveryStatusView.enableGroup(state.pickupCodeMode ? chooseGroup : null);
-        deliveryStatusView.showGroup(group);
-        if (group && group.expired) setStatus("同行已因闲置自动关闭");
+        // 10-28: the 同行 switch is gone. A group an older version left open closes here so it
+        // cannot pull new customers onto its code; a merge it started still reconciles below.
+        try {
+          if (window.IDPhotoDeliveryAutomationService.store().group().on) window.IDPhotoDeliveryAutomationService.store().setGroup({ on: false });
+        } catch (error) { setStatus(errorToText(error)); }
         var mergeIntent = window.IDPhotoDeliveryAutomationService.store().mergeIntent();
         if (mergeIntent && !state.activePhotoshopOperation) {
           try { await window.IDPhotoDeliveryAutomationService.openGroup(mergeIntent.taskIds); }

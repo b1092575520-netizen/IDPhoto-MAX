@@ -6,7 +6,8 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 function harness(options = {}) {
-  const status = { textContent: "" }, scheduled = [], recoveries = [], prints = [], views = [];
+  const status = { textContent: "" }, scheduled = [], recoveries = [], prints = [], views = [], merges = [];
+  const group = { on: Boolean(options.groupOn) };
   const document = {
     readyState: "complete", addEventListener() {},
     querySelector: selector => selector === "#statusText" ? status : null,
@@ -16,12 +17,13 @@ function harness(options = {}) {
     addEventListener() {}, localStorage: { getItem: () => null, setItem() {} },
     IDPhotoPickupCodeModeStore: { load: () => true },
     IDPhotoDeliveryStatusView: { create: () => ({
-      enableGroup() {}, showGroup() {}, showPlan() {},
+      showPlan() {},
       showRecovery: (notice, onPrint) => views.push({ notice, onPrint })
     }) },
     IDPhotoDeliveryAutomationService: {
-      store: () => ({ group: () => ({ on: false }), mergeIntent: () => options.merge ? { taskIds: ["A", "B"] } : null }),
-      openGroup: async () => { throw Error("同行合并仍待核对"); }
+      store: () => ({ group: () => ({ on: group.on }), setGroup: input => { group.on = Boolean(input.on); return { on: group.on }; },
+        mergeIntent: () => options.merge ? { taskIds: ["A", "B"] } : null }),
+      openGroup: async ids => { merges.push({ ids, groupOn: group.on }); throw Error("同行合并仍待核对"); }
     },
     IDPhotoDeliveryService: {
       primeRecovery: async () => options.pending || null,
@@ -37,7 +39,7 @@ function harness(options = {}) {
   const context = vm.createContext({ window, document, console: { log() {}, warn() {}, error() {} },
     setTimeout: callback => { scheduled.push(callback); }, clearTimeout() {} });
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/main.js"), "utf8"), context);
-  return { options, status, recoveries, prints, views, tick: async () => {
+  return { options, status, recoveries, prints, views, merges, group, tick: async () => {
     assert.ok(scheduled.length, "the production main loop must schedule itself");
     await scheduled.shift()();
   } };
@@ -74,4 +76,12 @@ test("the main operation lock owns a recovered print through its awaited result"
   release(); await first;
   assert.equal(h.views.at(-1).notice, null);
   assert.match(h.status.textContent, /已提交/);
+});
+
+test("a 同行 group left open by an older version closes on the first tick, and its merge still reconciles", async () => {
+  const h = harness({ groupOn: true, merge: true });
+  await h.tick();
+  assert.equal(h.group.on, false, "no hidden group may keep pulling new customers onto its code");
+  assert.deepEqual(h.merges.map(item => item.ids), [["A", "B"]]);
+  assert.equal(h.merges[0].groupOn, false);
 });

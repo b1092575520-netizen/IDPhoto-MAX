@@ -1,4 +1,10 @@
-## 当前阶段 v0.6.25 说明写明“小程序”（10-28）
+## 当前阶段 v0.6.26 美签5.0 实打修正、标准2寸 24px、去掉同行（10-28）
+
+- 用户实打美签5.0 字很小。根因：layoutEngine.createLayoutPlan 按白名单复制 infoBar，漏了 `stacked`（还有 `exclusiveCode`），Photoshop 按普通宽卡排；测试图直接用 templateRegistry 的 infoBar，绕过了这一步。白名单补上两项，测试改用 createLayoutPlan 的 infoBar 核对字号、码边长和两行标记。
+- 标准2寸 photoSlots 第一行 y 28→24、第二行 1213/1214→1209/1210。
+- 同行：删 index.html 开关/状态/勾选框、deliveryStatusView 的 enableGroup/showGroup/showGroupPicker 及 group 提示、main.js chooseGroup 和对应样式；tick 里旧组 on 就 setGroup({on:false})，mergeIntent 照常 openGroup 对账（关组后对账已有测试覆盖）。deliveryAutomationService、多尺寸共用码、后台合并不动。
+
+## v0.6.25 说明写明“小程序”（10-28）
 
 - 用户：“微信搜“福清印象照相馆””没说是小程序。LONG_STEP2 改“② 扫不了：微信搜小程序“福清印象照相馆”，输入取件码”；窄条“7天内微信扫码领取，扫不了微信搜小程序“福清印象照相馆”输取件码”（去“就”，否则小2寸在 0.8 比例下 4.4pt）。
 - 多 3 字后保持旧字号要超过 8cm，改为统一 1840px（77.9mm，袋子留 2mm），标准2寸 1650；宽卡步骤 4.5–4.6pt（≥ 最小值），其余字不小于 0.6.23；码边长不变（测试锁住）。0.6.24 未安装。

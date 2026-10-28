@@ -24,10 +24,8 @@ function element(tag) {
 }
 
 function load() {
-  const ids = ["deliveryPlanHint", "deliveryRecoveryBar", "deliveryRecoveryText", "deliveryRecoveryPrint",
-    "groupToggle", "groupStatus", "groupPicker", "groupPickerList", "groupPickerConfirm", "groupPickerSkip"];
+  const ids = ["deliveryPlanHint", "deliveryRecoveryBar", "deliveryRecoveryText", "deliveryRecoveryPrint"];
   const nodes = Object.fromEntries(ids.map(id => [id, element()]));
-  nodes.groupToggle.label = element("span");
   const root = { querySelector: selector => nodes[selector.slice(1)] || null, createElement: tag => element(tag) };
   const window = {};
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/ui/deliveryStatusView.js"), "utf8"), vm.createContext({ window, Promise }));
@@ -64,44 +62,11 @@ test("a recovered task only prints after the operator clicks print", async () =>
   assert.equal(nodes.deliveryRecoveryBar.style.display, "none");
 });
 
-test("the 同行 switch stays hidden until the delivery logic enables it, and only changes through showGroup", async () => {
-  const { view, nodes } = load();
-  assert.equal(nodes.groupToggle.style.display, undefined);
-  nodes.groupToggle.fire();
-  const wanted = [];
-  view.enableGroup(async wantOn => { wanted.push(wantOn); });
-  assert.equal(nodes.groupToggle.style.display, "flex");
-  nodes.groupToggle.fire();
-  await new Promise(resolve => setImmediate(resolve));
-  assert.deepEqual(wanted, [true]);
-  assert.equal(nodes.groupToggle.classList.contains("active"), false, "the switch waits for the real state");
-  view.showGroup({ on: true, count: 3, code: "A7K3P9" });
-  assert.equal(nodes.groupToggle.label.textContent, "开");
-  assert.equal(nodes.groupStatus.textContent, "同行中 · 已 3 人 · 码 A7K3P9");
-  nodes.groupToggle.fire();
-  await new Promise(resolve => setImmediate(resolve));
-  assert.deepEqual(wanted, [true, false]);
-  view.showGroup(null);
-  assert.equal(nodes.groupStatus.style.display, "none");
-  view.showPlan({ kind: "group", code: "A7K3P9" });
-  assert.equal(nodes.deliveryPlanHint.textContent, "同行 · 并入 A7K3P9");
-});
-
-test("the recent-customer picker returns only the ticked customers, or none", () => {
-  const { view, nodes } = load();
-  const chosen = [];
-  view.showGroupPicker([{ id: "a", name: "1M9A5480.JPG", time: "10:32", code: "K9F4T6" }, { id: "b", name: "1M9A5481.JPG", time: "10:40" }],
-    ids => chosen.push(JSON.parse(JSON.stringify(ids))));
-  assert.equal(nodes.groupPicker.style.display, "block");
-  assert.equal(nodes.groupPickerList.children.length, 2);
-  assert.match(nodes.groupPickerList.children[0].children.at(-1).textContent, /10:32 · 1M9A5480\.JPG · 码 K9F4T6/);
-  nodes.groupPickerList.children[0].children[0].checked = true;
-  nodes.groupPickerConfirm.fire();
-  assert.deepEqual(chosen, [["a"]]);
-  assert.equal(nodes.groupPicker.style.display, "none");
-  nodes.groupPickerConfirm.fire();
-  assert.equal(chosen.length, 1, "a closed picker cannot answer twice");
-  view.showGroupPicker([{ id: "c", name: "x" }], ids => chosen.push(JSON.parse(JSON.stringify(ids))));
-  nodes.groupPickerSkip.fire();
-  assert.deepEqual(chosen[1], []);
+test("the 同行 switch and its picker are gone from the panel (10-28)", () => {
+  const { view } = load();
+  const html = fs.readFileSync(path.join(__dirname, "../index.html"), "utf8");
+  assert.doesNotMatch(html, /同行|groupToggle|groupPicker|groupStatus/);
+  assert.match(html, /id="deliveryPlanHint"/);
+  assert.equal(view.enableGroup, undefined);
+  assert.equal(view.showGroupPicker, undefined);
 });
