@@ -58,7 +58,7 @@ const bands = {
   'visa-two-inch':[0,2174,3600,226], 'small-two-inch':[3236,0,364,2400],
   'hongkong-taiwan':[2928,0,672,2400], brazil:[2903,0,697,2400],
   argentina:[2916,0,684,2400], 'us-visa':[2408,1197,1192,900],
-  'us-visa-51':[0,1222,1730,470], graduation:[2920,0,680,2400], wedding:[0,1738,3600,662]
+  'us-visa-51':[0,1222,1840,470], graduation:[2920,0,680,2400], wedding:[0,1738,3600,662]
 };
 const apart=(a,b)=>a.x>=b.x+b.width||a.x+a.width<=b.x||a.y>=b.y+b.height||a.y+a.height<=b.y;
 const inside=(a,b)=>a.x>=b.x&&a.y>=b.y&&a.x+a.width<=b.x+b.width&&a.y+a.height<=b.y+b.height;
@@ -191,7 +191,7 @@ test('per-order wording says how to open the mini-program without scanning; code
     const plan = layout.plan(t.infoBar, { shopName:'福清印象照相馆', shopPhone:'13003825982' },
       { pickupCode:'CKCJW7', dateText:'2026.10.28', entryCodeAvailable:true, entryCodeExclusive:true }, t.widthPx / t.heightPx);
     const steps = plan.items.filter(x => /^step/.test(x.key)).map(x => x.text).join('');
-    assert.match(steps, /扫不了.*微信搜“福清印象照相馆”/, t.id + ' ' + steps);
+    assert.match(steps, /扫不了.*微信搜小程序“福清印象照相馆”/, t.id + ' ' + steps);
     assert.doesNotMatch(steps, /打开小程序/, t.id);
     assert.equal(plan.regions.find(x => x.key === 'entryCode').width, tested[t.id], t.id + ' code side');
   }

@@ -7,9 +7,10 @@
   var INK = { red: 249, green: 233, blue: 160 };
   var PAPER_TEXT = 48, CUT_TEXT = 36, CODE_GAP = 36, CANVAS_W = 3600, CANVAS_H = 2400;
   var TITLE = "请7天内领取电子照片";
-  // A customer who cannot scan opens the mini-program by searching its name (user 10-28).
+  // A customer who cannot scan searches WeChat for the mini-program by name (user 10-28: say
+  // "小程序", or the shop name alone reads like a search for the shop).
   var MINI_NAME = "福清印象照相馆";
-  var LONG_STEP2 = "② 扫不了：微信搜“" + MINI_NAME + "”，输入取件码";
+  var LONG_STEP2 = "② 扫不了：微信搜小程序“" + MINI_NAME + "”，输入取件码";
   // Cards may run to 80 mm (user 10-28); codes keep the 60 mm card's scan-tested size.
   var MAX_LENGTH = 1890, BASE_LENGTH = 1417;
   // Microsoft YaHei advance widths in em (measured); everything else is a full em.
@@ -162,7 +163,7 @@
       var pw = Math.round(H2 * ratio);
       var end = withCode ? qx2 - 28 : W - pad[1];
       var start = X2 + pw + 24, avail = end - start;
-      var steps = exclusive ? "7天内微信扫码领取，扫不了就微信搜“" + MINI_NAME + "”输取件码" :
+      var steps = exclusive ? "7天内微信扫码领取，扫不了微信搜小程序“" + MINI_NAME + "”输取件码" :
         withCode ? "7天内：微信扫码 → 输入取件码 → 保存照片" : "7天内：打开本店微信小程序 → 输入取件码";
       var rows = medium ?
         [["steps", steps, 0.5], ["details", date ? shop + "  " + date : shop, 0.5], ["phone", phone, 0.48]] :

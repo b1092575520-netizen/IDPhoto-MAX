@@ -577,8 +577,9 @@
 
   // The registry retains v0.5.8 ordinary layouts. Delivery strips are selected
   // for the actual operation, never by a process-wide mode at module load time.
-  // Pickup cards (user 10-18). The card is what goes into the bag (long edge <= 80 mm since
-  // 10-28, so the per-order wording fits at the old text sizes; codes keep their 60 mm size);
+  // Pickup cards (user 10-18). The card is what goes into the bag. Since 10-28 the long edge may
+  // reach 80 mm for the per-order wording: cards run to 78 mm (标准2寸 70 mm), 2 mm short of the
+  // bag, steps stay >= 4.5 pt and codes keep their scan-tested 60 mm size;
   // the band around it is red to the paper edge so a slightly off cut never shows white.
   // Right-column cards turn so the heads point to the photos (away from the printer's
   // bleed). The two thinnest strips let the coarse code reach into the white gap next
@@ -586,21 +587,21 @@
   // `exclusiveCode: false` keeps a size on the store code when the order's own, denser code
   // does not scan reliably there (the 10-28 print test scanned on every size, so none uses it yet).
   var PICKUP_CARDS = {
-    "one-inch": { card: [0, 1845, 1770, 555], band: [0, 1845, 3600, 555], family: "wide" },
-    "wedding": { card: [0, 1738, 1780, 600], band: [0, 1738, 3600, 662], family: "wide" },
+    "one-inch": { card: [0, 1845, 1840, 555], band: [0, 1845, 3600, 555], family: "wide" },
+    "wedding": { card: [0, 1738, 1840, 600], band: [0, 1738, 3600, 662], family: "wide" },
     // 美签5.0 has a whole free photo slot (10-28): a taller card with the code under the text
     // (40 px more for the two-line step ② of the per-order code).
     "us-visa": { card: [2408, 1197, 1192, 900], band: [2408, 1197, 1192, 900], family: "wide", stacked: true },
-    "us-visa-51": { card: [0, 1222, 1730, 470], band: [0, 1222, 1730, 470], family: "wide" },
-    "argentina": { card: [2916, 0, 600, 1820], band: [2916, 0, 684, 2400], family: "wide", vertical: true },
-    "hongkong-taiwan": { card: [2928, 0, 600, 1790], band: [2928, 0, 672, 2400], family: "wide", vertical: true },
-    "brazil": { card: [2903, 0, 600, 1790], band: [2903, 0, 697, 2400], family: "wide", vertical: true },
-    "graduation": { card: [2920, 0, 600, 1800], band: [2920, 0, 680, 2400], family: "wide", vertical: true },
-    "small-two-inch": { card: [3236, 0, 364, 1770], band: [3236, 0, 364, 2400], family: "medium", vertical: true },
-    "visa-two-inch": { card: [0, 2174, 1820, 226], band: [0, 2174, 3600, 226], family: "thin",
+    "us-visa-51": { card: [0, 1222, 1840, 470], band: [0, 1222, 1840, 470], family: "wide" },
+    "argentina": { card: [2916, 0, 600, 1840], band: [2916, 0, 684, 2400], family: "wide", vertical: true },
+    "hongkong-taiwan": { card: [2928, 0, 600, 1840], band: [2928, 0, 672, 2400], family: "wide", vertical: true },
+    "brazil": { card: [2903, 0, 600, 1840], band: [2903, 0, 697, 2400], family: "wide", vertical: true },
+    "graduation": { card: [2920, 0, 600, 1840], band: [2920, 0, 680, 2400], family: "wide", vertical: true },
+    "small-two-inch": { card: [3236, 0, 364, 1840], band: [3236, 0, 364, 2400], family: "medium", vertical: true },
+    "visa-two-inch": { card: [0, 2174, 1840, 226], band: [0, 2174, 3600, 226], family: "thin",
       codeVariant: "coarse", codeReach: 12, codeEdge: 24, textPadding: [24, 36, 24, 48] },
     // 标准2寸 keeps a 16 px white gap to the photos (user 10-20), where the ordinary strip sits too.
-    "standard-two-inch": { card: [3400, 0, 200, 1540], band: [3400, 0, 200, 2400], family: "thin", vertical: true,
+    "standard-two-inch": { card: [3400, 0, 200, 1650], band: [3400, 0, 200, 2400], family: "thin", vertical: true,
       codeVariant: "coarse", codeReach: 6, codeEdge: 26, textPadding: [4, 48, 48, 36], packToCode: true }
   };
   function rect(values) { return { x: values[0], y: values[1], width: values[2], height: values[3] }; }
