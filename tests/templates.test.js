@@ -57,7 +57,7 @@ const bands = {
   'one-inch':[0,1845,3600,555], 'standard-two-inch':[3400,0,200,2400],
   'visa-two-inch':[0,2174,3600,226], 'small-two-inch':[3236,0,364,2400],
   'hongkong-taiwan':[2928,0,672,2400], brazil:[2903,0,697,2400],
-  argentina:[2916,0,684,2400], 'us-visa':[2408,1197,1192,600],
+  argentina:[2916,0,684,2400], 'us-visa':[2408,1197,1192,860],
   'us-visa-51':[0,1222,1417,470], graduation:[2920,0,680,2400], wedding:[0,1738,3600,662]
 };
 const apart=(a,b)=>a.x>=b.x+b.width||a.x+a.width<=b.x||a.y>=b.y+b.height||a.y+a.height<=b.y;
@@ -77,9 +77,9 @@ test('all eleven pickup cards fit 60mm, keep clear of photos and paper bleed, an
     const outline=layout.outline(b);
     assert.ok(inside(outline,{x:0,y:0,width:3600,height:2400}),t.id+' canvas');
     for (const p of t.photoSlots) { assert.ok(apart(band,p),t.id+' band/photo'); assert.ok(apart(outline,p),t.id+' code/photo'); }
-    for(const photoRatio of [.6,.74,.8,1]) for(const entryCodeAvailable of [false,true]) {
+    for(const photoRatio of [.6,.74,.8,1]) for(const [entryCodeAvailable,entryCodeExclusive] of [[false,false],[true,false],[true,true]]) {
       const plan=layout.plan(b,{shopName:'福清印象照相馆',shopPhone:'13003825982'},
-        {pickupCode:'W8MWQM',dateText:'2026.10.18',entryCodeAvailable},photoRatio);
+        {pickupCode:'W8MWQM',dateText:'2026.10.18',entryCodeAvailable,entryCodeExclusive},photoRatio);
       const placed=[...plan.items,...plan.regions].map(r=>({key:r.key,...layout.placed(b,plan,r)}));
       for(const item of placed) {
         if(item.key==='entryCode') {

@@ -36,19 +36,52 @@
     logoCache = { data: bytes, width: LOGO.width };
     return logoCache;
   }
-  // Prepared before the drawing modal; a custom code is drawn without the store logo.
-  async function prepare() {
+  // 10-28: the order's own link (delivery manager candidate 38) opens its pickup page with the
+  // code filled in. It is used only when it belongs to this order's code, checked here again;
+  // anything else prints the store code, and the reason goes to the log.
+  function exclusiveLink(options) {
+    var entry = options.entryLink;
+    if (options.allowExclusive === false) return { link: "", reason: "这个尺寸先印通用码" };
+    if (!entry) return { link: "", reason: "没有专属链接" };
+    if (entry.code !== options.pickupCode) return { link: "", reason: "专属链接不属于本单取件码" };
+    if (!entry.link) return { link: "", reason: entry.reason || "没有专属链接" };
+    var again = window.IDPhotoDeliveryProtocol.entryLink({ entryLink: entry.link, entryLinkCode: entry.code }, options.pickupCode);
+    return again.link ? { link: again.link, reason: "" } : { link: "", reason: again.reason };
+  }
+  // Prepared before the drawing modal; a custom store code is drawn without the store logo.
+  async function prepare(options) {
+    options = options || {};
     if (!imaging() || typeof imaging().putPixels !== "function") throw new Error("这版 Photoshop 不能直接画小程序码");
     var value = current(), logo = null;
-    if (!value.custom) {
+    var exclusive = options.fallbackReason ? { link: "", reason: options.fallbackReason } : exclusiveLink(options);
+    if (exclusive.link || !value.custom) {
       try { logo = await loadLogo(); } catch (error) { console.warn("[entry-code] logo unavailable", error); }
     }
-    return { text: value.text, custom: value.custom, logo: logo };
+    return { text: exclusive.link || value.text, custom: !exclusive.link && value.custom, logo: logo,
+      exclusive: Boolean(exclusive.link), reason: exclusive.reason };
+  }
+  function renderFor(prepared, size, options) {
+    var key = [size, options.variant, options.turn || ""].join("|");
+    if (prepared.rendered && prepared.rendered.key === key) return prepared.rendered.value;
+    var value = code().render({ text: prepared.text, variant: options.variant, size: size, turn: options.turn,
+      logo: prepared.logo, exclusive: prepared.exclusive });
+    prepared.rendered = { key: key, value: value };
+    return value;
+  }
+  // The exact pixels about to be printed must read back as the link, letter for letter.
+  function readsBack(prepared, size, options) {
+    try {
+      var rendered = renderFor(prepared, size, options);
+      var read = window.IDPhotoQrDecode(toRgba(rendered.pixels, rendered.size, rendered.size, 3), rendered.size, rendered.size);
+      return Boolean(read && read.data === prepared.text);
+    } catch (error) {
+      console.warn("[entry-code] read-back failed", error);
+      return false;
+    }
   }
   // Must run inside the caller's executeAsModal. `rect` is the square on the sheet.
   async function draw(targetDocument, prepared, rect, options) {
-    var rendered = code().render({ text: prepared.text, variant: options.variant, size: rect.width,
-      turn: options.turn, logo: prepared.logo });
+    var rendered = renderFor(prepared, rect.width, options);
     var layer = await targetDocument.createLayer("pixel", { name: options.name || "完整小程序码" });
     var data = await imaging().createImageDataFromBuffer(rendered.pixels,
       { width: rendered.size, height: rendered.size, components: 3, colorSpace: "RGB" });
@@ -118,6 +151,6 @@
   }
   function reset() { window.localStorage.removeItem(STORE_KEY); return label(); }
 
-  window.IDPhotoEntryCodeService = { prepare: prepare, draw: draw, current: current, label: label,
+  window.IDPhotoEntryCodeService = { prepare: prepare, readsBack: readsBack, draw: draw, current: current, label: label,
     replaceFromImage: replaceFromImage, reset: reset, readCode: readCode, selfCheck: selfCheck };
 })();

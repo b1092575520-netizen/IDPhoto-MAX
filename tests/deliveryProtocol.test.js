@@ -32,3 +32,28 @@ test('fresh confirmation requires request nonce, original connection and deliver
  assert.equal(p.confirmedCode(r,task),'A2B3C4');
  for(const change of [{version:1},{requestId:p.id()},{requestId:''},{contextKey:'ctx-b'},{deliveryId:'delivery-b'},{status:'cancelled'},{status:'withdrawn'},{confirmed:false}])assert.equal(p.confirmedCode({...r,...change},task),'');
 });
+
+// 10-28: the per-order mini-program link is printed only when it belongs to this very code
+// and is a WeChat short link both code styles can hold (at most 74 characters).
+test('an entry link counts only for its own code and in the WeChat short-link shape',()=>{
+  const p=load(),link='https://mp.weixin.qq.com/a/~~WdSuO5i0uQ4~WhUnbj16GNTjF-XyoACd7A~~',code='CKCJW7';
+  assert.equal(p.entryLink({entryLink:link,entryLinkCode:code},code).link,link);
+  assert.equal(p.entryLink({entryLink:'https://mp.weixin.qq.com/a/~ECctIh1ILr7RP5ZRcuuT8A~~',entryLinkCode:code},code).link.length,52);
+  const longest='https://mp.weixin.qq.com/a/~~'+'a'.repeat(43)+'~~';
+  assert.equal(longest.length,74);assert.equal(p.entryLink({entryLink:longest,entryLinkCode:code},code).link,longest);
+  for(const [receipt,reason] of [
+    [{},/没有专属链接/],[null,/没有专属链接/],[{entryLink:'',entryLinkCode:code},/没有专属链接/],
+    [{entryLink:link},/不属于本单/],[{entryLink:link,entryLinkCode:'A2B3C4'},/不属于本单/],
+    [{entryLink:longest.replace('~~a','~~aa'),entryLinkCode:code},/格式不对/],
+    [{entryLink:link.replace('https','http'),entryLinkCode:code},/格式不对/],
+    [{entryLink:link.replace('qq.com','qq.com.evil.cn'),entryLinkCode:code},/格式不对/],
+    [{entryLink:link+'?code=A2B3C4',entryLinkCode:code},/格式不对/],
+    [{entryLink:link.replace('Wd','W d'),entryLinkCode:code},/格式不对/],
+    [{entryLink:link.slice(0,-1),entryLinkCode:code},/格式不对/],
+    [{entryLink:[link],entryLinkCode:code},/格式不对/]]) {
+    const result=p.entryLink(receipt,code);
+    assert.equal(result.link,'',JSON.stringify(receipt));assert.match(result.reason,reason);assert.equal(result.code,code);
+  }
+  // An invalid pickup code never carries a link, even one that names it.
+  assert.equal(p.entryLink({entryLink:link,entryLinkCode:'ABCDEF'},'ABCDEF').link,'');
+});

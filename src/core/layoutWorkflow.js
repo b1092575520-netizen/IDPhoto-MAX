@@ -228,6 +228,7 @@
           dateText: dateText,
           pickupCodeMode: Boolean(runOptions.delivery),
           pickupCode: runOptions.pickupCode || "",
+          entryLink: runOptions.entryLink || null,
           template: template,
           sourceDocument: targetDocument,
           sourceLayerName: template.name + "_照片_1",
@@ -443,10 +444,13 @@
       }
       var saveDocument = processResult.saveDocument || processResult.document;
       runOptions.pickupCode = sharedOnly ? shared.code : "";
+      // The per-order mini-program link, bound to the code it was made for (10-28).
+      runOptions.entryLink = sharedOnly ? shared.entryLink || null : null;
       if (deliveryTask) {
         try {
           if (runOptions.resumeDeliveryTask) {
             runOptions.pickupCode = window.IDPhotoDeliveryProtocol.requirePickupCode(deliveryTask.code);
+            runOptions.entryLink = deliveryTask.entryLink || null;
           } else {
             var photo = await requireMethod("IDPhotoDeliveryService", "savePhoto")(deliveryTask, saveDocument);
             // No modal scope while the delivery manager answers: the sheet is built meanwhile.
@@ -501,6 +505,7 @@
           if (codePromise) {
             try {
               runOptions.pickupCode = await codePromise;
+              runOptions.entryLink = deliveryTask.entryLink || null;
               window.IDPhotoDeliveryProtocol.requirePickupCode(runOptions.pickupCode);
             } catch (codeError) {
               var preparing = codeError && (codeError.code === "AUTO_TARGET_PREPARING" || codeError.causeCode === "AUTO_TARGET_PREPARING");
@@ -510,6 +515,7 @@
               markDeliveryFailure(deliveryTask, codeError);
               await requireMethod("IDPhotoDeliveryService", "markEarlyPrint")(deliveryTask, shared.code);
               runOptions.pickupCode = shared.code;
+              runOptions.entryLink = shared.entryLink || null;
               earlyPrint = true;
             }
           }
@@ -623,7 +629,7 @@
       }
 
       if (shared && runOptions.delivery) {
-        if (!shared.code && runOptions.pickupCode) shared.code = runOptions.pickupCode;
+        if (!shared.code && runOptions.pickupCode) { shared.code = runOptions.pickupCode; shared.entryLink = runOptions.entryLink || null; }
         shared.keys[saveKey(saveTemplate)] = true;
       }
 

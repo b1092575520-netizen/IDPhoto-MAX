@@ -1,4 +1,10 @@
-## 当前阶段 v0.6.22 标准2寸下移改 28px（10-27）
+## 当前阶段 v0.6.23 每单专属小程序码（10-28）
+
+- 按 yx Applets/docs/Codex任务-信息条专属小程序码-2026-10-27.md §1、§3.3、§6.7：deliveryProtocol.entryLink 核对 entryLinkCode===code、正则、≤74；deliveryService.readCode 随码记 task.entryLink（新确认先清空）；layoutWorkflow 把链接随码传给每张（共用码、提前打印、恢复单）；entryCodeService.prepare 再核一次，专属码固定版本 6 Q / 版本 4 L，readsBack 在实际像素大小用 jsQR 回读一字不差才印，否则 fallbackReason 印通用码旧文案；日志 [entry-code] 专属码/通用码+原因。
+- PICKUP_CARDS 可设 exclusiveCode:false 让某尺寸只印通用码（标准2寸每格 0.206mm、签证2寸 0.245mm、小2寸 0.263mm 等实打）。美签5.0 卡改 1192×860、stacked 版式。宽卡专属码 q=0.32Wd（通用码 0.36），步骤字不小于 4.5pt。
+- 取码请求本来就在保存规格照后立刻发出、和摆照片并行；整单耗时（C38-O03）等实单从日志量。
+
+## v0.6.22 标准2寸下移改 28px（10-27）
 
 - 用户算过实际打印位置，要整体再往上 4 下（一下=1像素）：8 个格子下移量 32px 改 28px（第一排 y=28，第二排 1213/1214）；取件条和普通信息条位置不变。
 

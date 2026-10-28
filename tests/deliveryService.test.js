@@ -24,7 +24,7 @@ function harness(options = {}) {
       if(name === 'code-response.json' && options.receipt !== false) {
         const confirmation = JSON.parse(await (await this.getEntry('code-request.json')).read());
         const request = await this.getEntry('request.json'), context = JSON.parse(await (await this.getEntry('context.json')).read());
-        return {read:async()=>{ clock += options.replyDelay || 0; return JSON.stringify({version:2,requestId:options.staleNonce?'old-request':confirmation.requestId,confirmed:options.denied!==true,contextKey:options.foreignContext?'ctx-other':options.contextKey||'ctx-test',status:options.terminal||'preparing',accepted:true,taskId:options.foreignReceipt?'other':context.id,manifestFingerprint:window.IDPhotoDeliveryProtocol.sha256(await request.read()),deliveryId:options.deliveryId||'remote-'+context.id,errorCode:options.errorCode||'',code:options.invalidCode?'123456':options.changedDuringRender&&renders.length>1?'N7EW8A':'T2EST4'});}};
+        return {read:async()=>{ clock += options.replyDelay || 0; return JSON.stringify({version:2,requestId:options.staleNonce?'old-request':confirmation.requestId,confirmed:options.denied!==true,contextKey:options.foreignContext?'ctx-other':options.contextKey||'ctx-test',status:options.terminal||'preparing',accepted:true,taskId:options.foreignReceipt?'other':context.id,manifestFingerprint:window.IDPhotoDeliveryProtocol.sha256(await request.read()),deliveryId:options.deliveryId||'remote-'+context.id,errorCode:options.errorCode||'',code:options.invalidCode?'123456':options.changedDuringRender&&renders.length>1?'N7EW8A':'T2EST4',...(options.entry||{})});}};
       }
       if(!this.children.has(name))throw Error('Missing '+name); return this.children.get(name);
     }
@@ -60,7 +60,7 @@ function harness(options = {}) {
     IDPhotoCropService:{prepareSinglePhoto:async(d,info,shape,ratio,opts)=>{assert.equal(d,original);assert.equal(opts.preservePixels,true);return {document:photo};}},
     IDPhotoTemplates:{getTemplateById:()=>({infoBar:{x:0,y:100,width:1653,height:555,avatar:{x:20,y:120},texts:[{x:100,y:140}]}})},
     IDPhotoSettingsStore:{load:()=>({})},
-    IDPhotoInfoBarRenderer:{renderInfoBar:async(d,bar,settings,opts)=>{renders.push({id:d.id,source:opts.sourceDocument.id,code:opts.pickupCode,mode:opts.pickupCodeMode,date:opts.dateText});clock+=options.renderDelay||0;if(options.renderFail)throw 'injected Photoshop failure';return {ok:true,createdCount:1,message:'rendered'};}},
+    IDPhotoInfoBarRenderer:{renderInfoBar:async(d,bar,settings,opts)=>{renders.push({id:d.id,source:opts.sourceDocument.id,code:opts.pickupCode,mode:opts.pickupCodeMode,date:opts.dateText,entry:opts.entryLink&&opts.entryLink.link});clock+=options.renderDelay||0;if(options.renderFail)throw 'injected Photoshop failure';return {ok:true,createdCount:1,message:'rendered'};}},
   };
   class Clock extends Date { static now(){clock+=1500;return clock;} }
   const context=vm.createContext({window,console,Date:Clock,setTimeout:fn=>{if(options.onSleep)options.onSleep(window.IDPhotoDeliveryService);fn();},require:name=>{assert.equal(name,'uxp');return {storage:{localFileSystem:filesystem,formats:{binary:'binary',utf8:'utf8'}}};}});
@@ -590,4 +590,18 @@ test('a cancelled pixel read does not fall back to a copy',async()=>{
   assert.equal(h.duplicates.length,0);
   assert.equal(task.status.info,'failed');
   await assert.rejects(task.folder.getEntry('info.jpg'));
+});
+
+// 10-28: the per-order link from the code receipt travels with that code, and only with it.
+test('a confirmed code brings its own mini-program link to the info card; a link for another code is dropped',async()=>{
+  const link='https://mp.weixin.qq.com/a/~~WdSuO5i0uQ4~WhUnbj16GNTjF-XyoACd7A~~';
+  const own=harness({entry:{entryLink:link,entryLinkCode:'T2EST4'}}),task=await own.service.electronic(own.original,own.info,{});
+  assert.equal(task.entryLink.code,'T2EST4');assert.equal(task.entryLink.link,link);assert.equal(own.renders[0].entry,link);
+  const other=harness({entry:{entryLink:link,entryLinkCode:'N7EW8A'}}),otherTask=await other.service.electronic(other.original,other.info,{});
+  assert.equal(otherTask.entryLink.link,'');assert.match(otherTask.entryLink.reason,/不属于本单/);assert.equal(other.renders[0].entry,'');
+  const old=harness({}),oldTask=await old.service.electronic(old.original,old.info,{});
+  assert.equal(oldTask.entryLink.link,'');assert.match(oldTask.entryLink.reason,/没有专属链接/);
+  // A new confirmation forgets the previous link until its own receipt says otherwise.
+  own.options.entry=null;
+  assert.equal(await own.service.readCode(task),'T2EST4');assert.equal(task.entryLink.link,'');
 });

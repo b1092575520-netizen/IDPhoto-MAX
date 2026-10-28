@@ -20,7 +20,7 @@ function harness({logoBytes,picture,cancel=false,putPixels=true}={}) {
     require:name=>name==='photoshop'?{imaging}:{storage:{formats:{binary:'binary'},localFileSystem:{getPluginFolder:async()=>plugin,getFileForOpening:async()=>cancel?null:{name:'新码.png'}}}}});
   for(const f of ['src/core/deliveryProtocol.js','src/vendor/qrcode-generator.js','src/vendor/jsQR.js','src/core/entryCodeMatrix.js','src/photoshop/entryCodeService.js'])
     vm.runInContext(fs.readFileSync(path.join(root,f),'utf8'),context,{filename:f});
-  return {service:window.IDPhotoEntryCodeService,code:window.IDPhotoEntryCode,decode:window.IDPhotoQrDecode,store,app,original,closed,puts,disposed};
+  return {service:window.IDPhotoEntryCodeService,code:window.IDPhotoEntryCode,decode:window.IDPhotoQrDecode,window,store,app,original,closed,puts,disposed};
 }
 function picture(code,text,variant='coarse',size=330){
   const r=code.render({text,variant,size});return {width:size,height:size,rgb:r.pixels};
@@ -81,4 +81,40 @@ test('a cancelled picker, a blank picture or a non-link code keeps the current c
   const plain=harness({picture:picture(base.code,'店铺电话 13003825982')});
   await assert.rejects(plain.service.replaceFromImage(),/不是小程序链接/);
   assert.equal(plain.store.size,0);
+});
+
+// 10-28: the order's own link (delivery manager candidate 38).
+const ORDER_LINK='https://mp.weixin.qq.com/a/~~WdSuO5i0uQ4~WhUnbj16GNTjF-XyoACd7A~~';
+test('the order\'s own link is a fixed version 6 / version 4 code with the logo that reads back at every card size',async()=>{
+  const h=harness(),prepared=await h.service.prepare({entryLink:{code:'CKCJW7',link:ORDER_LINK,reason:''},pickupCode:'CKCJW7'});
+  assert.equal(prepared.exclusive,true);assert.equal(prepared.text,ORDER_LINK);assert.equal(prepared.logo.width,240);assert.equal(prepared.custom,false);
+  assert.equal(h.code.render({text:ORDER_LINK,variant:'logo',size:470,exclusive:true}).count,41);
+  assert.equal(h.code.render({text:ORDER_LINK,variant:'coarse',size:370,exclusive:true}).count,33);
+  for(const [variant,size,turn] of [['logo',480,''],['logo',480,'ccw'],['logo',398,''],['logo',355,''],['logo',292,'ccw'],['coarse',214,''],['coarse',180,'ccw']])
+    assert.equal(h.service.readsBack(prepared,size,{variant,turn}),true,variant+' '+size+' '+turn);
+  // What is drawn is exactly what was read back.
+  const doc={id:7,createLayer:async(kind,o)=>({id:9,kind,name:o.name})};
+  await h.service.draw(doc,prepared,{x:3394,y:0,width:180,height:180},{variant:'coarse',turn:'ccw'});
+  const drawn=h.puts[0].imageData.buffer;
+  assert.equal(h.decode(rgba(drawn,180),180,180).data,ORDER_LINK);
+  assert.deepEqual(Array.from(drawn),Array.from(h.code.render({text:ORDER_LINK,variant:'coarse',size:180,turn:'ccw',logo:prepared.logo,exclusive:true}).pixels));
+});
+test('anything doubtful about the order\'s link prints the store code and says why',async()=>{
+  const h=harness(),entry={code:'CKCJW7',link:ORDER_LINK,reason:''};
+  for(const [options,reason] of [
+    [{pickupCode:'CKCJW7'},/没有专属链接/],
+    [{entryLink:entry,pickupCode:'A2B3C4'},/不属于本单/],
+    [{entryLink:{code:'CKCJW7',link:'',reason:'回执里没有专属链接'},pickupCode:'CKCJW7'},/回执里没有/],
+    [{entryLink:{code:'CKCJW7',link:ORDER_LINK+'x',reason:''},pickupCode:'CKCJW7'},/格式不对/],
+    [{entryLink:entry,pickupCode:'CKCJW7',allowExclusive:false},/先印通用码/],
+    [{entryLink:entry,pickupCode:'CKCJW7',fallbackReason:'专属码回读和链接不一致'},/回读/]]) {
+    const prepared=await h.service.prepare(options);
+    assert.equal(prepared.exclusive,false,JSON.stringify(options));assert.equal(prepared.text,h.code.DEFAULT_TEXT);
+    assert.match(prepared.reason,reason);assert.equal(prepared.logo.width,240);
+  }
+  const prepared=await h.service.prepare({entryLink:entry,pickupCode:'CKCJW7'});
+  h.window.IDPhotoQrDecode=()=>({data:ORDER_LINK.slice(0,-2)});
+  assert.equal(h.service.readsBack(prepared,180,{variant:'coarse',turn:'ccw'}),false,'a different reading is refused');
+  h.window.IDPhotoQrDecode=()=>null;
+  assert.equal(h.service.readsBack(prepared,214,{variant:'coarse'}),false,'no reading is refused');
 });

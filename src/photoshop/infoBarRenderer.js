@@ -1214,7 +1214,22 @@
     var source = options.sourceLayer;
     if (!source && options.sourceLayerName) source = getLayerService().findLayerByName(options.sourceDocument.layers, options.sourceLayerName);
     if (!source) source = getSourceLayer(options.sourceDocument);
-    var size = getLayerSize(source), reading = planner.plan(bar, settings, options, size.width / size.height);
+    var size = getLayerSize(source), ratio = size.width / size.height;
+    var reading = planner.plan(bar, settings, options, ratio);
+    if (reading.entryCodeExclusive) {
+      // The order's own code is printed only if the exact pixels read back as its link (10-28).
+      var codeRegion = reading.regions.find(function (region) { return region.key === "entryCode"; });
+      var codeRect = planner.placed(bar, reading, codeRegion);
+      if (!window.IDPhotoEntryCodeService.readsBack(options.entryCode, codeRect.width, { variant: codeRegion.variant, turn: reading.turn })) {
+        var storeCode = null;
+        try { storeCode = await window.IDPhotoEntryCodeService.prepare({ fallbackReason: "专属码回读和链接不一致" }); }
+        catch (error) { window.IDPhotoPhotoshopExecution.throwIfCancelled(error); console.warn("[infoBarRenderer] entry code unavailable", error); }
+        options = Object.assign({}, options, { entryCodeExclusive: false, entryCodeAvailable: Boolean(storeCode), entryCode: storeCode });
+        reading = planner.plan(bar, settings, options, ratio);
+      }
+    }
+    if (reading.entryCodeShown) console.log("[entry-code] " + options.pickupCode + " " +
+      (reading.entryCodeExclusive ? "专属码" : "通用码：" + (options.entryCode.reason || "没有专属链接")));
     var evidence = [];
     await window.IDPhotoPhotoshopExecution.executeAsModal(async function () {
       await activateDocument(targetDocument);
@@ -1253,7 +1268,8 @@
       }
     }, "绘制取件信息条");
     return { ok: true, createdCount: reading.items.length, layoutVersion: 7, evidence: evidence,
-      entryCodeShown: reading.entryCodeShown, message: "电子照片领取信息条已生成" +
+      entryCodeShown: reading.entryCodeShown, entryCodeExclusive: reading.entryCodeExclusive,
+      entryCodeReason: reading.entryCodeExclusive || !options.entryCode ? "" : options.entryCode.reason || "", message: "电子照片领取信息条已生成" +
         (reading.entryCodeShown ? "" : "；小程序码没有印上，信息条改写“打开本店微信小程序”") };
   }
   // One-inch style ordinary strip for every template (no pickup code).
@@ -1316,11 +1332,15 @@
       // is still printed, with the scan step replaced, so no order stops on it.
       var entryCode = null;
       if (window.IDPhotoEntryCodeService) {
-        try { entryCode = await window.IDPhotoEntryCodeService.prepare(); }
+        try {
+          entryCode = await window.IDPhotoEntryCodeService.prepare({ entryLink: options.entryLink || null,
+            pickupCode: options.pickupCode, allowExclusive: infoBar.exclusiveCode !== false });
+        }
         catch (error) { window.IDPhotoPhotoshopExecution.throwIfCancelled(error); console.warn("[infoBarRenderer] entry code unavailable", error); }
       }
       return await renderPickupStrip(targetDocument, infoBar, settings || {},
-        Object.assign({}, options, { entryCodeAvailable: Boolean(entryCode), entryCode: entryCode }));
+        Object.assign({}, options, { entryCodeAvailable: Boolean(entryCode), entryCode: entryCode,
+          entryCodeExclusive: Boolean(entryCode && entryCode.exclusive) }));
     }
     if (infoBar.ordinaryLayout === "classic" && !(options && options.pickupCodeMode)) {
       return await renderClassicStrip(targetDocument, infoBar, settings || {}, options || {});

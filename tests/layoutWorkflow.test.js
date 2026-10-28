@@ -590,3 +590,30 @@ test("the panel's reading of the original (or the background the operator picked
   assert.equal(analyses, 0);
   assert.deepEqual(seen, [picked]);
 });
+
+// 10-28: the per-order mini-program link reaches every sheet that prints its code.
+test('the per-order link follows its code to every size, including a shared and an early-printed one',async()=>{
+  const link='https://mp.weixin.qq.com/a/~~WdSuO5i0uQ4~WhUnbj16GNTjF-XyoACd7A~~';
+  for(const [names,preparingSecond] of [[['1寸','标准2寸'],false],[['1寸','小2寸'],true]]) {
+    const seen=[];let requests=0;
+    const delivery={begin:async(_i,_m,template)=>({id:'task-'+template.id}),
+      prepare:async task=>{requests++;
+        if(preparingSecond&&requests===2){const e=Error('原交付仍在准备');e.code='AUTO_TARGET_PREPARING';e.retryable=true;throw e;}
+        task.fingerprint='saved';task.entryLink={code:'A2B3C4',link,reason:''};return 'A2B3C4';},
+      complete:async()=>({info:'saved',message:'prepared'})};
+    const loaded=loadWorkflow({templates:shapeTemplates,saveSizes:shapeSizes,delivery,inspectRender:o=>seen.push([o.pickupCode,o.entryLink&&o.entryLink.code,o.entryLink&&o.entryLink.link])});
+    const result=await loaded.workflow.run({templateNames:names,sourceDocument:{id:101},docInfo:{id:101,sourceMetadata:{}},delivery:true,quickPrint:true,exportJpg:true});
+    assert.equal(result.ok,true,JSON.stringify(result.failures.map(f=>f.error.message)));
+    assert.deepEqual(seen,[['A2B3C4','A2B3C4',link],['A2B3C4','A2B3C4',link]],names.join('+'));
+  }
+});
+
+test('a sheet without a per-order link passes none, and ordinary sheets never get one',async()=>{
+  const seen=[];
+  const delivery={begin:async()=>({id:'task'}),prepare:async task=>{task.fingerprint='saved';return 'A2B3C4';},complete:async()=>({info:'saved',message:'prepared'})};
+  const loaded=loadWorkflow({delivery,inspectRender:o=>seen.push(o.entryLink)});
+  await loaded.workflow.run({templateNames:['模板一'],sourceDocument:{id:101},docInfo:{id:101,sourceMetadata:{}},delivery:true,quickPrint:true});
+  const plain=loadWorkflow({inspectRender:o=>seen.push(o.entryLink)});
+  await plain.workflow.run({templateNames:['模板一'],sourceDocument:{id:101},docInfo:{id:101,sourceMetadata:{}},delivery:false,skipExport:true,skipPrint:true});
+  assert.deepEqual(seen,[null,null]);
+});

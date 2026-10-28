@@ -4,18 +4,22 @@
   // gets pixel-exact modules at its own size instead of a scaled picture.
   // "logo": error level Q (37 modules for the store link) with the store logo in the middle;
   // "coarse": level L (29 modules), no logo, for the two thinnest strips.
+  // A per-order link (10-28, up to 74 characters) always takes the fixed `exclusive` version:
+  // 6 (41 modules) at Q, 4 (33 modules) at L.
   var DEFAULT_TEXT = "https://mp.weixin.qq.com/a/~ECctIh1ILr7RP5ZRcuuT8A~~";
-  var STYLES = { logo: { level: "Q", margin: 3, logo: true }, coarse: { level: "L", margin: 2, logo: false } };
+  var STYLES = { logo: { level: "Q", margin: 3, logo: true, exclusive: 6 },
+    coarse: { level: "L", margin: 2, logo: false, exclusive: 4 } };
   var LOGO_RADIUS = 175 / 1290;  // white halo around the logo, as a share of the full code width
   function style(variant) {
     var found = STYLES[variant || "logo"];
     if (!found) throw new Error("未知的小程序码样式：" + variant);
     return found;
   }
-  function matrix(text, level) {
+  // `version` 0 lets the encoder pick the smallest that fits; a fixed one that is too small throws.
+  function matrix(text, level, version) {
     // UTF-8 bytes, which is what scanners expect for anything beyond plain ASCII.
     window.IDPhotoQrEncode.stringToBytes = window.IDPhotoQrEncode.stringToBytesFuncs["UTF-8"];
-    var qr = window.IDPhotoQrEncode(0, level);
+    var qr = window.IDPhotoQrEncode(version || 0, level);
     qr.addData(String(text), "Byte");
     qr.make();
     var count = qr.getModuleCount(), dark = new Uint8Array(count * count);
@@ -27,7 +31,7 @@
   function render(options) {
     var s = style(options.variant), size = Math.round(options.size);
     if (!(size >= 21)) throw new Error("小程序码尺寸太小");
-    var m = matrix(options.text || DEFAULT_TEXT, s.level), total = m.count + 2 * s.margin;
+    var m = matrix(options.text || DEFAULT_TEXT, s.level, options.exclusive ? s.exclusive : 0), total = m.count + 2 * s.margin;
     var logo = s.logo && options.logo && options.useLogo !== false ? options.logo : null;
     var out = new Uint8Array(size * size * 3), ccw = options.turn === "ccw";
     var centre = size / 2, radius = LOGO_RADIUS * size;

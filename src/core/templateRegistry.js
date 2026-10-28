@@ -582,10 +582,13 @@
   // Right-column cards turn so the heads point to the photos (away from the printer's
   // bleed). The two thinnest strips let the coarse code reach into the white gap next
   // to the photos; 标准2寸 gathers its text next to the code.
+  // `exclusiveCode: false` keeps a size on the store code when the order's own, denser code
+  // does not scan reliably there (10-28: 标准2寸 and 签证2寸 wait for the user's scan test).
   var PICKUP_CARDS = {
     "one-inch": { card: [0, 1845, 1417, 555], band: [0, 1845, 3600, 555], family: "wide" },
     "wedding": { card: [0, 1738, 1417, 600], band: [0, 1738, 3600, 662], family: "wide" },
-    "us-visa": { card: [2408, 1197, 1192, 600], band: [2408, 1197, 1192, 600], family: "wide" },
+    // 美签5.0 has a whole free photo slot (10-28): a taller card with the code under the text.
+    "us-visa": { card: [2408, 1197, 1192, 860], band: [2408, 1197, 1192, 860], family: "wide", stacked: true },
     "us-visa-51": { card: [0, 1222, 1417, 470], band: [0, 1222, 1417, 470], family: "wide" },
     "argentina": { card: [2916, 0, 600, 1417], band: [2916, 0, 684, 2400], family: "wide", vertical: true },
     "hongkong-taiwan": { card: [2928, 0, 600, 1417], band: [2928, 0, 672, 2400], family: "wide", vertical: true },
@@ -618,7 +621,7 @@
       bar.kind = bar.position;
       bar.band = rect(card.band);
       bar.pickupFamily = card.family;
-      ["codeVariant", "codeReach", "codeEdge", "textPadding", "packToCode"].forEach(function (key) {
+      ["codeVariant", "codeReach", "codeEdge", "textPadding", "packToCode", "exclusiveCode", "stacked"].forEach(function (key) {
         if (card[key] !== undefined) bar[key] = cloneObject(card[key]);
       });
     } else {

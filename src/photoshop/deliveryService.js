@@ -358,6 +358,8 @@
     var code = protocol().confirmedCode(receipt, task);
     if (code) {
       task.contextKey = receipt.contextKey; task.deliveryId = receipt.deliveryId; task.code = code;
+      // The per-order mini-program link travels with the code it was made for (10-28).
+      task.entryLink = protocol().entryLink(receipt, code);
       if (task.automation) window.IDPhotoDeliveryAutomationService.confirmed(task);
       task.codeConfirmedAt = Date.now(); task.codeGroupStamp = groupStamp();
       return code;
@@ -406,7 +408,7 @@
     if (activeWait) throw new Error("已有取码请求正在等待，请勿重复重试");
     waitMs = waitMs || CODE_WAIT_MS;
     notify("正在等待后台核对云端并获取取件码，最多 " + Math.round(waitMs / 1000) + " 秒；可停止等待并保留原任务");
-    task.code = ""; task.confirmationId = protocol().id(); task.confirmationFailure = ""; task.confirmationRejected = false;
+    task.code = ""; task.entryLink = null; task.confirmationId = protocol().id(); task.confirmationFailure = ""; task.confirmationRejected = false;
     var attempt = { cancelled: false, requestId: task.confirmationId, taskId: task.id, automation: Boolean(task.automation) };
     activeWait = attempt;
     waitingChanged(true);
@@ -601,7 +603,8 @@
         await app.documents.add(options);
         canvas = window.IDPhotoPhotoshopExecution.resolveCreatedDocument(existing, options);
       }, "创建独立信息条");
-      await window.IDPhotoInfoBarRenderer.renderInfoBar(canvas, bar, task.settings, { dateText: task.dateText, pickupCodeMode: true, pickupCode: code, template: task.template, sourceDocument: photoDocument });
+      await window.IDPhotoInfoBarRenderer.renderInfoBar(canvas, bar, task.settings, { dateText: task.dateText, pickupCodeMode: true, pickupCode: code,
+        entryLink: task.entryLink || null, template: task.template, sourceDocument: photoDocument });
       return { document: canvas, infoBar: bar };
     } catch (e) { if (canvas) await window.IDPhotoDocumentService.closeWithoutSaving(canvas); throw e; }
   }

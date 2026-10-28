@@ -64,6 +64,17 @@
       !["preparing", "ready"].includes(receipt.status) || receipt.taskId !== task.id || receipt.manifestFingerprint !== task.fingerprint || receipt.accepted !== true || !receipt.deliveryId || !isPickupCode(receipt.code)) return "";
     return receipt.code;
   }
-  window.IDPhotoDeliveryProtocol = { sha256: sha256, id: id, confirmedCode: confirmedCode,
+  // 10-28: the per-order mini-program link from a confirmed code receipt (delivery manager
+  // candidate 38). Printed only when it belongs to this very code and is a WeChat short link
+  // that both code styles can hold; otherwise the reason goes to the log.
+  var ENTRY_LINK = /^https:\/\/mp\.weixin\.qq\.com\/a\/~[A-Za-z0-9_~-]+~~$/;
+  function entryLink(receipt, code) {
+    var link = receipt && receipt.entryLink;
+    if (!link) return { code: code, link: "", reason: "回执里没有专属链接" };
+    if (!isPickupCode(code) || receipt.entryLinkCode !== code) return { code: code, link: "", reason: "专属链接不属于本单取件码" };
+    if (typeof link !== "string" || link.length > 74 || !ENTRY_LINK.test(link)) return { code: code, link: "", reason: "专属链接格式不对" };
+    return { code: code, link: link, reason: "" };
+  }
+  window.IDPhotoDeliveryProtocol = { sha256: sha256, id: id, confirmedCode: confirmedCode, entryLink: entryLink,
     isPickupCode: isPickupCode, requirePickupCode: requirePickupCode, pickupCodeError: pickupCodeError };
 })();

@@ -49,6 +49,8 @@
     var ratio = Number(photoRatio) > 0 ? Number(photoRatio) : 0.74;
     var family = bar.pickupFamily || (H >= 450 ? "wide" : H >= 300 ? "medium" : "thin");
     var withCode = options.entryCodeAvailable === true;
+    // The order's own code (10-28) opens its pickup page directly; the store code still needs the code typed in.
+    var exclusive = withCode && options.entryCodeExclusive === true;
     var paper = paperSides(bar);
     var pad = bar.textPadding || paper.map(function (p) { return p ? PAPER_TEXT : CUT_TEXT; });
     var codeEdge = bar.codeEdge || 36;
@@ -68,29 +70,65 @@
     }
     var variant = bar.codeVariant || "logo";
 
-    if (family === "wide") {
+    var LONG_STEP2 = "② 扫不了：打开小程序输入取件码";
+    if (family === "wide" && bar.stacked) {
+      // 美签5.0 (10-28): a whole photo slot is free, so the code moves under the text and every
+      // line gets the card's width: portrait and steps on top, contacts beside the code below.
+      var Xs = pad[3], Ys = pad[0], Ws = W - pad[3] - pad[1], thumbS = ratio > 1 ? 0.75 : ratio;
+      var s1 = exclusive ? "① 微信扫一扫，直接领取照片" : withCode ? "① 微信扫一扫右下方二维码" : "① 打开本店微信小程序";
+      var s2 = exclusive ? LONG_STEP2 : "② 输入取件码，保存照片";
+      var bodyS = 67 * 1.15 + 46 * 2.4 + 129 * 0.95, fs = 1.15;
+      // Sized by the longest wording, so both codes print the same text sizes.
+      var widest = Math.max(textWidth(LONG_STEP2, 46), textWidth(TITLE, 67, true), 4.4 * 129);
+      while (bodyS * fs * thumbS + 32 + widest * fs > Ws) fs *= 0.98;
+      var pwS = bodyS * fs * thumbS, phS = ratio > 1 ? pwS / ratio : bodyS * fs;
+      var portraitS = region("portrait", Xs, Ys + (bodyS * fs - phS) / 2, pwS, phS);
+      var txS = Xs + portraitS.width + 32, twS = W - pad[1] - txS, yS = Ys;
+      var stepS = Math.min(fit(s1, 46 * fs, false, twS), fit(s2, 46 * fs, false, twS));
+      [["title", TITLE, 67, 1.15, true], ["step1", s1, 46, 1.2, false, stepS], ["step2", s2, 46, 1.2, false, stepS],
+        ["pickupCode", code, 129, 0.95, true]].forEach(function (row) {
+        text(row[0], row[1], txS, yS, twS, row[3] * row[2] * fs, row[5] || fit(row[1], row[2] * fs, row[4], twS), row[4]); yS += row[3] * row[2] * fs;
+      });
+      var lower = Ys + bodyS * fs + 30, qS = withCode ? Math.min(H - codePad[2] - lower, Math.round(0.4 * Ws)) : 0;
+      if (withCode) region("entryCode", W - codePad[1] - qS, lower, qS, qS, { variant: variant });
+      var rightS = withCode ? W - codePad[1] - qS - CODE_GAP : W - pad[1], LS = rightS - Xs;
+      var contacts = [["shopName", shop, 50, 60, true], ["date", date, 45, 60, false], ["phone", phone, 48, 57.6, false]]
+        .filter(function (row) { return row[1]; });
+      var yc = lower + Math.max(0, (qS - contacts.reduce(function (sum, row) { return sum + row[3] * fs; }, 0)) / 2);
+      contacts.forEach(function (row) {
+        text(row[0], row[1], Xs, yc, LS, row[3] * fs, fit(row[1], row[2] * fs, row[4], LS), row[4]); yc += row[3] * fs;
+      });
+    } else if (family === "wide") {
       var X = pad[3], Y = pad[0], Wd = W - pad[3] - pad[1], Hd = H - pad[0] - pad[2];
-      var q = withCode ? Math.min(H - codePad[0] - codePad[2], Math.round((Wd > 1200 ? 0.36 : 0.32) * Wd)) : 0;
+      var qStore = withCode ? Math.min(H - codePad[0] - codePad[2], Math.round((Wd > 1200 ? 0.36 : 0.32) * Wd)) : 0;
+      // The order's own code (10-28) is a little smaller (still about 0.38 mm modules), so its
+      // longer steps keep the store wording's size; title, code and contacts do not change.
+      var q = exclusive ? Math.min(qStore, Math.round((Wd > 1200 ? 0.32 : 0.28) * Wd)) : qStore;
       var qx = W - codePad[1] - q;
       if (withCode) region("entryCode", qx, Math.round((H - q) / 2), q, q, { variant: variant });
       var right = withCode ? qx - CODE_GAP : W - pad[1];
-      var L = right - X;
-      var step1 = withCode ? "① 微信扫一扫右侧二维码" : "① 打开本店微信小程序";
-      var step2 = Wd > 1200 ? "② 输入下方取件码，保存照片" : "② 输入取件码，保存照片";
+      var L = right - X, sizing = (withCode ? W - codePad[1] - qStore - CODE_GAP : W - pad[1]) - X;
+      var storeStep2 = Wd > 1200 ? "② 输入下方取件码，保存照片" : "② 输入取件码，保存照片";
+      var step1 = exclusive ? "① 微信扫一扫，直接领取照片" : withCode ? "① 微信扫一扫右侧二维码" : "① 打开本店微信小程序";
+      var step2 = exclusive ? LONG_STEP2 : storeStep2;
       var body = 67 * 1.15 + 46 * 2.4 + 129 * 0.95, nat = body + 18 + 60 + 57.6;
       var f = Math.min(1.15, Hd / nat);
       // A landscape photo (结婚照) gets the one-inch portrait's width and its own height, so
       // the text stays the one-inch size instead of shrinking beside a wide thumbnail (10-20).
       var thumb = ratio > 1 ? 0.75 : ratio;
-      // Sized for a typical code (4.4 em); an unusually wide one only shrinks itself.
-      while (body * f * thumb + 32 + Math.max(textWidth(step2, 46 * f), 4.4 * 129 * f) > L) f *= 0.98;
+      // Sized for a typical code (4.4 em) and the store-code steps; an unusually wide code and the
+      // longer per-order steps only shrink themselves, never below 4.5 pt (38 px).
+      while (body * f * thumb + 32 + Math.max(textWidth(storeStep2, 46 * f), 4.4 * 129 * f) > sizing) f *= 0.98;
+      while (exclusive && body * f * thumb + 32 + textWidth(LONG_STEP2, 38) > L) f *= 0.98;
       var y = Y + (Hd - nat * f) / 2;
       var tw0 = body * f * thumb, th0 = ratio > 1 ? tw0 / ratio : body * f;
       var portrait = region("portrait", X, y + (body * f - th0) / 2, tw0, th0);
       var tx = X + portrait.width + 32, tw = right - tx;
-      [["title", TITLE, 67, 1.15, true], ["step1", step1, 46, 1.2, false], ["step2", step2, 46, 1.2, false],
+      // Both steps keep one size, set by the longer of the two.
+      var stepPx = Math.min(fit(step1, 46 * f, false, tw), fit(step2, 46 * f, false, tw));
+      [["title", TITLE, 67, 1.15, true], ["step1", step1, 46, 1.2, false, stepPx], ["step2", step2, 46, 1.2, false, stepPx],
         ["pickupCode", code, 129, 0.95, true]].forEach(function (row) {
-        text(row[0], row[1], tx, y, tw, row[3] * row[2] * f, fit(row[1], row[2] * f, row[4], tw), row[4]); y += row[3] * row[2] * f;
+        text(row[0], row[1], tx, y, tw, row[3] * row[2] * f, row[5] || fit(row[1], row[2] * f, row[4], tw), row[4]); y += row[3] * row[2] * f;
       });
       y += 18 * f;
       var dateW = date ? textWidth(date, 45 * f) + 4 : 0;
@@ -112,7 +150,8 @@
       var pw = Math.round(H2 * ratio);
       var end = withCode ? qx2 - 28 : W - pad[1];
       var start = X2 + pw + 24, avail = end - start;
-      var steps = withCode ? "7天内：微信扫码 → 输入取件码 → 保存照片" : "7天内：打开本店微信小程序 → 输入取件码";
+      var steps = exclusive ? "7天内：微信扫码直接领取，扫不了就输取件码" :
+        withCode ? "7天内：微信扫码 → 输入取件码 → 保存照片" : "7天内：打开本店微信小程序 → 输入取件码";
       var rows = medium ?
         [["steps", steps, 0.5], ["details", date ? shop + "  " + date : shop, 0.5], ["phone", phone, 0.48]] :
         [["steps", steps, 0.585], ["details", shop + "  " + phone, 0.575]];
@@ -159,7 +198,8 @@
         throw new Error("信息条内容重叠：" + a.key + "/" + b.key);
     }
     return { width: W, height: H, vertical: vertical, turn: vertical ? "ccw" : "", items: items, regions: regions,
-      entryCodeShown: withCode, entryCodeVariant: withCode ? variant : "", band: bar.band || null, margin: pad };
+      entryCodeShown: withCode, entryCodeExclusive: exclusive, entryCodeVariant: withCode ? variant : "",
+      band: bar.band || null, margin: pad };
   }
   // Reading-space rectangle to canvas. Pickup cards turn counter-clockwise (reading top is
   // the photo side); the ordinary strips keep their clockwise turn.

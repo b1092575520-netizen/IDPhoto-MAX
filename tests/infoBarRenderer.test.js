@@ -147,14 +147,19 @@ function makeRendererHarness(options) {
     },
     window: { IDPhotoLayerService: layerService }
   };
-  const entryCode = { prepared: 0, drawn: [] };
+  const entryCode = { prepared: 0, drawn: [], calls: [] };
   if (options && options.entryCode) {
     context.window.IDPhotoEntryCodeService = {
-      async prepare() {
+      async prepare(prepareOptions) {
         if (options.entryCode === "broken") throw new Error("这版 Photoshop 不能直接画小程序码");
         entryCode.prepared += 1;
-        return { text: "https://mp.weixin.qq.com/a/test", custom: false, logo: null };
+        entryCode.calls.push(prepareOptions || {});
+        const o = prepareOptions || {}, own = !o.fallbackReason && o.allowExclusive !== false &&
+          Boolean(o.entryLink && o.entryLink.link && o.entryLink.code === o.pickupCode);
+        return { text: own ? o.entryLink.link : "https://mp.weixin.qq.com/a/test", custom: false, logo: null,
+          exclusive: own, reason: own ? "" : o.fallbackReason || "没有专属链接" };
       },
+      readsBack() { return options.entryCode !== "mismatch"; },
       async draw(doc, prepared, rect, drawOptions) {
         assert.equal(doc, targetDocument);
         const layer = { id: nextLayerId++, name: drawOptions.name,
@@ -354,3 +359,29 @@ test("every ordinary strip stays inside its bar, and vertical strips turn the wh
     }
   }
 });
+
+// 10-28: the order's own code (delivery manager candidate 38).
+const ORDER_LINK='https://mp.weixin.qq.com/a/~~WdSuO5i0uQ4~WhUnbj16GNTjF-XyoACd7A~~';
+for (const raw of loadTemplates().getAllTemplates()) {
+  const template=loadTemplates().forDelivery(raw,true);
+  test(template.id+' prints the per-order code with its wording, and the store code when it does not read back',async()=>{
+    const render=async(entryCode,entryLink)=>{
+      const harness=makeRendererHarness({entryCode});
+      const result=await harness.renderer.renderInfoBar(harness.targetDocument,template.infoBar,{shopName:'福清印象照相馆',shopPhone:'电话未填写'},
+        {dateText:'2026.10.28',pickupCodeMode:true,pickupCode:'CKCJW7',entryLink,template,sourceDocument:harness.sourceDocument});
+      return {harness,result,text:harness.textCommands.map(c=>c.using.textKey).join('|')};
+    };
+    const own=await render('exclusive',{code:'CKCJW7',link:ORDER_LINK,reason:''});
+    assert.equal(own.result.entryCodeExclusive,true);assert.equal(own.harness.entryCode.drawn.length,1);
+    assert.match(own.text,/直接领取/);assert.doesNotMatch(own.text,/保存照片/);
+    assert.equal(own.harness.entryCode.calls[0].allowExclusive,true);assert.equal(own.harness.entryCode.calls[0].pickupCode,'CKCJW7');
+    const mismatch=await render('mismatch',{code:'CKCJW7',link:ORDER_LINK,reason:''});
+    assert.equal(mismatch.result.entryCodeExclusive,false);assert.equal(mismatch.result.entryCodeReason,'专属码回读和链接不一致');
+    assert.equal(mismatch.harness.entryCode.calls[1].fallbackReason,'专属码回读和链接不一致');
+    assert.equal(mismatch.harness.entryCode.drawn.length,1,'one code is drawn: the store code');
+    assert.doesNotMatch(mismatch.text,/直接领取/);assert.match(mismatch.text,/输入/);
+    const other=await render('exclusive',{code:'A2B3C4',link:ORDER_LINK,reason:''});
+    assert.equal(other.result.entryCodeExclusive,false,'a link for another code is never used');
+    assert.doesNotMatch(other.text,/直接领取/);
+  });
+}
