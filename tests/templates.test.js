@@ -52,17 +52,17 @@ test("all reference templates have unique in-bounds slots", () => {
   }
 });
 
-// Pickup cards (user 10-18): red band to the paper edge, card <= 60 mm, text 2 mm from paper edges.
+// Pickup cards (user 10-18): red band to the paper edge, card <= 80 mm (10-28), text 2 mm from paper edges.
 const bands = {
   'one-inch':[0,1845,3600,555], 'standard-two-inch':[3400,0,200,2400],
   'visa-two-inch':[0,2174,3600,226], 'small-two-inch':[3236,0,364,2400],
   'hongkong-taiwan':[2928,0,672,2400], brazil:[2903,0,697,2400],
-  argentina:[2916,0,684,2400], 'us-visa':[2408,1197,1192,860],
-  'us-visa-51':[0,1222,1417,470], graduation:[2920,0,680,2400], wedding:[0,1738,3600,662]
+  argentina:[2916,0,684,2400], 'us-visa':[2408,1197,1192,900],
+  'us-visa-51':[0,1222,1730,470], graduation:[2920,0,680,2400], wedding:[0,1738,3600,662]
 };
 const apart=(a,b)=>a.x>=b.x+b.width||a.x+a.width<=b.x||a.y>=b.y+b.height||a.y+a.height<=b.y;
 const inside=(a,b)=>a.x>=b.x&&a.y>=b.y&&a.x+a.width<=b.x+b.width&&a.y+a.height<=b.y+b.height;
-test('all eleven pickup cards fit 60mm, keep clear of photos and paper bleed, and never overlap', () => {
+test('all eleven pickup cards fit 80mm, keep clear of photos and paper bleed, and never overlap', () => {
   const modules = loadTemplateModules(), layout=modules.IDPhotoPickupStripLayout;
   for (const raw of modules.IDPhotoTemplates.getAllTemplates()) {
     const t=modules.IDPhotoTemplates.forDelivery(raw,true);
@@ -72,7 +72,7 @@ test('all eleven pickup cards fit 60mm, keep clear of photos and paper bleed, an
     assert.deepEqual({...outputPlan.infoBar.band},{...t.infoBar.band},t.id+' band survives the layout engine');
     const b=t.infoBar, [x,y,w,h]=bands[t.id], band={x,y,width:w,height:h};
     assert.deepEqual({...b.band},band,t.id+' band');
-    assert.ok(Math.max(b.width,b.height)*25.4/600<=60,t.id+' long edge');
+    assert.ok(Math.max(b.width,b.height)*25.4/600<=80,t.id+' long edge');
     assert.ok(inside(b,band),t.id+' card inside band');
     const outline=layout.outline(b);
     assert.ok(inside(outline,{x:0,y:0,width:3600,height:2400}),t.id+' canvas');
@@ -179,4 +179,20 @@ test('结婚照 keeps the one-inch text size beside its landscape thumbnail (use
   const thumb=wide.regions.find(r=>r.key==='portrait'), title=wide.items.find(x=>x.key==='title'), code=wide.items.find(x=>x.key==='pickupCode');
   assert.ok(Math.abs(thumb.width/thumb.height-1252/827)<0.03,'thumbnail keeps the photo shape');
   assert.ok(thumb.y>title.y&&thumb.y+thumb.height<code.y+code.height,'thumbnail centred beside the text block');
+});
+
+test('per-order wording says how to open the mini-program without scanning; codes keep their tested size (user 10-28)', () => {
+  const modules = loadTemplateModules(), layout = modules.IDPhotoPickupStripLayout;
+  // Code sides the 10-28 print test scanned (美签5.0 is 433 since its card grew for two step lines).
+  const tested = { 'one-inch':427, wedding:427, 'us-visa':433, 'us-visa-51':398, argentina:427, 'hongkong-taiwan':427,
+    brazil:427, graduation:427, 'small-two-inch':292, 'visa-two-inch':214, 'standard-two-inch':180 };
+  for (const raw of modules.IDPhotoTemplates.getAllTemplates()) {
+    const t = modules.IDPhotoTemplates.forDelivery(raw, true);
+    const plan = layout.plan(t.infoBar, { shopName:'福清印象照相馆', shopPhone:'13003825982' },
+      { pickupCode:'CKCJW7', dateText:'2026.10.28', entryCodeAvailable:true, entryCodeExclusive:true }, t.widthPx / t.heightPx);
+    const steps = plan.items.filter(x => /^step/.test(x.key)).map(x => x.text).join('');
+    assert.match(steps, /扫不了.*微信搜“福清印象照相馆”/, t.id + ' ' + steps);
+    assert.doesNotMatch(steps, /打开小程序/, t.id);
+    assert.equal(plan.regions.find(x => x.key === 'entryCode').width, tested[t.id], t.id + ' code side');
+  }
 });

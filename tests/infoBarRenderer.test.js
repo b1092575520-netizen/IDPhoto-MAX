@@ -373,15 +373,15 @@ for (const raw of loadTemplates().getAllTemplates()) {
     };
     const own=await render('exclusive',{code:'CKCJW7',link:ORDER_LINK,reason:''});
     assert.equal(own.result.entryCodeExclusive,true);assert.equal(own.harness.entryCode.drawn.length,1);
-    assert.match(own.text,/直接领取/);assert.doesNotMatch(own.text,/保存照片/);
+    assert.match(own.text,/扫码领取|直接领取/);assert.match(own.text,/“福清印象照相馆”/,'no scan: search the mini-program');assert.doesNotMatch(own.text,/保存照片/);
     assert.equal(own.harness.entryCode.calls[0].allowExclusive,true);assert.equal(own.harness.entryCode.calls[0].pickupCode,'CKCJW7');
     const mismatch=await render('mismatch',{code:'CKCJW7',link:ORDER_LINK,reason:''});
     assert.equal(mismatch.result.entryCodeExclusive,false);assert.equal(mismatch.result.entryCodeReason,'专属码回读和链接不一致');
     assert.equal(mismatch.harness.entryCode.calls[1].fallbackReason,'专属码回读和链接不一致');
     assert.equal(mismatch.harness.entryCode.drawn.length,1,'one code is drawn: the store code');
-    assert.doesNotMatch(mismatch.text,/直接领取/);assert.match(mismatch.text,/输入/);
+    assert.doesNotMatch(mismatch.text,/直接领取|“福清印象照相馆”/);assert.match(mismatch.text,/输入/);
     const other=await render('exclusive',{code:'A2B3C4',link:ORDER_LINK,reason:''});
     assert.equal(other.result.entryCodeExclusive,false,'a link for another code is never used');
-    assert.doesNotMatch(other.text,/直接领取/);
+    assert.doesNotMatch(other.text,/直接领取|“福清印象照相馆”/);
   });
 }

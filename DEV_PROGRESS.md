@@ -1,3 +1,10 @@
+## 当前阶段 v0.6.24 专属码说明改正、取件卡放宽到 8cm（10-28）
+
+- 用户指出“扫不了：打开小程序输入取件码”自相矛盾（扫不了就打不开）。确认小程序名“福清印象照相馆”、选“写全”：宽卡 LONG_STEP2“② 扫不了：微信搜“福清印象照相馆”，输入取件码”，窄条“7天内微信扫码领取，扫不了就微信搜“福清印象照相馆”输取件码”。
+- 用户允许卡片长到 8cm：pickupStripLayout 上限 1417→1890（templateOverrideService 同步 8cm）；宽卡码按 60mm 底宽 Wb 算，长出的长度全给文字。PICKUP_CARDS 长度按“字号不小于 0.6.23”逐卡取最短：1寸 1770、结婚照 1780、美签5.1 1730（band 同步）、阿根廷 1820、港台 1790、巴西 1790、毕业证 1800、小2寸 1770、签证2寸 1820、标准2寸 1540。
+- 美签5.0 不能加长：stacked 分支第②步在“搜”后断行，第二行“福清印象照相馆”，，缩进到“② ”之后，新 item step2more；头像仍按两行步骤的高度、居中；卡高 860→900，专属码 433px（≈0.39mm/格）。字比 0.6.23 小约 5%。
+- 10-28 实打扫码全尺寸通过，exclusiveCode:false 一个都不用。新测试锁住文案和各尺寸码边长。
+
 ## 当前阶段 v0.6.23 每单专属小程序码（10-28）
 
 - 按 yx Applets/docs/Codex任务-信息条专属小程序码-2026-10-27.md §1、§3.3、§6.7：deliveryProtocol.entryLink 核对 entryLinkCode===code、正则、≤74；deliveryService.readCode 随码记 task.entryLink（新确认先清空）；layoutWorkflow 把链接随码传给每张（共用码、提前打印、恢复单）；entryCodeService.prepare 再核一次，专属码固定版本 6 Q / 版本 4 L，readsBack 在实际像素大小用 jsQR 回读一字不差才印，否则 fallbackReason 印通用码旧文案；日志 [entry-code] 专属码/通用码+原因。
