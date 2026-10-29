@@ -58,11 +58,11 @@ const bands = {
   'visa-two-inch':[0,2174,3600,226], 'small-two-inch':[3236,0,364,2400],
   'hongkong-taiwan':[2928,0,672,2400], brazil:[2903,0,697,2400],
   argentina:[2916,0,684,2400], 'us-visa':[2408,1197,1192,900],
-  'us-visa-51':[0,1222,1840,470], graduation:[2920,0,680,2400], wedding:[0,1738,3600,662]
+  'us-visa-51':[0,1222,1417,470], graduation:[2920,0,680,2400], wedding:[0,1738,3600,662]
 };
 const apart=(a,b)=>a.x>=b.x+b.width||a.x+a.width<=b.x||a.y>=b.y+b.height||a.y+a.height<=b.y;
 const inside=(a,b)=>a.x>=b.x&&a.y>=b.y&&a.x+a.width<=b.x+b.width&&a.y+a.height<=b.y+b.height;
-test('all eleven pickup cards fit 80mm, keep clear of photos and paper bleed, and never overlap', () => {
+test('all eleven pickup cards fit 60mm (user 10-29: 78mm did not go in the bag), keep clear of photos and paper bleed, and never overlap', () => {
   const modules = loadTemplateModules(), layout=modules.IDPhotoPickupStripLayout;
   for (const raw of modules.IDPhotoTemplates.getAllTemplates()) {
     const t=modules.IDPhotoTemplates.forDelivery(raw,true);
@@ -74,7 +74,7 @@ test('all eleven pickup cards fit 80mm, keep clear of photos and paper bleed, an
     assert.equal(outputPlan.infoBar.exclusiveCode,t.infoBar.exclusiveCode,t.id+' store-code switch survives the layout engine');
     const b=t.infoBar, [x,y,w,h]=bands[t.id], band={x,y,width:w,height:h};
     assert.deepEqual({...b.band},band,t.id+' band');
-    assert.ok(Math.max(b.width,b.height)*25.4/600<=80,t.id+' long edge');
+    assert.ok(Math.max(b.width,b.height)<=1417,t.id+' long edge');
     assert.ok(inside(b,band),t.id+' card inside band');
     const outline=layout.outline(b);
     assert.ok(inside(outline,{x:0,y:0,width:3600,height:2400}),t.id+' canvas');
@@ -102,7 +102,8 @@ test('all eleven pickup cards fit 80mm, keep clear of photos and paper bleed, an
       if(qr) assert.equal(qr.variant,['visa-two-inch','standard-two-inch'].includes(t.id)?'coarse':'logo',t.id);
       else assert.equal(plan.items.some(x=>/扫/.test(x.text)),false,t.id+' no scan step without a code');
       assert.equal(plan.items.some(x=>/作废|过期/.test(x.text)),false);
-      for(const item of plan.items) assert.ok(item.fontSize>=(photoRatio<1?4.5:4),t.id+' '+item.key+' '+item.fontSize+'pt');
+      // 标准2寸's 8.5 mm strip prints the per-order sentence at 3.8 pt (user 10-29 chose 60 mm over a longer card).
+      for(const item of plan.items) assert.ok(item.fontSize>=(t.id==='standard-two-inch'&&item.key==='steps'&&entryCodeExclusive?(photoRatio<1?3.8:3.5):photoRatio<1?4.5:4),t.id+' '+item.key+' '+item.fontSize+'pt');
       if(b.pickupFamily!=='wide') {
         assert.equal(plan.items.find(x=>x.key==='pickupLabel').x,plan.items.find(x=>x.key==='steps').x);
         assert.equal(plan.items.find(x=>x.key==='details').x,plan.items.find(x=>x.key==='steps').x);

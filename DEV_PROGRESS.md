@@ -1,4 +1,10 @@
-## 当前阶段 v0.6.27 已取消/撤回的单停掉自动恢复（10-28）
+## 当前阶段 v0.6.28 取件卡退回 60mm（10-29）
+
+- 用户：78mm 卡塞不进 6×8 袋，长度退回、文案保留。PICKUP_CARDS 长度回 1417（美签5.0 仍 1192×900），MAX_LENGTH 1417，templateOverrideService 及其测试回到 cdc7c0f（6 厘米）。
+- 宽卡专属码：LONG_STEP2 按“拆成 step2 + step2more（缩进“② ”宽），行距 1.1、下方间隔 4，正方形照片头像宽 0.75；步骤 4.5–4.7pt。
+- 窄条：arrange() 比较一行和两行（“，”处拆，行距 ×0.9），两行最小字比一行大 10% 以上才拆；小2寸两行时头像 ×0.75。签证2寸、小2寸拆两行 ≥4.5pt；标准2寸一行 3.8pt（用户 10-29 选 60mm），测试对它单独放宽到 3.8（比例 1 时 3.5）。
+
+## v0.6.27 已取消/撤回的单停掉自动恢复（10-28）
 
 - 交付管理会话发现 17eb3b7d（10-18 取消）每 60 秒重发 code-request，后台回 STATE_UNCONFIRMED、status cancelled。readCode 认出了 cancelled，但 confirmationFailure 文案不含 failure() 的“硬错误”字眼，被记 retryable。
 - 改：readCode 对 cancelled/withdrawn 设 confirmationEnded；新增 readEnded 读 receipt.json（同 taskId、指纹、accepted、deliveryId）；primeRecovery 在写新 code-request 之前和 readCode 之后都检查，confirmCode 等码中也立即抛 DELIVERY_ENDED。automation.failure 把 DELIVERY_ENDED 记 stopped“交付管理里这单已取消或撤回”，plan 的 existing 像 Esc 取消一样排除它。frozen/split 不变。新增 3 项测试，旧代码上 3 项都失败。

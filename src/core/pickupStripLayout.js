@@ -11,8 +11,10 @@
   // "小程序", or the shop name alone reads like a search for the shop).
   var MINI_NAME = "福清印象照相馆";
   var LONG_STEP2 = "② 扫不了：微信搜小程序“" + MINI_NAME + "”，输入取件码";
-  // Cards may run to 80 mm (user 10-28); codes keep the 60 mm card's scan-tested size.
-  var MAX_LENGTH = 1890, BASE_LENGTH = 1417;
+  // Cards stay 60 mm: 78 mm ones did not go into the 6x8 cm bag (user 10-29).
+  var MAX_LENGTH = 1417, BASE_LENGTH = 1417;
+  // Two step lines on a thin strip sit a little closer (10-29).
+  var THIN_TIGHT = 0.9;
   // Microsoft YaHei advance widths in em (measured); everything else is a full em.
   var REGULAR = { "0": .586, "1": .586, "2": .586, "3": .586, "4": .586, "5": .586, "6": .586, "7": .586,
     "8": .586, "9": .586, A: .704, B: .627, C: .669, D: .762, E: .55, F: .531, G: .744, H: .773, I: .294,
@@ -123,27 +125,37 @@
       var L = right - X, sizing = (withCode ? W - codePad[1] - qStore - CODE_GAP : W - pad[1]) - X;
       var storeStep2 = Wd > 1200 ? "② 输入下方取件码，保存照片" : "② 输入取件码，保存照片";
       var step1 = exclusive ? "① 微信扫一扫，直接领取照片" : withCode ? "① 微信扫一扫右侧二维码" : "① 打开本店微信小程序";
-      var step2 = exclusive ? LONG_STEP2 : storeStep2;
-      var body = 67 * 1.15 + 46 * 2.4 + 129 * 0.95, nat = body + 18 + 60 + 57.6;
+      // The per-order step ② runs on two lines, the name starting the second one under the words,
+      // as on 美签5.0: on one line it needs about 80 mm (user 10-29: keep the card 60 mm).
+      var cutW = LONG_STEP2.indexOf("“"), step2Head = LONG_STEP2.slice(0, cutW), step2Tail = LONG_STEP2.slice(cutW);
+      var step2 = exclusive ? step2Head : storeStep2;
+      // Three step lines sit a little closer so the 60 mm cards keep their sizes (10-29).
+      var stepLh = exclusive ? 1.1 : 1.2, rowGap = exclusive ? 4 : 18;
+      var body = 67 * 1.15 + 46 * 2 * stepLh + 129 * 0.95, extra = exclusive ? 46 * stepLh : 0, nat = body + extra + rowGap + 60 + 57.6;
       var f = Math.min(1.15, Hd / nat);
       // A landscape photo (结婚照) gets the one-inch portrait's width and its own height, so
       // the text stays the one-inch size instead of shrinking beside a wide thumbnail (10-20).
-      var thumb = ratio > 1 ? 0.75 : ratio;
+      // A square photo (阿根廷, 美签5.1) takes the same 0.75 width, so the two-line step ② keeps its size.
+      var thumb = ratio > 1 || exclusive && ratio >= 1 ? 0.75 : ratio;
       // Sized for a typical code (4.4 em) and the store-code steps; an unusually wide code and the
       // longer per-order steps only shrink themselves, never below 4.5 pt (38 px).
       while (body * f * thumb + 32 + Math.max(textWidth(storeStep2, 46 * f), 4.4 * 129 * f) > sizing) f *= 0.98;
-      while (exclusive && f > 0.3 && body * f * thumb + 32 + textWidth(LONG_STEP2, 38) > L) f *= 0.98;
+      while (exclusive && f > 0.3 && body * f * thumb + 32 + textWidth("② " + step2Tail, 38) > L) f *= 0.98;
       var y = Y + (Hd - nat * f) / 2;
-      var tw0 = body * f * thumb, th0 = ratio > 1 ? tw0 / ratio : body * f;
-      var portrait = region("portrait", X, y + (body * f - th0) / 2, tw0, th0);
+      // The portrait keeps the two-step height and sits centred beside the text.
+      var tw0 = body * f * thumb, th0 = ratio > 1 || exclusive && ratio >= 1 ? tw0 / ratio : body * f;
+      var portrait = region("portrait", X, y + ((body + extra) * f - th0) / 2, tw0, th0);
       var tx = X + portrait.width + 32, tw = right - tx;
-      // Both steps keep one size, set by the longer of the two.
-      var stepPx = Math.min(fit(step1, 46 * f, false, tw), fit(step2, 46 * f, false, tw));
-      [["title", TITLE, 67, 1.15, true], ["step1", step1, 46, 1.2, false, stepPx], ["step2", step2, 46, 1.2, false, stepPx],
-        ["pickupCode", code, 129, 0.95, true]].forEach(function (row) {
-        text(row[0], row[1], tx, y, tw, row[3] * row[2] * f, row[5] || fit(row[1], row[2] * f, row[4], tw), row[4]); y += row[3] * row[2] * f;
+      // All step lines keep one size, set by the longest.
+      var stepPx = Math.min(fit(step1, 46 * f, false, tw), fit(step2, 46 * f, false, tw),
+        exclusive ? fit("② " + step2Tail, 46 * f, false, tw) : Infinity);
+      [["title", TITLE, 67, 1.15, true], ["step1", step1, 46, stepLh, false, stepPx], ["step2", step2, 46, stepLh, false, stepPx]]
+        .concat(exclusive ? [["step2more", step2Tail, 46, stepLh, false, stepPx, textWidth("② ", stepPx)]] : [])
+        .concat([["pickupCode", code, 129, 0.95, true]]).forEach(function (row) {
+        var dx = row[6] || 0;
+        text(row[0], row[1], tx + dx, y, tw - dx, row[3] * row[2] * f, row[5] || fit(row[1], row[2] * f, row[4], tw), row[4]); y += row[3] * row[2] * f;
       });
-      y += 18 * f;
+      y += rowGap * f;
       var dateW = date ? textWidth(date, 45 * f) + 4 : 0;
       text("shopName", shop, X, y, right - X - dateW - 40, 60 * f, fit(shop, 50 * f, true, right - X - dateW - 40), true);
       text("date", date, right - dateW, y, dateW, 60 * f, 45 * f, false, "end");
@@ -160,16 +172,32 @@
         qx2 = W - codePad[1] - q2;
         region("entryCode", qx2, qy2, q2, q2, { variant: variant });
       }
-      var pw = Math.round(H2 * ratio);
+      // 小2寸 gives its two-line sentence room with a smaller portrait (10-29).
+      var pScale = exclusive && medium ? 0.75 : 1, pw = Math.round(H2 * ratio * pScale), ph = H2 * pScale;
       var end = withCode ? qx2 - 28 : W - pad[1];
       var start = X2 + pw + 24, avail = end - start;
       var steps = exclusive ? "7天内微信扫码领取，扫不了微信搜小程序“" + MINI_NAME + "”输取件码" :
         withCode ? "7天内：微信扫码 → 输入取件码 → 保存照片" : "7天内：打开本店微信小程序 → 输入取件码";
-      var rows = medium ?
-        [["steps", steps, 0.5], ["details", date ? shop + "  " + date : shop, 0.5], ["phone", phone, 0.48]] :
-        [["steps", steps, 0.585], ["details", shop + "  " + phone, 0.575]];
-      var lh = medium ? 1.28 : 1.12, label = medium ? "电子照片取件码：" : "取件码：";
-      var C = H2 / (0.95 + lh * rows.reduce(function (sum, row) { return sum + row[2]; }, 0));
+      var label = medium ? "电子照片取件码：" : "取件码：";
+      function arrange(stepRows) {
+        var rows = (medium ? stepRows.map(function (value, i) { return [i ? "stepsMore" : "steps", value, 0.5]; })
+            .concat([["details", date ? shop + "  " + date : shop, 0.5], ["phone", phone, 0.48]]) :
+          stepRows.map(function (value, i) { return [i ? "stepsMore" : "steps", value, 0.585]; })
+            .concat([["details", shop + "  " + phone, 0.575]]));
+        var lh = (medium ? 1.28 : 1.12) * (stepRows.length > 1 ? THIN_TIGHT : 1);
+        var C = H2 / (0.95 + lh * rows.reduce(function (sum, row) { return sum + row[2]; }, 0));
+        // Judged by its smallest line, so a split never shrinks the contact line below the one-line version.
+        var step = Math.min.apply(null, rows.map(function (row) { return fit(row[1], row[2] * C, false, avail); }));
+        return { rows: rows, lh: lh, C: C, step: step };
+      }
+      // At 60 mm the per-order sentence runs on two lines, split after its first clause, where
+      // that prints larger (签证2寸, 小2寸); 标准2寸 is too narrow for three lines (user 10-29).
+      var chosen = arrange([steps]), comma = steps.indexOf("，");
+      if (exclusive && comma > 0) {
+        var split = arrange([steps.slice(0, comma), steps.slice(comma + 1)]);
+        if (split.step > chosen.step * 1.1) chosen = split;
+      }
+      var rows = chosen.rows, lh = chosen.lh, C = chosen.C;
       var dp = 0.585 * C, dateW2 = !medium && date ? textWidth(date, dp) + 4 + 0.6 * C : 0;
       var f1 = Math.min(1, (avail - dateW2) / (textWidth(label, 0.72 * C, true) + 0.25 * C + textWidth(code, C, true)));
       var cp = C * f1, lp = 0.72 * C * f1, gap = 0.25 * C * f1;
@@ -177,7 +205,7 @@
       var row1 = textWidth(label, lp, true) + gap + textWidth(code, cp, true) + dateW2;
       var block = Math.max.apply(null, [row1].concat(rows.map(function (row, i) { return textWidth(row[1], fonts[i]); })));
       if (bar.packToCode) { start = Math.max(start, end - block); avail = end - start; }
-      region("portrait", start - 24 - pw, Y2, pw, H2);
+      region("portrait", start - 24 - pw, Y2 + (H2 - ph) / 2, pw, ph);
       var hs = [cp * 0.95].concat(rows.map(function (row) { return lh * row[2] * C; }));
       var y2 = Y2 + (H2 - hs.reduce(function (a, b) { return a + b; }, 0)) / 2;
       var labelW = textWidth(label, lp, true), codeX = start + labelW + gap, codeW = textWidth(code, cp, true);

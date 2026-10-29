@@ -162,8 +162,8 @@
       var bar = next.infoBar, space = bar.band || template.deliveryArea || template.infoBar;
       if (bar.x < space.x || bar.y < space.y ||
           bar.x + bar.width > space.x + space.width || bar.y + bar.height > space.y + space.height ||
-          Math.max(bar.width, bar.height) > 1890 || Math.min(bar.width, bar.height) < 150)
-        throw new Error("取码信息条调试尺寸超出模板空位或8厘米限制，请恢复本模板默认布局");
+          Math.max(bar.width, bar.height) > 1417 || Math.min(bar.width, bar.height) < 150)
+        throw new Error("取码信息条调试尺寸超出模板空位或6厘米限制，请恢复本模板默认布局");
       bar.safeMargin = 24;
       // V5 typography is measured and fitted as one coherent reading layout.
       // Old independent text rectangles cannot override or remove its code.
