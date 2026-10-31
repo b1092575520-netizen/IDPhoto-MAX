@@ -180,3 +180,17 @@ test("capture identity fields are kept separately from mutable save metadata", (
   assert.equal(service.getStableSourceIdFromXmp(`<rdf:Description xmpMM:OriginalDocumentID="abcdef0123456789abcdef0123456789" />`),
     "original-document-id:abcdef0123456789abcdef0123456789");
 });
+
+test("本店片 makes an AI-retouched shop photo eligible for this layout only; a plugin-made sheet stays refused (10-31)", () => {
+  const service = loadService();
+  service.registerCamera({ serialNumber: "SHOP-0589" });
+  for (const metadata of [{}, { serialNumber: "OTHER", captureDate: today() }, { serialNumber: "SHOP-0589" }]) {
+    assert.equal(service.checkSource(metadata, "AI修图.jpg").eligible, false);
+    const confirmed = service.checkSource(metadata, "AI修图.jpg", true);
+    assert.equal(confirmed.eligible, true); assert.equal(confirmed.reason, "shop-confirmed");
+    assert.equal(service.getInfoBarDecision(metadata, "AI修图.jpg", true).showInfoBar, true);
+    assert.equal(service.getInfoBarDecision(metadata, "AI修图.jpg").leaveBlank, true);
+  }
+  assert.equal(service.checkSource({}, "证件照排版_旧照片.jpg", true).reason, "plugin-export");
+  assert.equal(service.checkSource({}, "AI修图.jpg", "yes").eligible, false, "only an explicit true counts");
+});

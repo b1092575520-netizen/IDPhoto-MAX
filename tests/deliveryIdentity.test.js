@@ -134,3 +134,18 @@ test("new capture identity recognizes an exact old source-v1 capture and refuses
   assert.equal(identity.matchesSourceIdentity(oldKey, { ...saved, originalDocumentId: "123456789012345678901234567890ab" }), false);
   assert.equal(identity.matchesSourceIdentity(oldKey, { ...saved, captureSubsecond: "61" }), false);
 });
+
+test("a 本店片 photo is known by its open document, and a camera identity still wins (10-31)", () => {
+  const { identity } = loadIdentity();
+  const doc = { id: 59, name: "AI修图.jpg", sourceMetadata: {} };
+  assert.equal(identity.getSourceIdentity(doc), "", "an unmarked photo without camera data has no identity");
+  const marked = Object.assign({}, doc, { shopConfirmed: true });
+  const key = identity.getSourceIdentity(marked);
+  assert.match(key, /^manual-v1:/);
+  assert.equal(identity.getSourceIdentity(Object.assign({}, marked)), key, "laying the same document out again reuses its order");
+  assert.equal(identity.matchesSourceIdentity(key, Object.assign({}, marked)), true);
+  assert.notEqual(identity.getSourceIdentity(Object.assign({}, marked, { id: 60 })), key, "another document is another customer");
+  assert.equal(loadIdentity().identity.getSourceIdentity(marked) === key, false, "document IDs restart with Photoshop, keys do not repeat");
+  const camera = Object.assign({}, marked, { sourceMetadata: capture() });
+  assert.match(identity.getSourceIdentity(camera), /^source-v2:/);
+});

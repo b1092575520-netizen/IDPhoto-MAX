@@ -43,7 +43,21 @@
       (fraction ? "." + fraction : /^(?:0+)$/.test(separate || match[8] || "") ? ".0" : "") + zone;
   }
 
+  // A photo the operator marked 本店片 (10-31) has no camera identity; it is known by this open
+  // Photoshop document, so laying it out again reuses its order. Document IDs restart with
+  // Photoshop, so the key also carries this plugin session.
+  var manualSession = "";
   function describeSourceIdentity(input) {
+    var camera = describeCameraIdentity(input);
+    if (camera.key || !input || input.shopConfirmed !== true || input.id == null || input.id === "") return camera;
+    if (!manualSession) {
+      manualSession = window.IDPhotoDeliveryProtocol && window.IDPhotoDeliveryProtocol.id ? window.IDPhotoDeliveryProtocol.id() :
+        Date.now().toString(16) + Math.random().toString(16).slice(2);
+    }
+    return { key: "manual-v1:" + JSON.stringify([manualSession, String(input.id), String(input.name || "").slice(0, 200)]),
+      strength: "shop-confirmed" };
+  }
+  function describeCameraIdentity(input) {
     var metadata = input && input.sourceMetadata || input || {};
     var serial = String(metadata.serialNumber || "").replace(/\s+/g, "").toUpperCase();
     var captureTime = normalizeCaptureTime(metadata.captureDate, metadata.captureSubsecond, metadata.captureOffsetTime);

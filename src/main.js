@@ -27,6 +27,7 @@
     nasArchive: true,
     quickPrint: false,
     pickupCodeMode: false,
+    shopPhotoOnce: false,
     closeAfterPrint: false,
     activeDocumentInfo: null,
     isRunning: false,
@@ -578,7 +579,8 @@
     // JPG and NAS saving are always on; only printing and pickup codes are switchable.
     var optionLabels = {
       quickPrint: "打印",
-      pickupCodeMode: "取件码模式"
+      pickupCodeMode: "取件码模式",
+      shopPhotoOnce: "本店片"
     };
     var runButtonLabel;
 
@@ -586,6 +588,13 @@
       return;
     }
 
+    if (key === "shopPhotoOnce") {
+      if (state.activePhotoshopOperation) { setStatus("当前任务尚未结束，请结束后再点本店片"); return; }
+      if (!state.pickupCodeMode) return;
+      setShopPhotoOnce(!state.shopPhotoOnce);
+      setStatus(state.shopPhotoOnce ? "本店片已开：下一次排版按本店新拍取码，排完自动关" : "本店片已关");
+      return;
+    }
     if (key === "pickupCodeMode") {
       if (state.activePhotoshopOperation) {
         setStatus("当前任务尚未结束，请结束后再切换取件码模式");
@@ -620,7 +629,20 @@
       }
     }
 
+    if (key === "pickupCodeMode") setShopPhotoOnce(false);
     setStatus((message ? message + "｜" : "") + optionLabels[key] + " 已" + (state[key] ? "开" : "关"));
+  }
+
+  // 本店片 (10-31): shown only with pickup codes on; it vouches for the next layout only.
+  function setShopPhotoOnce(enabled) {
+    state.shopPhotoOnce = Boolean(enabled && state.pickupCodeMode);
+    var button = one('.toggle-btn[data-key="shopPhotoOnce"]');
+    if (!button) return;
+    button.style.display = state.pickupCodeMode ? "flex" : "none";
+    button.classList.toggle("active", state.shopPhotoOnce);
+    button.setAttribute("aria-pressed", String(state.shopPhotoOnce));
+    var label = one(".toggle-state", button);
+    if (label) label.textContent = state.shopPhotoOnce ? "开" : "关";
   }
 
   function syncQuickPrintControls() {
@@ -670,6 +692,7 @@
       var label = one(".toggle-state", button);
       if (label) label.textContent = state.pickupCodeMode ? "开" : "关";
     }
+    setShopPhotoOnce(false);
   }
 
   function getCurrentBaseTemplate() {
@@ -925,6 +948,15 @@
       }
       logStep("document", "success", docInfo);
       setStatus("步骤1成功：" + describeDocument(docInfo));
+      // 本店片 (10-31): the operator vouches for this one photo (an AI retouch removed its camera
+      // data); it counts for this layout only and switches itself off.
+      if (state.shopPhotoOnce) {
+        if (explicitDelivery === null && state.pickupCodeMode) {
+          docInfo.shopConfirmed = true;
+          logStep("document", "operator marked this photo as a shop photo");
+        }
+        setShopPhotoOnce(false);
+      }
       // Decide from this original photo before creating any delivery copy/task.
       // An explicit delivery failure must never fall back to ordinary printing.
       if (explicitDelivery === null && state.pickupCodeMode) {
@@ -932,7 +964,7 @@
         if (!eligibilityService || typeof eligibilityService.checkSource !== "function") {
           throw new Error("照片来源判断未加载，请重新加载插件后再排版");
         }
-        var sourceDecision = eligibilityService.checkSource(docInfo.sourceMetadata, docInfo.name);
+        var sourceDecision = eligibilityService.checkSource(docInfo.sourceMetadata, docInfo.name, docInfo.shopConfirmed === true);
         delivery = sourceDecision.eligible === true;
         if (delivery && window.IDPhotoDeliveryIdentity && !window.IDPhotoDeliveryIdentity.getSourceIdentity(docInfo)) {
           delivery = false; forceBlankInfoBar = true;
@@ -1420,7 +1452,8 @@
     if (!state.pickupCodeMode || !selected.length) { deliveryStatusView.showPlan(null); return; }
     var info = await window.IDPhotoDocumentService.getActiveDocumentInfo(), doc = getCurrentDocumentObject();
     if (!info || !doc || doc.id !== info.id) { deliveryStatusView.showPlan(null); return; }
-    var eligible = window.IDPhotoSourceEligibilityService.checkSource(info.sourceMetadata, info.name);
+    if (state.shopPhotoOnce) info.shopConfirmed = true;
+    var eligible = window.IDPhotoSourceEligibilityService.checkSource(info.sourceMetadata, info.name, info.shopConfirmed === true);
     if (!eligible.eligible || !window.IDPhotoDeliveryIdentity.getSourceIdentity(info)) {
       if (generation === planGeneration) deliveryStatusView.showPlan(plainDeliveryPlan(eligible));
       return;

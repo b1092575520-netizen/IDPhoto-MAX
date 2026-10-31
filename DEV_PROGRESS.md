@@ -1,4 +1,10 @@
-## 当前阶段 v0.6.28 取件卡退回 60mm（10-29）
+## 当前阶段 v0.6.29 本店片（10-31）
+
+- 用户：AI 修图后丢 EXIF，插件按外来片只排版；选“面板加按钮”（外来片多、AI 片少）。index.html 加 data-key="shopPhotoOnce"，只在取件码开时显示；main.js 读到原片后若开着就给 docInfo 标 shopConfirmed 并立刻关掉按钮（一次有效），取件码关时一并清掉。
+- checkSource/getInfoBarDecision 加第三参 shopConfirmed（只认 true，plugin-export 照旧拒绝），main、layoutWorkflow（信息条、存档判断）、exportService、deliveryService.begin 都传 docInfo.shopConfirmed。deliveryIdentity 无相机身份且 shopConfirmed 时给 manual-v1:[插件会话随机串, 文档 id, 文件名]：同一打开文档重排沿用，PS 重启后不会撞上旧单。
+- 交付管理只要求 eligible:true（HandoffReceiver.Request），不核对相机，不用改后台。多尺寸：layoutWorkflow 冻结的 docInfo 带着标记，新增测试 1寸+标准2寸+小2寸 共码、两次交付都带标记。新增测试共 4 项。
+
+## v0.6.28 取件卡退回 60mm（10-29）
 
 - 用户：78mm 卡塞不进 6×8 袋，长度退回、文案保留。PICKUP_CARDS 长度回 1417（美签5.0 仍 1192×900），MAX_LENGTH 1417，templateOverrideService 及其测试回到 cdc7c0f（6 厘米）。
 - 宽卡专属码：LONG_STEP2 按“拆成 step2 + step2more（缩进“② ”宽），行距 1.1、下方间隔 4，正方形照片头像宽 0.75；步骤 4.5–4.7pt。

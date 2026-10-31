@@ -217,7 +217,7 @@
       if (unfinished) throw new Error("有尚未完成的原任务，请使用“继续原任务”重试；当前若是另一位顾客，请先明确保留旧任务。未新建交付。");
       if (await current()) throw new Error("当前顾客已有交付，请核对原照片后使用“重拼/补印”；另一位顾客请先点“开始下一位”。照片修订请走后台原交付修订流程，未新建交付。");
     }
-    var eligibility = window.IDPhotoSourceEligibilityService.checkSource(docInfo.sourceMetadata, docInfo.name);
+    var eligibility = window.IDPhotoSourceEligibilityService.checkSource(docInfo.sourceMetadata, docInfo.name, docInfo.shopConfirmed === true);
     var historical = !eligibility.eligible && window.IDPhotoSourceEligibilityService.historicalIntentMatches &&
       window.IDPhotoSourceEligibilityService.historicalIntentMatches(intent, docInfo);
     if (!eligibility.eligible && !historical) throw new Error("此照片仅排版；如需补交，请明确确认本次本店旧片：" + eligibility.message);

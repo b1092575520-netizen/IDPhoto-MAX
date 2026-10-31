@@ -24,7 +24,7 @@ function harness(options = {}) {
     "backgroundPicker", "backgroundRed", "backgroundBlue", "backgroundWhite", "backgroundPlain"]
     .map(id => [id, element()]));
   const documentListeners = {};
-  const toggle = element({ "data-key": "pickupCodeMode" }), size = element({ "data-template": "模板一" });
+  const toggle = element({ "data-key": "pickupCodeMode" }), shop = element({ "data-key": "shopPhotoOnce" }), size = element({ "data-template": "模板一" });
   let shortcuts, electronicCalls = 0, electronicIntents = [], retryCalls = [], deferCalls = [];
   const source = { id: 10 }, template = { id: "one", name: "模板一", infoBar: {} };
   const today = new Date();
@@ -33,8 +33,8 @@ function harness(options = {}) {
   const document = {
     readyState: "complete", addEventListener: (type, callback) => { (documentListeners[type] = documentListeners[type] || []).push(callback); },
     querySelector: selector => selector.startsWith("#") ? buttons[selector.slice(1).split(" ")[0]] || null :
-      selector.includes('[data-key="pickupCodeMode"]') ? toggle : null,
-    querySelectorAll: selector => selector === ".size-btn" ? [size] : selector === ".toggle-btn[data-key]" ? [toggle] : []
+      selector.includes('[data-key="pickupCodeMode"]') ? toggle : selector.includes('[data-key="shopPhotoOnce"]') ? shop : null,
+    querySelectorAll: selector => selector === ".size-btn" ? [size] : selector === ".toggle-btn[data-key]" ? [toggle, shop] : []
   };
   const window = {
     addEventListener() {},
@@ -99,7 +99,7 @@ function harness(options = {}) {
     assert.ok(html.includes('src="' + "src/" + module + '.js"'), "runtime module must ship in index.html");
     vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/" + module + ".js"), "utf8"), context);
   }
-  return { options, memory, runs, alerts, buttons, toggle, size, shortcuts, photo, date, retryCalls, deferCalls, get electronicCalls() { return electronicCalls; }, electronicIntents,
+  return { options, memory, runs, alerts, buttons, toggle, shop, size, shortcuts, photo, date, retryCalls, deferCalls, get electronicCalls() { return electronicCalls; }, electronicIntents,
     tick: async () => { assert.ok(automaticTicks.length, "automatic plan tick is scheduled"); await automaticTicks.shift()(); },
     advance: () => { tick += 1000; }, select: () => shortcuts.selectTemplate("模板一"),
     key: key => (documentListeners.keydown || []).forEach(callback => callback({ key, target: {}, preventDefault() {} })) };
@@ -318,4 +318,24 @@ test("the panel no longer offers electronic, current-customer or pending-deliver
   const main = fs.readFileSync(path.join(__dirname, "../src/main.js"), "utf8");
   for (const id of ["electronicDeliveryButton", "reviewCurrentCustomer", "reviewPendingDelivery", "confirmDeliverySource"])
     assert.equal(main.includes(id), false, id);
+});
+
+test("本店片 shows only with pickup codes on, vouches for the next layout only and switches itself off (10-31)", async () => {
+  const h = harness({ realIdentity: true });
+  const run = async () => { h.advance(); h.select(); h.buttons.runButton.fire(); await flush(); return h.runs.at(-1); };
+  assert.equal(h.shop.style.display, "none");
+  h.shop.fire(); assert.equal(h.shop.label.textContent, "关", "no effect while pickup codes are off");
+  h.toggle.fire(); assert.equal(h.shop.style.display, "flex");
+  h.photo.sourceMetadata = {}; h.photo.name = "AI修图.jpg";
+  assert.equal((await run()).delivery, false, "an AI-retouched photo is plain until the operator vouches for it");
+  h.shop.fire(); assert.equal(h.shop.label.textContent, "开");
+  const vouched = await run();
+  assert.equal(vouched.delivery, true); assert.equal(vouched.docInfo.shopConfirmed, true);
+  assert.equal(h.shop.label.textContent, "关", "switched off after one layout");
+  delete h.photo.shopConfirmed; // Photoshop reads a fresh document info for every layout
+  assert.equal((await run()).delivery, false, "the next customer is not vouched for");
+  h.photo.name = "证件照排版_旧照片.jpg"; h.shop.fire();
+  assert.equal((await run()).delivery, false, "a plugin-made sheet never takes a code");
+  h.shop.fire(); h.toggle.fire();
+  assert.equal(h.shop.style.display, "none"); assert.equal(h.shop.label.textContent, "关", "turning pickup codes off clears it");
 });

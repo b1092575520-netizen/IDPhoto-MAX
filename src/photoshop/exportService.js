@@ -703,7 +703,7 @@
       throw new Error("本店拍摄资格检查未加载，已停止自动保存");
     }
     {
-      eligibility = window.IDPhotoSourceEligibilityService.checkSource(docInfo.sourceMetadata || null, docInfo.name || "");
+      eligibility = window.IDPhotoSourceEligibilityService.checkSource(docInfo.sourceMetadata || null, docInfo.name || "", docInfo.shopConfirmed === true);
       if (!eligibility.eligible) {
         return {
           ok: true,

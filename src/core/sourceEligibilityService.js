@@ -200,7 +200,17 @@
     return { ok: false, cameras: loadRegisteredCameras(), message: "清除本店相机登记失败" };
   }
 
-  function checkSource(metadata, documentName) {
+  // shopConfirmed (10-31): the operator pressed 本店片 for this photo, a shop photo whose camera
+  // data an AI retouch removed. Only a plugin-made sheet stays refused.
+  function checkSource(metadata, documentName, shopConfirmed) {
+    var decision = checkCamera(metadata, documentName);
+    if (!decision.eligible && shopConfirmed === true && decision.reason !== "plugin-export") {
+      return { eligible: true, reason: "shop-confirmed", message: "店员确认是本店新拍" };
+    }
+    return decision;
+  }
+
+  function checkCamera(metadata, documentName) {
     var serial = normalizeSerial(metadata && metadata.serialNumber);
     var cameras = loadRegisteredCameras();
     var matched;
@@ -259,8 +269,8 @@
     };
   }
 
-  function getInfoBarDecision(metadata, documentName) {
-    var eligibility = checkSource(metadata, documentName);
+  function getInfoBarDecision(metadata, documentName, shopConfirmed) {
+    var eligibility = checkSource(metadata, documentName, shopConfirmed);
     return {
       showInfoBar: Boolean(eligibility.eligible),
       leaveBlank: !eligibility.eligible,

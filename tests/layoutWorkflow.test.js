@@ -617,3 +617,18 @@ test('a sheet without a per-order link passes none, and ordinary sheets never ge
   await plain.workflow.run({templateNames:['模板一'],sourceDocument:{id:101},docInfo:{id:101,sourceMetadata:{}},delivery:false,skipExport:true,skipPrint:true});
   assert.deepEqual(seen,[null,null]);
 });
+
+test('本店片 works the same across several sizes: one shared code, every sheet has its strip, each shape archived once (10-31)',async()=>{
+  const begins=[],codes=[];
+  const delivery={begin:async(info,_m,template)=>{begins.push([template.id,info.shopConfirmed]);return {id:'task-'+begins.length};},
+    prepare:async task=>{task.fingerprint='saved';return 'A2B3C4';},complete:async()=>({info:'saved',message:'prepared'})};
+  const loaded=loadWorkflow({templates:shapeTemplates,saveSizes:shapeSizes,delivery,realEligibility:true,inspectRender:o=>codes.push(o.pickupCode)});
+  // An AI retouch removed the camera data; the operator pressed 本店片 before 排版.
+  const result=await loaded.workflow.run({templateNames:['1寸','标准2寸','小2寸'],sourceDocument:{id:101},
+    docInfo:{id:101,name:'AI修图.jpg',sourceMetadata:{},shopConfirmed:true},delivery:true,quickPrint:true,exportJpg:true});
+  assert.equal(result.ok,true,JSON.stringify(result.failures.map(f=>f.error.message)));
+  assert.deepEqual(begins,[['one-inch',true],['small-two',true]],'2寸 shares the 1寸 saved photo; every delivery is vouched for');
+  assert.deepEqual(codes,['A2B3C4','A2B3C4','A2B3C4']);
+  assert.equal(loaded.calls.filter(c=>c==='print').length,3);
+  assert.deepEqual(loaded.calls.filter(c=>c.startsWith('export:')),['export:one-inch','export:small-two']);
+});

@@ -202,7 +202,8 @@
       ) {
         decision = window.IDPhotoSourceEligibilityService.getInfoBarDecision(
           docInfo && docInfo.sourceMetadata ? docInfo.sourceMetadata : null,
-          docInfo && docInfo.name ? docInfo.name : ""
+          docInfo && docInfo.name ? docInfo.name : "",
+          Boolean(docInfo && docInfo.shopConfirmed === true)
         );
         if (decision.leaveBlank && !runOptions.historicalDelivery && !runOptions.resumeDeliveryTask) {
           if (runOptions.delivery) throw window.IDPhotoDeliveryProtocol.pickupCodeError("当前照片的信息条不可用，已停止取件码模式输出。");
@@ -308,7 +309,7 @@
       var eligibility = window.IDPhotoSourceEligibilityService;
       if (!eligibility || typeof eligibility.checkSource !== "function") return true;
       return eligibility.checkSource(docInfo && docInfo.sourceMetadata ? docInfo.sourceMetadata : null,
-        docInfo && docInfo.name ? docInfo.name : "").eligible === true;
+        docInfo && docInfo.name ? docInfo.name : "", Boolean(docInfo && docInfo.shopConfirmed === true)).eligible === true;
     }
 
     async function exportSingleJpg(processedDocument, template, docInfo, runOptions) {
