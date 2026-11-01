@@ -1,0 +1,210 @@
+{
+  "passed": true,
+  "boundary": "real Windows QueueWorker / disk queue and source / production JS service with isolated stdio storage; child registration visibility delayed by explicit filesystem double; Photoshop and print-bridge doubles; no cloud, no actual printing",
+  "permissions": 4,
+  "redReleasedToAllPublishedMs": 9101,
+  "red": "2fe88284bebe89934124e7beb34d23b7",
+  "white": "2597f9057e476f179ee6958be956311c",
+  "blue": "2ee8c455b9ea3e1d0d469f09d78778fa",
+  "code": "JVN55F",
+  "psBeforeUpload": {
+    "opens": 0,
+    "renders": 4,
+    "psSaves": 13,
+    "exports": 1,
+    "activates": 16,
+    "permissions": 4
+  },
+  "psAfterUpload": {
+    "opens": 0,
+    "renders": 4,
+    "psSaves": 13,
+    "exports": 1,
+    "activates": 16,
+    "permissions": 4
+  },
+  "publishedPhotos": [
+    {
+      "id": "7ccb697375910bfa8e964ea371fd82e8dd50fb925ac6c4618644950284ec1dd0",
+      "name": "photo-61981c772b71.jpg",
+      "sizeBytes": 767,
+      "checksum": "e72afa9b14a2cd8b568f439b9ecc7ba8f6dccefdb87d8ad5f1672932e2269bcb",
+      "width": 80,
+      "height": 100,
+      "status": "published",
+      "revision": 1,
+      "memberId": "4a2d06631387b3324af56880749c4f406cb4df6f72614f52b1e93fa7f8e3a2fa",
+      "slotId": "7ccb697375910bfa8e964ea371fd82e8dd50fb925ac6c4618644950284ec1dd0",
+      "constraints": null,
+      "purpose": "Fixture",
+      "background": "red",
+      "receivedParts": []
+    },
+    {
+      "id": "d3fcd244dca38188f84672b9610f5742189a591ab5a64e71c9635736cc3fbb58",
+      "name": "photo-c0b52b144836.jpg",
+      "sizeBytes": 767,
+      "checksum": "e72afa9b14a2cd8b568f439b9ecc7ba8f6dccefdb87d8ad5f1672932e2269bcb",
+      "width": 80,
+      "height": 100,
+      "status": "published",
+      "revision": 1,
+      "memberId": "4a2d06631387b3324af56880749c4f406cb4df6f72614f52b1e93fa7f8e3a2fa",
+      "slotId": "d3fcd244dca38188f84672b9610f5742189a591ab5a64e71c9635736cc3fbb58",
+      "constraints": null,
+      "purpose": "Fixture",
+      "background": "white",
+      "receivedParts": []
+    },
+    {
+      "id": "78cdacff47fa5c4649f6ef56c61ba9fc03b6edd9ff2e1e33a052ec516b871a1e",
+      "name": "photo-99b2705337ac.jpg",
+      "sizeBytes": 767,
+      "checksum": "e72afa9b14a2cd8b568f439b9ecc7ba8f6dccefdb87d8ad5f1672932e2269bcb",
+      "width": 80,
+      "height": 100,
+      "status": "published",
+      "revision": 1,
+      "memberId": "4a2d06631387b3324af56880749c4f406cb4df6f72614f52b1e93fa7f8e3a2fa",
+      "slotId": "78cdacff47fa5c4649f6ef56c61ba9fc03b6edd9ff2e1e33a052ec516b871a1e",
+      "constraints": null,
+      "purpose": "Fixture",
+      "background": "blue",
+      "receivedParts": []
+    }
+  ],
+  "events": [
+    {
+      "at": "2026-11-01T09:46:09.666Z",
+      "action": "worker-start",
+      "pid": 45928
+    },
+    {
+      "at": "2026-11-01T09:46:10.327Z",
+      "action": "render",
+      "code": "JVN55F",
+      "link": {
+        "code": "JVN55F",
+        "link": "",
+        "reason": "回执里没有专属链接"
+      }
+    },
+    {
+      "at": "2026-11-01T09:46:10.332Z",
+      "action": "hold-first-completion",
+      "task": "2fe88284bebe89934124e7beb34d23b7"
+    },
+    {
+      "at": "2026-11-01T09:46:10.336Z",
+      "action": "permission",
+      "jobId": "mvxnak9r-obw148cj",
+      "denied": false
+    },
+    {
+      "at": "2026-11-01T09:46:10.338Z",
+      "action": "red-printed",
+      "task": "2fe88284bebe89934124e7beb34d23b7",
+      "code": "JVN55F"
+    },
+    {
+      "at": "2026-11-01T09:46:11.186Z",
+      "action": "render",
+      "code": "JVN55F",
+      "link": {
+        "code": "JVN55F",
+        "link": "",
+        "reason": "回执里没有专属链接"
+      }
+    },
+    {
+      "at": "2026-11-01T09:46:11.193Z",
+      "action": "permission",
+      "jobId": "mvxnakxk-b9w26zxc",
+      "denied": false
+    },
+    {
+      "at": "2026-11-01T09:46:11.195Z",
+      "action": "white-printed",
+      "task": "2597f9057e476f179ee6958be956311c",
+      "code": "JVN55F",
+      "clickElapsedMs": 857
+    },
+    {
+      "at": "2026-11-01T09:46:11.195Z",
+      "action": "release-red-completion"
+    },
+    {
+      "at": "2026-11-01T09:46:12.850Z",
+      "action": "hold-child-registration",
+      "task": "2597f9057e476f179ee6958be956311c"
+    },
+    {
+      "at": "2026-11-01T09:46:13.920Z",
+      "action": "render",
+      "code": "JVN55F",
+      "link": {
+        "code": "JVN55F",
+        "link": "",
+        "reason": "回执里没有专属链接"
+      }
+    },
+    {
+      "at": "2026-11-01T09:46:13.922Z",
+      "action": "permission",
+      "jobId": "mvxnan1c-sqyziyny",
+      "denied": false
+    },
+    {
+      "at": "2026-11-01T09:46:13.923Z",
+      "action": "repeat-in-handoff",
+      "elapsedMs": 1069
+    },
+    {
+      "at": "2026-11-01T09:46:14.351Z",
+      "action": "render",
+      "code": "JVN55F",
+      "link": {
+        "code": "JVN55F",
+        "link": "",
+        "reason": "回执里没有专属链接"
+      }
+    },
+    {
+      "at": "2026-11-01T09:46:14.354Z",
+      "action": "permission",
+      "jobId": "mvxnande-l9jhwlkg",
+      "denied": false
+    },
+    {
+      "at": "2026-11-01T09:46:14.356Z",
+      "action": "blue-in-handoff",
+      "task": "2ee8c455b9ea3e1d0d469f09d78778fa",
+      "elapsedMs": 433,
+      "code": "JVN55F"
+    },
+    {
+      "at": "2026-11-01T09:46:14.985Z",
+      "action": "release-white-registration"
+    },
+    {
+      "at": "2026-11-01T09:46:16.027Z",
+      "action": "plugin-runtime-restart"
+    },
+    {
+      "at": "2026-11-01T09:46:17.085Z",
+      "action": "file-completion",
+      "task": "2597f9057e476f179ee6958be956311c"
+    },
+    {
+      "at": "2026-11-01T09:46:19.414Z",
+      "action": "file-completion",
+      "task": "2ee8c455b9ea3e1d0d469f09d78778fa"
+    },
+    {
+      "at": "2026-11-01T09:46:20.296Z",
+      "action": "all-published",
+      "elapsedMs": 9101,
+      "permissions": 4
+    }
+  ]
+}

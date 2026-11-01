@@ -74,7 +74,7 @@ function harness(options = {}) {
       folder.children.set(this.name, this); files.set(this.nativePath, this.value);
       if (options.automaticRemote && this.name === "complete.json" && remote.has(folder.name)) {
         const request = JSON.parse(await (await folder.getEntry("request.json")).read());
-        if (request.targetDeliveryId) remote.get(folder.name).status = "ready";
+        if (request.targetDeliveryId && !options.holdPublish) remote.get(folder.name).status = "ready";
       }
       if (options.automaticRemote && folder.name === "automation-requests") {
         const request = JSON.parse(this.value), responseFolder = await childForTest(folder.parent, "automation-responses");
@@ -205,6 +205,158 @@ async function finishEarly(h, task) {
   assert.equal(h.automation.store().tasks().find(x => x.id === task.id).state, "completed");
   console.log("[0.6.30 evidence]", JSON.stringify({ scenario: h.options.evidenceCase || "edge", task: task.id, uploadStartedAt: started, completedAt: h.now(),
     uploadElapsedMs: h.now() - started, clock: "simulated", permissions: h.events.filter(x => x.action === "permission") }));
+}
+
+// REP-01: production HandoffAutomation returns TASK_PENDING after receive but
+// before createBatch. An exposed manifest can also still be entirely unknown.
+async function receivingWhite(kind) {
+  const scenario = await earlyScenario();
+  const { h, red, white } = scenario;
+  ready(h, red);
+  // The real manager leaves the parent's nonce-bound receipt on disk while
+  // this child's code lookup is slow; preserve that independently in the double.
+  const receipt = await (await red.folder.getEntry("code-response.json")).read();
+  await (await red.folder.createFile("code-response.json")).write(receipt);
+  h.options.receipt = false;
+  assert.equal(await h.service.primeRecovery(), null);
+  await white.folder.getEntry("request.json");
+  if (kind === "TASK_PENDING") h.remote.set(white.id, { taskId: white.id, known: true, blocked: true, retryable: true,
+    errorCode: "TASK_PENDING", error: "原任务尚在取码，恢复连接后继续原任务。", status: "", code: "", deliveryId: "", contextKey: red.contextKey });
+  else assert.equal(h.remote.has(white.id), false);
+  return scenario;
+}
+function backgroundCounts(h) {
+  return { opens: h.opened.length, renders: h.renders.length, saves: h.saves.length, exports: h.exports.length, permissions: h.prints.length };
+}
+for (const kind of ["unknown", "TASK_PENDING"]) {
+  test("REP-01 R-01/R-06/R-07: same and different specifications print during " + kind, async () => {
+    const { h, original, red, white } = await receivingWhite(kind);
+    const payload = await (await white.folder.getEntry("request.json")).read();
+    const photo = new Uint8Array(await (await white.folder.getEntry("photo.jpg")).read()).slice();
+    const started = h.now();
+    // Slow createBatch/code confirmation does not become a foreground wait.
+    for (let n = 0; n < 3; n++) {
+      h.advance(120000);
+      const click = h.now(), repeat = await h.runPrint(original);
+      assert.equal(repeat.ok, true, repeat.failures.map(x => x.error.message).join(";"));
+      assert.ok(h.now() - click < 6000, "no code-confirmation timeout on reprint");
+      assert.equal(h.service.latest().id, white.id);
+    }
+    original.info.sourceVariant.backgroundColor = "blue";
+    const click = h.now(), result = await h.runPrint(original), blue = h.service.latest();
+    assert.equal(result.ok, true, result.failures.map(x => x.error.message).join(";"));
+    assert.ok(h.now() - click < 6000, "no code-confirmation wait for a new specification");
+    assert.equal(h.prints.length, 6); assert.equal(h.automation.store().tasks().length, 3);
+    for (const render of h.renders) {
+      assert.equal(render.code, red.code); assert.equal(render.entryLink.link, h.renders[0].entryLink.link);
+    }
+    assert.equal(await (await white.folder.getEntry("request.json")).read(), payload);
+    assert.deepEqual(new Uint8Array(await (await white.folder.getEntry("photo.jpg")).read()), photo);
+    const before = backgroundCounts(h);
+    // Force the later child to be picked first: even then it cannot expose a
+    // concurrent append while white is unknown, taking code, or publishing.
+    h.advance(1000); h.automation.store().markTask(white.id, { state: "retryable" });
+    h.reload();
+    assert.equal(await h.service.primeRecovery(), null);
+    await assert.rejects(blue.folder.getEntry("request.json"));
+    h.remote.delete(white.id); h.options.receipt = true; h.options.holdPublish = true;
+    await finishEarly(h, white);
+    assert.equal(h.remote.get(white.id).status, "preparing");
+    assert.equal(await h.service.primeRecovery(), null, "local completion is not remote publication");
+    await assert.rejects(blue.folder.getEntry("request.json"));
+    Object.assign(h.remote.get(white.id), { blocked: true, errorCode: "TASK_PENDING", pendingBatch: "owned-upload" });
+    assert.equal(await h.service.primeRecovery(), null, "production owned pending batch waits without a failure notice");
+    await assert.rejects(blue.folder.getEntry("request.json"));
+    Object.assign(h.remote.get(white.id), { blocked: false, errorCode: "", pendingBatch: null });
+    ready(h, white); h.options.holdPublish = false;
+    await finishEarly(h, blue);
+    assert.deepEqual(backgroundCounts(h), before);
+    const requests = await Promise.all([red, white, blue].map(t => h.json(t.folder, "request.json")));
+    assert.equal(requests[1].targetDeliveryId, red.deliveryId);
+    assert.equal(requests[2].targetDeliveryId, red.deliveryId);
+    assert.deepEqual(requests.map(r => r.files[0].background), ["red", "white", "blue"]);
+    assert.equal(new Set(requests.map(r => r.taskId)).size, 3);
+    console.log("[REP-01 slow code]", JSON.stringify({ kind, started, completed: h.now(), permissions: h.events.filter(e => e.action === "permission"), before, after: backgroundCounts(h) }));
+  });
+}
+
+test("REP-01 red-white-blue consecutive clicks queue exactly one of each, R-01/R-08", async () => {
+  const { h, red, white, original } = await receivingWhite("unknown");
+  original.info.sourceVariant.backgroundColor = "blue";
+  const result = await h.runPrint(original), blue = h.service.latest();
+  assert.equal(result.ok, true, result.failures.map(x => x.error.message).join(";"));
+  assert.equal(h.prints.length, 3);
+  const before = backgroundCounts(h);
+  h.options.receipt = true; h.reload(); await finishEarly(h, white); await finishEarly(h, blue);
+  assert.equal(await h.service.primeRecovery(), null);
+  assert.deepEqual(backgroundCounts(h), before);
+  assert.equal(h.remote.size, 3);
+  assert.equal((await h.json(blue.folder, "request.json")).targetDeliveryId, red.deliveryId);
+});
+
+test("REP-01 R-08: failed foreground click never leaves a Photoshop recovery job", async () => {
+  const { h, red, white, original } = await receivingWhite("unknown");
+  original.info.sourceVariant.backgroundColor = "blue"; h.remote.delete(red.id);
+  assert.equal((await h.runPrint(original)).ok, false); const blue = h.service.latest();
+  const before = backgroundCounts(h);
+  // The parent recovers later. No late render/archive or 'can print' offer.
+  h.remote.set(red.id, { taskId: red.id, known: true, blocked: false, originalCodeActive: true, status: "ready",
+    code: red.code, deliveryId: red.deliveryId, contextKey: red.contextKey, groupVersion: 1, originalMemberId: "member-A" });
+  h.options.receipt = true; h.reload(); await finishEarly(h, white);
+  assert.equal(await h.service.primeRecovery(), null);
+  assert.deepEqual(backgroundCounts(h), before);
+  assert.ok(["stopped", "blocked"].includes(h.automation.store().tasks().find(t => t.id === blue.id).state));
+  await assert.rejects(blue.folder.getEntry("request.json"));
+  assert.equal((await h.runPrint(original)).ok, true, "staff may explicitly click again after recovery");
+});
+
+for (const stage of ["ratio", "render"]) {
+  test("REP-01 failed later click at " + stage + " retains bytes without a late Photoshop redo", async () => {
+    const h = harness({ automaticRemote: true }), original = h.source();
+    original.info.sourceVariant.backgroundColor = "red"; await h.runPrint(original); ready(h, h.service.latest());
+    original.info.sourceVariant.backgroundColor = "blue";
+    if (stage === "ratio") h.window.IDPhotoRatioChecker.checkDocumentRatio = () => { throw Error("ratio failure"); };
+    else h.window.IDPhotoInfoBarRenderer.renderInfoBar = async () => { throw Error("render failure"); };
+    assert.equal((await h.runPrint(original)).ok, false); const task = h.service.latest();
+    const before = backgroundCounts(h); h.reload();
+    assert.equal(await h.service.primeRecovery(), null);
+    assert.deepEqual(backgroundCounts(h), before);
+    assert.equal(h.automation.store().tasks().find(t => t.id === task.id).state, stage === "ratio" ? "stopped" : "blocked");
+    if (stage === "render") {
+      await task.folder.getEntry("photo.jpg"); await task.folder.getEntry("request.json");
+      assert.equal((await h.runPrint(original)).ok, false, "exposed identity cannot be bypassed with a duplicate order");
+    }
+  });
+}
+
+for (const fault of ["unknown", "offline", "consumer", "source", "cancelled", "withdrawn", "conflict", "code", "context", "delivery", "child-conflict"]) {
+  test("REP-01 fallback rejects real invalidity: " + fault, async () => {
+    const { h, red, white, original } = await receivingWhite("TASK_PENDING");
+    const parent = h.remote.get(red.id);
+    if (fault === "unknown") h.remote.delete(red.id);
+    if (fault === "offline") h.options.connection = false;
+    if (fault === "consumer" || fault === "source") {
+      const binding = await h.json(white.folder, "automation-connection.json");
+      binding[fault === "consumer" ? "consumerId" : "sourceIdentity"] = "other";
+      await (await white.folder.getEntry("automation-connection.json")).write(JSON.stringify(binding));
+    }
+    if (["cancelled", "withdrawn"].includes(fault)) { parent.status = fault; parent.originalCodeActive = false; }
+    if (fault === "conflict") { parent.blocked = true; parent.errorCode = "CONFLICT"; }
+    if (fault === "child-conflict") h.remote.get(white.id).errorCode = "CONFLICT";
+    if (fault === "code") parent.code = "N7EW8A";
+    if (fault === "context") parent.contextKey = "d".repeat(64);
+    if (fault === "delivery") parent.deliveryId = "another";
+    assert.equal((await h.runPrint(original)).ok, false);
+    original.info.sourceVariant.backgroundColor = "blue";
+    assert.equal((await h.runPrint(original)).ok, false);
+    assert.equal(h.prints.length, 2);
+    const before = backgroundCounts(h); h.reload();
+    for (let n = 0; n < 3; n++) {
+      const id = await h.service.primeRecovery();
+      if (typeof id === "string") await h.service.recoverNext(id);
+    }
+    assert.deepEqual(backgroundCounts(h), before);
+  });
 }
 
 test("0.6.30 #1 red then white immediately: same dedicated code, one permission, file-only upload", async () => {

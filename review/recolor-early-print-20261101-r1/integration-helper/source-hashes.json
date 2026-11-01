@@ -1,0 +1,210 @@
+﻿[
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\ArchiveNaming.cs",
+        "Hash":  "5ACD6491711F684180794CBA9D86B5F6FF17C775C462C1DFF1FF2F3C1FAEA4AC"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\BackgroundGuess.cs",
+        "Hash":  "5B060C4475D7C39051FF3AB072142BA3464215DB976C93CD8B1E60EC2DEC827F"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\BackupManager.cs",
+        "Hash":  "D39D6C87153CEFF408D6262A5952D9AA7AE0EAE1A4FAA6FDDD0D493036CB1FEE"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\ChunkCleanup.cs",
+        "Hash":  "92F2853883065B6A070ED68F5655F6F150E16B83EFFC8D5612381CE8D4EE6E08"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\CollectionDrafts.cs",
+        "Hash":  "377F83F4E56CEFAD93186054646025F75A3CEE5AE453259C168A4967D01D6F66"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\DeliveryDrafts.cs",
+        "Hash":  "C4FA911EDD8135E3F30E618BBAA90F0708958A76DFC2AD31A101AFC2EDE0C72F"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\DetailDialogs.cs",
+        "Hash":  "B9011B67B3B360D12FC56984505A9C039D3E282C6D6558795ADBB21DAAD35CBC"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\DraftForm.cs",
+        "Hash":  "525B8CA776CA256755A222E16B9819264AA6601A57621AE3076D1BAB4ABB8AA4"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\DraftWorker.cs",
+        "Hash":  "2F17A6DDFF22372A047BC559B96BCF5F7CB2E1B816652F6900AFB70B9216D798"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\DurableRecovery.cs",
+        "Hash":  "739DCECD9B2ACF606A065D6C390C8226F9A307102E9175FA4F5AD53D81A9C39B"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\EntryLink.cs",
+        "Hash":  "E9D91561C15A89904B16B03CE9A9687DFE771FC45956899803CB13832CD22F7D"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\EntryLinkPool.cs",
+        "Hash":  "8BBF3021185EE8565E27E46F3826DA5A4BCA29611E4E09FB1073BF87F86936AE"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\GroupForm6.cs",
+        "Hash":  "60CDAB7618B169F0E4BDE76F907BAEF12D786D90D3CC925353DF5E19F72894BB"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\GroupOperations.cs",
+        "Hash":  "FE415F2F56CEBC86A6C594C29CD584DC8D051A4B7A55094FFD51FF05153E7227"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\GroupPhotoReview.cs",
+        "Hash":  "DB586184AC86F70A5418E44C346446C20F956A06FCFAE126A2EEB5D8B0F1D3F2"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\GroupRecoveryForm.cs",
+        "Hash":  "D5BB03615D185E75E8787BE695E64AA195D3CF625E4386FD68CBE18A732D7EF2"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\HandoffAutomation.cs",
+        "Hash":  "862B4BBC98811F7417C37097C2C942B07FC95A35192BCAAA521BC3C7C138E33A"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\HandoffConnection.cs",
+        "Hash":  "1533C1E2DA4ED61A6BC1F1436ECC43893C69F307DB1C22EBB70B9B10163F87A5"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\HandoffReceiver.cs",
+        "Hash":  "A1B2825161F9A03B4556569449778811C028FCB374CBE065F0A84353DC39F1BE"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\InformationStripForm.cs",
+        "Hash":  "12AFE464BE83CBCB85E0CF1CD13548E9433B255380D9DF51CE7D5F906B0EF949"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\InformationTask.cs",
+        "Hash":  "9AB3E2CA4A83247F15C2CF85A1611AC933C6799F499D7DF838A10952BE914140"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\LocalMaintenance.cs",
+        "Hash":  "E53766CD463A4CB23891EDC5327AF6BE9094B87E0D1421B97656E8020CC26C4C"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\ManagementActions.cs",
+        "Hash":  "07E214C37D7AF2AB5FF461DD167FC0ED8546F15F623B10B024233C33229CFDEA"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\ManagementBrowse.cs",
+        "Hash":  "3F0DF3AB3027A763CAF1A1890B12C5F082881CFC65A1DCE4E6B917399F67EF11"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\ManagementDrafts.cs",
+        "Hash":  "546010CD1D0B871A6D7593790CDE201202F2BA01A199C2A391A3AB8724F1E592"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\ManagementEditing.cs",
+        "Hash":  "FE004DC8ABC925D02CF3EC2D6D3ADF9E939F6940C94228D604E14EAB4E586B76"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\ManagementForm.Connection.cs",
+        "Hash":  "B4BA7F6A4BF83AAEEBE905F4F063E7A8673CC7AE93A245EDF52BE527288D8C90"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\ManagementForm.cs",
+        "Hash":  "A65281E1EC05E238DD2563C4A57BBE83532F0B09B898C4A50A724BA45DA6E068"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\ManagementGroups.cs",
+        "Hash":  "66A9803527B0EBDE614B7864F3C80092B2BEC891C7C0CBD0CB6B5FF4F514FC6B"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\ManagementLayout.cs",
+        "Hash":  "D279AF156E15E0C9B45D4AB4B213745FE97FA6203D88B34DD9E1C6117BD3DCDE"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\ManagementSettings.cs",
+        "Hash":  "5E60CF34010FDC69A492EA5D698ED708A951D6020BD278A2079BA4D1385E568A"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\ManagementShortcuts.cs",
+        "Hash":  "1636A198958332017A560759E8657C1034768815637AC0DDE03B42C771B662F3"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\ManagementWorkspace.cs",
+        "Hash":  "EAEBE5892CFDF1B4842C393D384CD5DC1462653043F2E8FE93C21531F0C5AD22"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\PhotoApi.cs",
+        "Hash":  "96FE00996216F93C307D1900F05A46128B19A75CE83A482EE0B9D89A3A4CC6FB"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\PhotoPreviews.cs",
+        "Hash":  "7EA4F3605DA5F35230AD770F771F97474827387D31502552B85E3C3208AFAF8B"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\PhotoWorkspace.cs",
+        "Hash":  "9F5530A10591E25220EED7911ECD7CE1F0429FA5C7A842AF232FE9A7FBB60F27"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\Program.cs",
+        "Hash":  "3584555220BBE1A84D1B5299C5C29AB71471BAB7749F7A41A9B4638038714C96"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\ProgressForm.cs",
+        "Hash":  "AD6351AAEED2A38BE31835E8CDA943A2EAE60869D0DC44133FCE8EE29221DCBB"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\QueueReadCache.cs",
+        "Hash":  "60CE61176018640809D998EED2843F01E95AC7DE7968E47E53D86046F49EE2F1"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\QueueStore.cs",
+        "Hash":  "5727838FAEC2645F1B322EF8FF82C027848AE3664DC9E54F72CF97DAB27CB67C"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\QueueWorker.cs",
+        "Hash":  "3EBBAD3399B4F598F1FE5FC50D93399F5D346A159C959BC38B3A37554F2E380D"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\RemotePhotos.cs",
+        "Hash":  "E33023ACA2DBFFA579B45C163CAAFF47F818467F058DFA953D970F86292A1AA3"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\Settings.cs",
+        "Hash":  "50BF7AE0A538E683FA3A00085EBA08E96354E3659BAF7F1EA5256D07FFC735ED"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\TrayDeliveryService.cs",
+        "Hash":  "1C82D1C7642D3C8CECFC452B6283F0C19129746B101B5F2AAC6354B9093E714A"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\UiDialog.cs",
+        "Hash":  "558E714C02151E3905D33FA71EB922CDB03A8038F34E70F3A27184D5C1585A6F"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\UiKit.cs",
+        "Hash":  "33FB98C8511FEB9DDC5063FBD5C70E5268ED50858D1D90CE1B0B5BDCC2E4248B"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\UiMotion.cs",
+        "Hash":  "5304C9A0747C900C49462AF74F99F6173A39F10AF1F4D47FA484F2B7E84D8B8F"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\UtilityForms.cs",
+        "Hash":  "1908D4911526CCCB900058CDE5EAE8650E571C63F5BC113C137DA9034422C40E"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\desktop\\PhotoImporter\\WorkerWake.cs",
+        "Hash":  "65C4012965E47D1F8468213B85E154D676A27EA6E8928E85F91EF31FFFAD4A79"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\tests\\desktop\\Stage4R2Probe.cs",
+        "Hash":  "5DD7A1DCCE11798DA1CDDE8B3942EF8BA80A63E6E15FA149CD0C22C4C4810AB3"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\tests\\desktop\\Stage6DraftProbe.cs",
+        "Hash":  "48D83C50D62E23E11CD01E9D99D217392190F6B7648F5174D3864B2042579221"
+    },
+    {
+        "Path":  "D:\\software\\yx Applets\\tests\\desktop\\PluginAutomationProbe.cs",
+        "Hash":  "65526397E760B00A758DCDC7533A7FD1B0D56BB5BB2D9074AF05F8160DDEF0DA"
+    }
+]

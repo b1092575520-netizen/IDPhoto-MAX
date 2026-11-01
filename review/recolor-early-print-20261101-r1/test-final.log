@@ -1,0 +1,249 @@
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345961000,"completedAt":1791345961000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-6v9ynlmd","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-uw8ao3yd","cancelled":false},{"at":1791345720000,"action":"permission","jobId":"muxkznpc-7snzmog9","cancelled":false},{"at":1791345840000,"action":"permission","jobId":"muxl28ao-ydcdvoq7","cancelled":false},{"at":1791345960000,"action":"permission","jobId":"muxl4sw0-ex53oqtq","cancelled":false},{"at":1791345960000,"action":"permission","jobId":"muxl4sw0-lsb1naqc","cancelled":false}]}
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002759","uploadStartedAt":1791345961000,"completedAt":1791345961000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-6v9ynlmd","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-uw8ao3yd","cancelled":false},{"at":1791345720000,"action":"permission","jobId":"muxkznpc-7snzmog9","cancelled":false},{"at":1791345840000,"action":"permission","jobId":"muxl28ao-ydcdvoq7","cancelled":false},{"at":1791345960000,"action":"permission","jobId":"muxl4sw0-ex53oqtq","cancelled":false},{"at":1791345960000,"action":"permission","jobId":"muxl4sw0-lsb1naqc","cancelled":false}]}
+[REP-01 slow code] {"kind":"unknown","started":1791345600000,"completed":1791345961000,"permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-6v9ynlmd","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-uw8ao3yd","cancelled":false},{"at":1791345720000,"action":"permission","jobId":"muxkznpc-7snzmog9","cancelled":false},{"at":1791345840000,"action":"permission","jobId":"muxl28ao-ydcdvoq7","cancelled":false},{"at":1791345960000,"action":"permission","jobId":"muxl4sw0-ex53oqtq","cancelled":false},{"at":1791345960000,"action":"permission","jobId":"muxl4sw0-lsb1naqc","cancelled":false}],"before":{"opens":0,"renders":6,"saves":15,"exports":1,"permissions":6},"after":{"opens":0,"renders":6,"saves":15,"exports":1,"permissions":6}}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345961000,"completedAt":1791345961000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-t0nxzdq7","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-gxkzl4he","cancelled":false},{"at":1791345720000,"action":"permission","jobId":"muxkznpc-1ezrvw7y","cancelled":false},{"at":1791345840000,"action":"permission","jobId":"muxl28ao-tdkztr1z","cancelled":false},{"at":1791345960000,"action":"permission","jobId":"muxl4sw0-9tx5nsb0","cancelled":false},{"at":1791345960000,"action":"permission","jobId":"muxl4sw0-w92nv1vd","cancelled":false}]}
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002759","uploadStartedAt":1791345961000,"completedAt":1791345961000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-t0nxzdq7","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-gxkzl4he","cancelled":false},{"at":1791345720000,"action":"permission","jobId":"muxkznpc-1ezrvw7y","cancelled":false},{"at":1791345840000,"action":"permission","jobId":"muxl28ao-tdkztr1z","cancelled":false},{"at":1791345960000,"action":"permission","jobId":"muxl4sw0-9tx5nsb0","cancelled":false},{"at":1791345960000,"action":"permission","jobId":"muxl4sw0-w92nv1vd","cancelled":false}]}
+[REP-01 slow code] {"kind":"TASK_PENDING","started":1791345600000,"completed":1791345961000,"permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-t0nxzdq7","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-gxkzl4he","cancelled":false},{"at":1791345720000,"action":"permission","jobId":"muxkznpc-1ezrvw7y","cancelled":false},{"at":1791345840000,"action":"permission","jobId":"muxl28ao-tdkztr1z","cancelled":false},{"at":1791345960000,"action":"permission","jobId":"muxl4sw0-9tx5nsb0","cancelled":false},{"at":1791345960000,"action":"permission","jobId":"muxl4sw0-w92nv1vd","cancelled":false}],"before":{"opens":0,"renders":6,"saves":15,"exports":1,"permissions":6},"after":{"opens":0,"renders":6,"saves":15,"exports":1,"permissions":6}}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-knvirc5j","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-amynfdnr","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-81tp0qmy","cancelled":false}]}
+[0.6.30 evidence] {"scenario":"edge","task":"0000000000000000000000000000273b","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-knvirc5j","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-amynfdnr","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-81tp0qmy","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-smyqsb0z","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-irs8jnds","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"#1","task":"00000000000000000000000000002723","uploadStartedAt":1791345605000,"completedAt":1791345605000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-hhs3unes","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-y8u5tkpo","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence #2] [{"at":1791345600000,"action":"permission","jobId":"muxkx340-ydxzo9j3","cancelled":false},{"at":1791345600000,"action":"query","ids":["00000000000000000000000000002711"]},{"at":1791345600000,"action":"permission","jobId":"muxkx340-odk44lju","cancelled":true}]
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"#3","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-mv76e616","cancelled":true},{"at":1791345600000,"action":"permission","jobId":"muxkx340-pcavsmxu","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-n938c6o6","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"#4","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-2m06onwf","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-l76zrbyf","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-io8pfod2","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence #5] {"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-6dq1nw0y","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-9ic9bhca","cancelled":false}],"at":1791345600000,"upload":"stopped: original code invalid, no manifest handed off"}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"#6","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-szy11trp","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-dnqe7521","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"#7","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-ggqyoi08","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-39q80otn","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002711","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-5d23gn17","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence #8] {"clock":"simulated","ordinaryAndFirst":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-0qaw2u6u","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-hy9mmfns","cancelled":false}],"multi":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-1r3ue0px","cancelled":false},{"at":1791345600000,"action":"query","ids":["00000000000000000000000000002711"]},{"at":1791345600000,"action":"permission","jobId":"muxkx340-rd6od6jx","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-bqr0fp3f","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-csvqud15","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-2009uzl7","cancelled":false}]}
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002731","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-bqr0fp3f","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-csvqud15","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-2009uzl7","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-xywlsieg","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-d7w5klyw","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-2u0v2t14","cancelled":true}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002730","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-vj9fczfk","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-2hps8ab0","cancelled":true},{"at":1791345600000,"action":"permission","jobId":"muxkx340-harw8hrh","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+✔ REP-01 R-01/R-06/R-07: same and different specifications print during unknown (49.1812ms)
+✔ REP-01 R-01/R-06/R-07: same and different specifications print during TASK_PENDING (28.5769ms)
+✔ REP-01 red-white-blue consecutive clicks queue exactly one of each, R-01/R-08 (18.6357ms)
+✔ REP-01 R-08: failed foreground click never leaves a Photoshop recovery job (20.9521ms)
+✔ REP-01 failed later click at ratio retains bytes without a late Photoshop redo (8.6821ms)
+✔ REP-01 failed later click at render retains bytes without a late Photoshop redo (13.3647ms)
+✔ REP-01 fallback rejects real invalidity: unknown (16.3528ms)
+✔ REP-01 fallback rejects real invalidity: offline (17.6947ms)
+✔ REP-01 fallback rejects real invalidity: consumer (14.5878ms)
+✔ REP-01 fallback rejects real invalidity: source (14.659ms)
+✔ REP-01 fallback rejects real invalidity: cancelled (20.4756ms)
+✔ REP-01 fallback rejects real invalidity: withdrawn (15.6726ms)
+✔ REP-01 fallback rejects real invalidity: conflict (11.4319ms)
+✔ REP-01 fallback rejects real invalidity: code (14.8165ms)
+✔ REP-01 fallback rejects real invalidity: context (17.102ms)
+✔ REP-01 fallback rejects real invalidity: delivery (13.5042ms)
+✔ REP-01 fallback rejects real invalidity: child-conflict (13.6191ms)
+✔ 0.6.30 #1 red then white immediately: same dedicated code, one permission, file-only upload (9.0016ms)
+✔ 0.6.30 #2 denied white permission stops the order across restart (8.7902ms)
+✔ 0.6.30 #3 an unrelated denial does not delay file-only upload (10.6492ms)
+✔ 0.6.30 #4 repeated white click prints twice and uploads one photo (10.1196ms)
+✔ 0.6.30 #5 cancelling the parent after early print never silently changes the printed code (9.3559ms)
+✔ 0.6.30 #6 same background different size also prints before ready (9.6718ms)
+✔ 0.6.30 #7 restart before and after manifest handoff preserves bytes and exactly one completion (17.3174ms)
+✔ 0.6.30 unprinted local pending task is stopped before a fresh click; unknown backend cannot authorize early print (7.1421ms)
+✔ 0.6.30 accepted pending task is reused for the next click instead of duplicated (8.1729ms)
+✔ 0.6.30 #8 ordinary mode, first coded order and multi-size preserve the normal output dimensions (15.0484ms)
+✔ 0.6.30 a pending click that failed before JPEG creation can be superseded safely (6.1379ms)
+✔ 0.6.30 cancelled parent before the click creates a new order with a new code (7.0449ms)
+✔ 0.6.30 several backgrounds can print while the first and earlier uploads are still preparing (11.6058ms)
+✔ 0.6.30 unknown or disconnected target never prints a locally remembered code (13.4306ms)
+✔ 0.6.30 damaged artifacts, markers, source bindings and changed codes stop file-only recovery (53.93ms)
+✔ 0.6.30 duplicate cancellation keeps the previously printed photo queued, first cancellation allows another click (22.7422ms)
+✔ 0.6.30 a receipt for another code never supplies the early print's dedicated link (8.0412ms)
+✔ offline electronic work saves immutable context and photo before handshake; reconnect resumes the same task and bytes (7.4833ms)
+✔ unfinished offline work does not block another reliable original or replace its saved pixels (7.9662ms)
+✔ operator stopping a code wait persists across reload and excludes the task from automatic output (4.4101ms)
+✔ automatic code polling keeps one nonce within its window and defers Photoshop work until confirmed (7.7547ms)
+✔ an output-started marker protects an interrupted task from repeated rendering or printing (7.5116ms)
+✔ a persisted complete signal reconciles a stale pending index after reload without outputting again (5.814ms)
+✔ recovered printing persists a notification and prints once only after an explicit click (11.9587ms)
+✔ simultaneous explicit recovery-print clicks have one durable output owner (9.7137ms)
+✔ tampered recovery notification fingerprints cannot expose a print action (8.3517ms)
+✔ delayed storage reads cannot let a second print begin after the first operation releases its owner (13.8343ms)
+✔ a workflow printer failure rejects success and persists an unconfirmed state without automatic retries (10.0857ms)
+✔ a reprint failure is reported after it happens, but an old one no longer greets every startup (10.2715ms)
+✔ a skipped printer result is not reported as a submitted print (8.0593ms)
+✔ a bad old notice token does not hide another customer's valid recovered print notice (12.457ms)
+✔ a corrupt old notice is isolated while later valid notices remain actionable (11.4516ms)
+✔ every damaged notice retains a diagnostic before the next valid customer is offered (16.0278ms)
+✔ an unavailable old task directory is retained and isolated so another pending original can recover (12.2468ms)
+✔ an interrupted recovered print remains visible as unconfirmed and cannot be resubmitted (9.8418ms)
+✔ a manifest the delivery manager rejected is parked and never asked for a code again (6.8959ms)
+✔ a rejection written while waiting ends the wait at once with the real reason (4.238ms)
+✔ a failed recovery print reports the real cause instead of a completed-task refusal (10.3881ms)
+✔ a recovered print reuses the code its recovery confirmed minutes ago instead of waiting on the delivery manager (9.5788ms)
+✔ a sheet that fails while drawing the info bar is redone in the background and then offered for printing (9.0515ms)
+✔ a drawing that keeps failing stops after two background redos and stays locked (9.4137ms)
+✔ a task locked only by its marker goes back to the queue once an abort record replaces the marker (10.8515ms)
+✔ Esc during a layout parks the order: no background redo, and the same photo can be laid out again (12.6713ms)
+✔ Esc in the panel stops the run at its next step and parks the order (5.9296ms)
+✔ Esc during a background redo parks it instead of starting it again (12.1501ms)
+✔ after 阻止 the background waits ten minutes, and an order it finished meanwhile offers no print (8.8432ms)
+✔ a background '可以打印' is retired once the same code and size is printed from the panel (7.1422ms)
+✔ an order cancelled in the delivery manager stops automatic recovery instead of asking every minute (10-28) (8.0575ms)
+✔ a withdrawal recorded in receipt.json stops recovery before another code request is written (5.9685ms)
+✔ a cancel answered while waiting ends the wait at once and parks the order (3.5378ms)
+✔ an exact legacy capture key is retained across the identity upgrade, and multiple matches stop (5.7622ms)
+✔ 1寸 and 标准2寸 deliver the same saved photo, so they share one specification (3.7211ms)
+✔ different reliable originals sharing a filename never borrow a previous delivery or member (2.7415ms)
+✔ same original and specification replace only the verified current file with its original name (4.5098ms)
+✔ a different background appends to the same verified member without replacing the original (3.4654ms)
+✔ retired original codes create a fresh delivery without reviving the old file or member (2.8053ms)
+✔ a trusted withdrawn or cancelled predecessor starts fresh but frozen records remain protected (6.2804ms)
+✔ unknown or blocked predecessor never silently guesses a new customer (4.401ms)
+✔ same-specification replacement refuses ambiguous file ownership (2.8007ms)
+✔ nonce, fingerprint and consumer mismatches cannot authorize an automation result (9.531ms)
+✔ an old backend capability refuses even a fresh automatic task before a manifest is accepted (1.1403ms)
+✔ the most recent matching specification remains replaceable beyond a 32-task query window (37.5686ms)
+✔ companion merge reuses the earliest original customer's code and exact current versions (6.3713ms)
+✔ a merge result arriving after explicit companion close reconciles without reopening (6.0181ms)
+✔ a merge result after twenty minutes of idle time reconciles without activating an expired session (5.3169ms)
+✔ a single selected customer cannot reactivate a companion closed during its initial query (3.5939ms)
+✔ opening records its activation before waiting for a connection and respects a close after reload (4.314ms)
+✔ opening an already active empty companion preserves the same activation session (1.7674ms)
+✔ a closed merge intent remains closed when its original operation is reconciled after reload (8.6132ms)
+✔ a legacy merge intent without an activation session can reconcile but never activate companions (6.5559ms)
+✔ a late merge cannot overwrite another active companion session opened after its close (5.2478ms)
+✔ a timed-out merge persists one intent across reload and protects its sources without blocking an independent customer (8.5055ms)
+✔ an unresolved active companion merge keeps a new original pending without creating an independent delivery (7.0941ms)
+✔ an original accepted while a companion merge is waiting still restores to its merged root after close (7.6223ms)
+✔ a confirmed merge preserves new originals registered in the same active session while awaiting its result (5.5023ms)
+✔ retrying the same timed-out merge reuses its operation and clears intent only after confirmed convergence (8.4682ms)
+✔ a previous task without a code is queried without a fabricated code binding (1.9381ms)
+✔ a companion group's first pending task remains its anchor before code confirmation (1.6519ms)
+✔ a previously standalone task's delayed confirmation cannot join a later companion group (1.7125ms)
+✔ delayed confirmation from a closed group cannot change a new group opened in the same millisecond (1.9071ms)
+✔ the recent companion picker drops cancelled, retired and unverified deliveries after refreshing (22.9105ms)
+✔ a retired original alias cannot be revived by repeated metadata refreshes to a different primary code (7.3556ms)
+✔ repeated code confirmation retains the immutable original binding code (3.0812ms)
+✔ pickup-code failure blocks canvas, archive, completion and print, cleaning only owned copies (9.4541ms)
+✔ a confirmed code reaches the strip and prints once even if later completion persistence fails (1.9069ms)
+✔ ordinary layout never invokes delivery (1.3379ms)
+✔ several sizes of one customer each print a sheet with one shared code; the same shape is delivered once (2.4211ms)
+✔ a different shape prints at once with the shared code while the first photo is still uploading (1.8236ms)
+✔ a later size never starts a delivery of its own after the first size lost its code (1.2309ms)
+✔ the sheet is placed while the delivery manager answers, and the code reaches it afterwards (5.4191ms)
+✔ the layout task owns a successful template transaction and closes its processed photo (1.1511ms)
+✔ a failed layout closes both documents and the task continues with later templates (1.1162ms)
+✔ an export failure remains a successful layout result (1.1593ms)
+✔ visual acceptance never calls JPG or NAS export (1.4333ms)
+✔ cancellation stops later templates before they can export or print (1.4875ms)
+✔ workflow rejects a processed document wrapper sharing the original ID without cleanup (0.9457ms)
+✔ all templates share one original analysis taken before the first crop (1.0525ms)
+✔ a source-document mismatch stops before crop, export and print (1.066ms)
+✔ historical source leaves every information bar blank while preserving layout (0.9581ms)
+✔ external/history/unknown ordinary multi-template runs never render any strip or contact delivery, even offline (3.7842ms)
+✔ plugin-export reason keeps ordinary layout blank and never starts delivery (1.7707ms)
+✔ confirmed historical layout shows a coded strip with the real or unknown date and does not change archive metadata (4.2901ms)
+✔ quick print submits each successful layout once and keeps the final document open (1.5768ms)
+✔ a blocked DS-RX1 print remains a successful layout and later templates continue (1.0215ms)
+✔ a DS-RX1 driver error is isolated from layout and JPG export (0.923ms)
+✔ archive commit and duplicate hide piggyback on exactly one print request per layout (2.2543ms)
+✔ a failed combined launch never falls back to a second permission request (1.1816ms)
+✔ cancelling combined print stops later templates and cleans only the processed copy (1.8751ms)
+✔ photos from other cameras get no larger saved copy; shop photos still do, and both copies close together (2.7571ms)
+✔ the panel's reading of the original (or the background the operator picked) is kept, not taken again (1.1771ms)
+✔ the per-order link follows its code to every size, including a shared and an early-printed one (3.6317ms)
+✔ a sheet without a per-order link passes none, and ordinary sheets never get one (3.9658ms)
+✔ 本店片 works the same across several sizes: one shared code, every sheet has its strip, each shape archived once (10-31) (1.602ms)
+ℹ tests 130
+ℹ suites 0
+ℹ pass 130
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 927.7258

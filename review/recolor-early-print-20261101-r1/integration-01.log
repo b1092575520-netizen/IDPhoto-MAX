@@ -1,0 +1,8 @@
+[print] timing ms: jpeg=1 job=0 launch=1 bridge=0
+[print] timing ms: jpeg=0 job=1 launch=1 bridge=0
+[print] timing ms: jpeg=1 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=1 launch=0 bridge=0
+Error: 原交付尚未核对，请等待原任务，不会重复建单
+    at D:\software\IDPhoto-MAX\review\recolor-early-print-20261101-r1\verify-integration.cjs:144:124
+    at async until (D:\software\IDPhoto-MAX\review\recolor-early-print-20261101-r1\verify-integration.cjs:28:68)
+    at async main (D:\software\IDPhoto-MAX\review\recolor-early-print-20261101-r1\verify-integration.cjs:144:3)

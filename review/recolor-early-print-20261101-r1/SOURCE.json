@@ -1,0 +1,79 @@
+{
+  "version": "0.6.30-R1",
+  "base": "cba836746128b9f92cf81ccff887922b5320b25a",
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "93988a5f6aece2ae450ed16e9550b4d0b02f4347107e3d3cff9e8656769f59c7",
+      "worktreeSha256": "26c81e1c18043295f8cf9c7c98576f4fb17e62a1b9b6f19098ed2afbc8e41f3e",
+      "lfNormalizedSha256": "93988a5f6aece2ae450ed16e9550b4d0b02f4347107e3d3cff9e8656769f59c7"
+    },
+    {
+      "path": "DEV_PROGRESS.md",
+      "sha256": "e0ecbb9aec209b1be7e746d4733cb1baa75b1feab558599beb30cc7ddd6c0e0e",
+      "worktreeSha256": "1501c0bd2ec8be87c9f78484a52481fd42ac92166c3ad73fb0f5a16dcf6fb6e3",
+      "lfNormalizedSha256": "e0ecbb9aec209b1be7e746d4733cb1baa75b1feab558599beb30cc7ddd6c0e0e"
+    },
+    {
+      "path": "README.md",
+      "sha256": "ebee7c8613c5caddd4c2c23ca6ec4a50614712d82860b2a0c92fa8360e1c51eb",
+      "worktreeSha256": "6e815af13322c34ec43d4920a4ad6d7de40f7011405116207a957f22b756b8b2",
+      "lfNormalizedSha256": "ebee7c8613c5caddd4c2c23ca6ec4a50614712d82860b2a0c92fa8360e1c51eb"
+    },
+    {
+      "path": "docs/delivery-automation.md",
+      "sha256": "2c65754c0558572f2cedbac67083c9575903ca37049182b882df344fc2b39fe7",
+      "worktreeSha256": "3fc85671c65c302402ec5058004876cad92ae521135540dad8f4e74af4a582de",
+      "lfNormalizedSha256": "2c65754c0558572f2cedbac67083c9575903ca37049182b882df344fc2b39fe7"
+    },
+    {
+      "path": "docs/换底色直接打-2026-11-01.md",
+      "sha256": "0565947e9163752f7657ba062061844aab948651d4a42fcf0a0611628f4f30d7",
+      "worktreeSha256": "5950eb84d0e30f8acee36f93bde19060efb9ed4f3b6ad087d0424f6f7311ba06",
+      "lfNormalizedSha256": "0565947e9163752f7657ba062061844aab948651d4a42fcf0a0611628f4f30d7"
+    },
+    {
+      "path": "manifest.json",
+      "sha256": "7aa6cd802631635d2d34181e256a3f36209aa55e17402f718f580011e4348a43",
+      "worktreeSha256": "d316c41b31aa1acc4defca393b8c1b019f489a48d2410b91f73fe7e7934c7090",
+      "lfNormalizedSha256": "7aa6cd802631635d2d34181e256a3f36209aa55e17402f718f580011e4348a43"
+    },
+    {
+      "path": "package.json",
+      "sha256": "1b45c5d1a5836fe923d485535246d56cdf415f62c91aa6f8d6125fc96da4b4b1",
+      "worktreeSha256": "3f8846b6095a7479a3bfca30be8764be2351a08e90b7c92f1bbdd1cf36f09629",
+      "lfNormalizedSha256": "1b45c5d1a5836fe923d485535246d56cdf415f62c91aa6f8d6125fc96da4b4b1"
+    },
+    {
+      "path": "src/core/layoutWorkflow.js",
+      "sha256": "a28bee72b92018e4693c76adb11c22754acc29f373232854d11330cd688277ae",
+      "worktreeSha256": "755696316fb7db9b39aed61645b3d58ce17756ef7a5f336aba3d7afb504f3102",
+      "lfNormalizedSha256": "a28bee72b92018e4693c76adb11c22754acc29f373232854d11330cd688277ae"
+    },
+    {
+      "path": "src/photoshop/deliveryAutomationService.js",
+      "sha256": "c462f3413af59b7cb8cbcc5f21ee0fdc2cc52854b520b6d7b2062ecf25ce6a94",
+      "worktreeSha256": "a3a0f4a3da0fc664578405b340259eef1a15d104a6cba51651fcd53f4a66d29b",
+      "lfNormalizedSha256": "c462f3413af59b7cb8cbcc5f21ee0fdc2cc52854b520b6d7b2062ecf25ce6a94"
+    },
+    {
+      "path": "src/photoshop/deliveryService.js",
+      "sha256": "1cc413881f18f0ab4a0c2c14bb7b59519c293422ae44d330fab1e65accb127cd",
+      "worktreeSha256": "932165555565306402ef0b1063d6139dba0cc4b96953c699b559ff0578ed4cc3",
+      "lfNormalizedSha256": "1cc413881f18f0ab4a0c2c14bb7b59519c293422ae44d330fab1e65accb127cd"
+    },
+    {
+      "path": "tests/deliveryAutomationRecovery.test.js",
+      "sha256": "108a5959cc507807924a4ae8f9d566b6c2864a448e393c13909c3658f7f9a3ea",
+      "worktreeSha256": "ddb629b57869624be6a93a6a31d6374b4fcba9591e485983a2a2b776c96ddde2",
+      "lfNormalizedSha256": "108a5959cc507807924a4ae8f9d566b6c2864a448e393c13909c3658f7f9a3ea"
+    },
+    {
+      "path": "tests/layoutWorkflow.test.js",
+      "sha256": "db38bc87d55b55ea3ff9bd84abc4f296cbf1f8a44405154d9f29666e0e5ffd46",
+      "worktreeSha256": "db38bc87d55b55ea3ff9bd84abc4f296cbf1f8a44405154d9f29666e0e5ffd46",
+      "lfNormalizedSha256": "b6acd3763baf36b21ff78e48cbf4c7a61972ba919b086939f3cf3d04df01ceb4"
+    }
+  ],
+  "hashMeaning": "sha256 binds exact staged Git bytes; lfNormalizedSha256 normalizes CRLF for archive comparison; worktreeSha256 binds actual source bytes"
+}

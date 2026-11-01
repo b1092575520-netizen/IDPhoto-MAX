@@ -1,0 +1,119 @@
+{
+  "errors": [
+    "Error: 原交付尚未核对，请等待原任务，不会重复建单\n    at D:\\software\\IDPhoto-MAX\\review\\recolor-early-print-20261101-r1\\verify-integration.cjs:144:124\n    at async until (D:\\software\\IDPhoto-MAX\\review\\recolor-early-print-20261101-r1\\verify-integration.cjs:28:68)\n    at async main (D:\\software\\IDPhoto-MAX\\review\\recolor-early-print-20261101-r1\\verify-integration.cjs:144:3)"
+  ],
+  "events": [
+    {
+      "at": "2026-11-01T09:44:31.141Z",
+      "action": "worker-start",
+      "pid": 35700
+    },
+    {
+      "at": "2026-11-01T09:44:31.813Z",
+      "action": "render",
+      "code": "NCWYS6",
+      "link": {
+        "code": "NCWYS6",
+        "link": "",
+        "reason": "回执里没有专属链接"
+      }
+    },
+    {
+      "at": "2026-11-01T09:44:31.819Z",
+      "action": "hold-first-completion",
+      "task": "0579f73d348393d077916029933997a3"
+    },
+    {
+      "at": "2026-11-01T09:44:31.824Z",
+      "action": "permission",
+      "jobId": "mvxn8g9a-s2kvglrm",
+      "denied": false
+    },
+    {
+      "at": "2026-11-01T09:44:31.827Z",
+      "action": "red-printed",
+      "task": "0579f73d348393d077916029933997a3",
+      "code": "NCWYS6"
+    },
+    {
+      "at": "2026-11-01T09:44:32.925Z",
+      "action": "render",
+      "code": "NCWYS6",
+      "link": {
+        "code": "NCWYS6",
+        "link": "",
+        "reason": "回执里没有专属链接"
+      }
+    },
+    {
+      "at": "2026-11-01T09:44:32.939Z",
+      "action": "permission",
+      "jobId": "mvxn8h49-z0y84axw",
+      "denied": false
+    },
+    {
+      "at": "2026-11-01T09:44:32.943Z",
+      "action": "white-printed",
+      "task": "9430514c8a3614b03375a5f91f1f9fab",
+      "code": "NCWYS6",
+      "clickElapsedMs": 1116
+    },
+    {
+      "at": "2026-11-01T09:44:32.943Z",
+      "action": "release-red-completion"
+    },
+    {
+      "at": "2026-11-01T09:44:35.228Z",
+      "action": "hold-child-registration",
+      "task": "9430514c8a3614b03375a5f91f1f9fab"
+    },
+    {
+      "at": "2026-11-01T09:44:36.286Z",
+      "action": "render",
+      "code": "NCWYS6",
+      "link": {
+        "code": "NCWYS6",
+        "link": "",
+        "reason": "回执里没有专属链接"
+      }
+    },
+    {
+      "at": "2026-11-01T09:44:36.287Z",
+      "action": "permission",
+      "jobId": "mvxn8jpa-4bnbzfii",
+      "denied": false
+    },
+    {
+      "at": "2026-11-01T09:44:36.288Z",
+      "action": "repeat-in-handoff",
+      "elapsedMs": 1055
+    },
+    {
+      "at": "2026-11-01T09:44:36.720Z",
+      "action": "render",
+      "code": "NCWYS6",
+      "link": {
+        "code": "NCWYS6",
+        "link": "",
+        "reason": "回执里没有专属链接"
+      }
+    },
+    {
+      "at": "2026-11-01T09:44:36.725Z",
+      "action": "permission",
+      "jobId": "mvxn8k1g-3qs7fkug",
+      "denied": false
+    },
+    {
+      "at": "2026-11-01T09:44:36.727Z",
+      "action": "blue-in-handoff",
+      "task": "d8d058c03653c51916c9e4fa8d0037cd",
+      "elapsedMs": 439,
+      "code": "NCWYS6"
+    },
+    {
+      "at": "2026-11-01T09:44:37.372Z",
+      "action": "release-white-registration"
+    }
+  ]
+}

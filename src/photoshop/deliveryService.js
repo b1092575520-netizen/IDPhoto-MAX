@@ -237,13 +237,17 @@
       consumerId: connected.consumerId, sourceIdentity: connected.sourceIdentity, sourceRoot: sourceRoot.nativePath,
       code: "", fingerprint: "", status: {} };
     if (automaticPlan) task.automation = automaticPlan;
+    // Later print clicks may recover by files only. A failed foreground click
+    // must never turn into a delayed Photoshop layout/archive operation.
+    task.foregroundOnly = Boolean(automaticPlan && mode === "print" && automaticPlan.previousTaskIds.length);
     task.sourceRootToken = await fs().createPersistentToken(sourceRoot);
     task.outputOptions = outputSnapshot(outputOptions);
     task.dateText = historical ? window.IDPhotoSourceEligibilityService.captureDateText(docInfo.sourceMetadata) : window.IDPhotoDateService.formatDisplayDate();
     var context = JSON.stringify({ version: 1, id: id, outputId: output, docInfo: task.docInfo, mode: mode,
       template: task.template, settings: task.settings, historical: task.historical, dateText: task.dateText,
       consumerId: task.consumerId, sourceIdentity: task.sourceIdentity, sourceRoot: task.sourceRoot,
-      sourceRootToken: task.sourceRootToken, outputOptions: task.outputOptions, automation: task.automation || null });
+      sourceRootToken: task.sourceRootToken, outputOptions: task.outputOptions, automation: task.automation || null,
+      foregroundOnly: task.foregroundOnly });
     task.contextFingerprint = protocol().sha256(context);
     await writeAtomic(folder, "context.json", context);
     var taskToken = await fs().createPersistentToken(folder);
@@ -335,18 +339,41 @@
     saved.status = statusFile ? JSON.parse(await statusFile.read({ format: format(false) })) : {};
     return { task: saved, photo: prepared.photo };
   }
-  async function resolveDependencies(ids) {
+  async function resolveDependencies(ids, current) {
     var records = window.IDPhotoDeliveryAutomationService.store().tasks(), result = {};
     for (var id of ids) {
-      result[id] = id;
       var record = records.find(function (item) { return item.id === id; });
-      if (!record || !["pending", "retryable"].includes(record.state)) continue;
+      if (!record || !["pending", "retryable", "completed"].includes(record.state)) continue;
       var folder = await fs().getEntryForPersistentToken(record.token);
-      if (await optionalEntry(folder, "request.json")) continue;
+      if (!await optionalEntry(folder, "early-print.json")) continue;
       var saved = await preparedTask(folder), early = await readEarlyPrint(saved.task);
-      if (early && early.version === 2) result[id] = early.targetTaskId;
+      await earlyArtifacts(saved.task, early);
+      if (!saved.task.automation || saved.task.automation.sourceKey !== record.sourceKey || saved.task.automation.specKey !== record.specKey ||
+          saved.task.consumerId !== current.consumerId || saved.task.sourceIdentity !== current.sourceIdentity ||
+          pathKey(saved.task.sourceRoot) !== pathKey(current.sourceRoot))
+        throw new Error("先打原连接或原片绑定已变化，停止自动交付");
+      result[id] = early;
     }
     return result;
+  }
+  function receiving(summary) {
+    return summary && (summary.known === false && !summary.blocked || summary.known === true &&
+      summary.blocked === true && summary.errorCode === "TASK_PENDING" && !summary.deliveryId);
+  }
+  function verifyEarlyTarget(early, summary) {
+    // Production reports an owned, uploading append as blocked/TASK_PENDING
+    // even with a DeliveryId. It authorizes no output; recovery just waits for
+    // publication before resolving the next manifest/group version.
+    if (summary && summary.known && summary.blocked && summary.errorCode === "TASK_PENDING" && summary.deliveryId && summary.pendingBatch) {
+      var uploading = new Error("原自动修订仍在完成，保留本次任务，完成后自动继续。");
+      uploading.retryable = true; uploading.code = "AUTO_TARGET_PREPARING"; throw uploading;
+    }
+    if (!summary || !summary.known || summary.blocked) throw new Error("原交付尚未核对，请等待原任务，不会重复建单");
+    if (early.version !== 2 || summary.originalCodeActive === false || !["ready", "preparing"].includes(summary.status) ||
+        summary.code !== early.code || summary.contextKey !== early.contextKey || summary.deliveryId !== early.deliveryId)
+      throw window.IDPhotoDeliveryAutomationService.invalidEarly(early.code, summary.code);
+    protocol().requirePickupCode(summary.code);
+    return summary;
   }
   async function pendingClick(record, mode) {
     if (mode !== "print" || !["pending", "retryable"].includes(record.state))
@@ -371,7 +398,7 @@
       automation.store().markTask(task.id, { state: "stopped", error: "店员已重新排" });
       return null;
     }
-    if (early && summary && summary.known === false) summary = await automation.inspectTask(task, early.targetTaskId);
+    if (early && receiving(summary)) summary = await automation.inspectTask(task, early.targetTaskId);
     if (!summary || !summary.known || summary.blocked || summary.originalCodeActive === false ||
         !["ready", "preparing"].includes(summary.status)) {
       if (early && summary && summary.known && ["cancelled", "withdrawn"].includes(summary.status)) {
@@ -380,8 +407,9 @@
       throw new Error("原交付尚未核对，请等待原任务，不会重复建单");
     }
     protocol().requirePickupCode(summary.code);
-    if (early && (early.version !== 2 || summary.code !== early.code || summary.contextKey !== early.contextKey || summary.deliveryId !== early.deliveryId)) {
-      var changed = automation.invalidEarly(early.code, summary.code); automation.failure(task, changed); throw changed;
+    if (early) {
+      try { verifyEarlyTarget(early, summary); }
+      catch (changed) { automation.failure(task, changed); throw changed; }
     }
     if (early) await earlyArtifacts(task, early);
     task.code = summary.code; task.contextKey = summary.contextKey; task.deliveryId = summary.deliveryId;
@@ -934,6 +962,14 @@
     return "data:image/jpeg;base64," + chunks.join("") + part;
   }
   var primedTask = null;
+  async function retainForegroundFailure(task) {
+    if (!task || !task.foregroundOnly || task.preservePending || await optionalEntry(task.folder, "early-print.json")) return;
+    var store = window.IDPhotoDeliveryAutomationService.store(), record = store.tasks().find(function (item) { return item.id === task.id; });
+    if (!record || ["stopped", "completed"].includes(record.state)) return;
+    var requested = await optionalEntry(task.folder, "request.json");
+    store.markTask(task.id, { state: requested ? "blocked" : "stopped", error: requested ?
+      "前台出片未完成，保留原交接和照片，请人工核对" : "店员已重新排" });
+  }
   // After "阻止" in a permission box the background waits this long before new work.
   var DENIED_PAUSE_MS = 10 * 60 * 1000;
   function deniedAt() {
@@ -964,6 +1000,7 @@
       if (!await optionalEntry(folder, "request.json")) {
         var prepared = await preparedTask(folder); task = prepared.task;
         early = await readEarlyPrint(task);
+        if (task.foregroundOnly && !early) { await retainForegroundFailure(task); return null; }
         if (early) { await earlyArtifacts(task, early); task.earlyPrintBinding = early; }
         await writeAtomic(folder, "request.json", await preparedPayload(task, prepared.photo), false);
       }
@@ -976,6 +1013,7 @@
           throw new Error("原任务完成信号不匹配，停止自动恢复");
         automation.completed(task); return null;
       }
+      if (task.foregroundOnly && !early) { await retainForegroundFailure(task); return null; }
       if (!early && await optionalEntry(folder, "output-started.json")) throw new Error("原任务已有输出痕迹，请人工核对，避免重复打印");
       await originalPhoto(task);
       var rejected = await readRejection(task);
@@ -1460,7 +1498,8 @@
   }
   window.IDPhotoDeliveryService = { begin: begin, prepare: prepare, savePhoto: savePhoto, requestCode: requestCode,
     markEarlyPrint: markEarlyPrint, saveEarlyOutput: saveEarlyOutput, finishEarlyOutput: finishEarlyOutput,
-    entryForTarget: entryForTarget, resolveDependencies: resolveDependencies,
+    entryForTarget: entryForTarget, resolveDependencies: resolveDependencies, receiving: receiving,
+    verifyEarlyTarget: verifyEarlyTarget, retainForegroundFailure: retainForegroundFailure,
     archivePhoto: archivePhoto, complete: complete, electronic: electronic, multi: multi, regenerate: regenerate,
     receiveInformationTasks: receiveInformationTasks,
     pending: pending, retryPending: function (id) { return retryPending(id, false); }, deferPending: deferPending, startOutput: startOutput, abortOutput: abortOutput, notePrinted: notePrinted,

@@ -1,0 +1,11 @@
+{
+  "area": "D:\\software\\IDPhoto-MAX\\review\\recolor-early-print-20261101-r1\\integration-01",
+  "queueRoot": "D:\\software\\IDPhoto-MAX\\review\\recolor-early-print-20261101-r1\\integration-01\\queue",
+  "sourceRoot": "D:\\software\\IDPhoto-MAX\\review\\recolor-early-print-20261101-r1\\integration-01\\source",
+  "contextKey": "c0bf55c6a374197c5b11c333227708df373d76f54c94bf17efc056fd01eeab5b",
+  "samplePhoto": "D:\\software\\IDPhoto-MAX\\review\\recolor-early-print-20261101-r1\\integration-01\\sample.jpg",
+  "width": 80,
+  "height": 100,
+  "consumerId": "Local\\YxPhotoQueue-7b1f2494b95a3a569a15953b",
+  "sourceIdentity": "Local\\YxPhotoQueue-0783fb03d6de967c4357110c"
+}

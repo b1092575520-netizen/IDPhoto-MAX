@@ -1,0 +1,129 @@
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-r7cre8mh","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-gc52wpuy","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+✖ REP-01 R-01/R-06/R-07: same and different specifications print during unknown (41.5441ms)
+✖ REP-01 R-01/R-06/R-07: same and different specifications print during TASK_PENDING (9.9066ms)
+✖ REP-01 red-white-blue consecutive clicks queue exactly one of each, R-01/R-08 (10.0369ms)
+✖ REP-01 R-08: failed foreground click never leaves a Photoshop recovery job (14.1959ms)
+✔ REP-01 fallback rejects real invalidity: unknown (11.9297ms)
+✔ REP-01 fallback rejects real invalidity: offline (11.7924ms)
+✔ REP-01 fallback rejects real invalidity: consumer (11.9987ms)
+✔ REP-01 fallback rejects real invalidity: source (11.6005ms)
+✔ REP-01 fallback rejects real invalidity: cancelled (14.6547ms)
+✔ REP-01 fallback rejects real invalidity: withdrawn (13.0158ms)
+✔ REP-01 fallback rejects real invalidity: conflict (10.9284ms)
+✔ REP-01 fallback rejects real invalidity: code (14.7968ms)
+✔ REP-01 fallback rejects real invalidity: context (11.1013ms)
+✔ REP-01 fallback rejects real invalidity: delivery (12.3915ms)
+✔ REP-01 fallback rejects real invalidity: child-conflict (12.8721ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 11
+ℹ fail 4
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 287.4446
+
+✖ failing tests:
+
+test at tests\deliveryAutomationRecovery.test.js:227:3
+✖ REP-01 R-01/R-06/R-07: same and different specifications print during unknown (41.5441ms)
+  AssertionError [ERR_ASSERTION]: 原交付尚未核对，请等待原任务，不会重复建单
+  
+  false !== true
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:242:12)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests\deliveryAutomationRecovery.test.js:227:3
+✖ REP-01 R-01/R-06/R-07: same and different specifications print during TASK_PENDING (9.9066ms)
+  AssertionError [ERR_ASSERTION]: 原交付尚未核对，请等待原任务，不会重复建单
+  
+  false !== true
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:236:14)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests\deliveryAutomationRecovery.test.js:274:1
+✖ REP-01 red-white-blue consecutive clicks queue exactly one of each, R-01/R-08 (10.0369ms)
+  AssertionError [ERR_ASSERTION]: 原交付尚未核对，请等待原任务，不会重复建单
+  
+  false !== true
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:278:10)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests\deliveryAutomationRecovery.test.js:288:1
+✖ REP-01 R-08: failed foreground click never leaves a Photoshop recovery job (14.1959ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + '0000000000000000000000000000273b'
+  - null
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:297:10)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '0000000000000000000000000000273b',
+    expected: null,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

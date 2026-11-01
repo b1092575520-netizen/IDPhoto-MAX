@@ -1,0 +1,37 @@
+{
+  "passed": true,
+  "scope": "Developer verification only; REP-01 awaits independent review and Claude final",
+  "base": "cba836746128b9f92cf81ccff887922b5320b25a",
+  "version": "0.6.30",
+  "focusedTests": 130,
+  "newFormalTests": 17,
+  "fixedSourceTests": 497,
+  "releaseChecks": 6,
+  "integration": "integration-02/result.json",
+  "permissions": 4,
+  "backgroundDeltas": {
+    "opens": 0,
+    "renders": 0,
+    "psSaves": 0,
+    "exports": 0,
+    "activates": 0,
+    "permissions": 0
+  },
+  "publishedColors": [
+    "red",
+    "white",
+    "blue"
+  ],
+  "protectedFiles": 710,
+  "failuresPreserved": [
+    "test-before.log",
+    "test-after-01.log",
+    "integration-01.log",
+    "integration-01/failure.json"
+  ],
+  "installed": false,
+  "pushed": false,
+  "realPrinting": false,
+  "dailyQueueUsed": false,
+  "reviewThreadId": "01a19662-c7e4-7180-9030-5c1447afb764"
+}

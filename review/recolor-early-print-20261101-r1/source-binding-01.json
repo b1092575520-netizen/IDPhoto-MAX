@@ -1,0 +1,13 @@
+{
+  "firstAuditPassed": false,
+  "corrections": [
+    {
+      "path": "tests/layoutWorkflow.test.js",
+      "firstBindingPassed": false,
+      "expectedNormalized": "b6acd3763baf36b21ff78e48cbf4c7a61972ba919b086939f3cf3d04df01ceb4",
+      "actualGitBytes": "db38bc87d55b55ea3ff9bd84abc4f296cbf1f8a44405154d9f29666e0e5ffd46",
+      "reason": "Unchanged historical mixed line endings are kept verbatim in Git. No product/test file was rewritten."
+    }
+  ],
+  "finalBindingsPassed": true
+}

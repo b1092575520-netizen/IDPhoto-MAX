@@ -150,11 +150,25 @@
     if (connected.automationProtocol !== PROTOCOL) throw new Error("后台尚不支持自动交付，请使用本轮配套后台；原任务保留");
     if (task.sourceIdentity && task.sourceIdentity !== connected.sourceIdentity) throw new Error("原交接目录身份已变化，停止自动恢复");
     task.consumerId = connected.consumerId; task.sourceIdentity = connected.sourceIdentity;
-    var plan = task.automation, dependencies = service.resolveDependencies ? await service.resolveDependencies(plan.previousTaskIds) : {};
-    var ids = Array.from(new Set(plan.previousTaskIds.map(function (id) { return dependencies[id] || id; }).concat(plan.groupTaskIds)));
+    var plan = task.automation, dependencies = service.resolveDependencies ? await service.resolveDependencies(plan.previousTaskIds, task) : {};
+    var ids = Array.from(new Set(plan.previousTaskIds.concat(Object.keys(dependencies).map(function (id) {
+      return dependencies[id].targetTaskId;
+    }), plan.groupTaskIds)));
     if (ids.length > 32) throw new Error("原片规格记录超出核对范围，请在后台人工处理");
     var items = ids.length ? await query(ids, root, connected) : [];
-    var same = plan.previousTaskIds.map(function (id) { return items.find(function (item) { return item.taskId === (dependencies[id] || id); }); });
+    var waitingDependency = false;
+    var same = plan.previousTaskIds.map(function (id) {
+      var item = items.find(function (value) { return value.taskId === id; }), early = dependencies[id];
+      if (early) {
+        if (service.receiving(item)) {
+          item = items.find(function (value) { return value.taskId === early.targetTaskId; });
+          waitingDependency = true;
+        }
+        service.verifyEarlyTarget(early, item);
+        if (item.status !== "ready") waitingDependency = true;
+      }
+      return item;
+    });
     var original = null;
     for (var i = same.length - 1; i >= 0; i--) { original = requireItem(same[i]); if (original) break; }
     var group = plan.groupTaskIds.map(function (id) { return items.find(function (item) { return item.taskId === id; }); });
@@ -182,7 +196,7 @@
       mode: task.mode, title: String(task.docInfo.name || "电子成片").slice(0, 120), eligible: true, testOnly: true,
       contextFingerprint: task.contextFingerprint, files: [descriptor] };
     if (target) {
-      if (target.status !== "ready") {
+      if (target.status !== "ready" || waitingDependency) {
         protocol().requirePickupCode(target.code);
         if (!target.deliveryId || !target.contextKey) throw new Error("原交付连接绑定不完整，停止先打");
         task.preparingTarget = { taskId: target.taskId, code: target.code, deliveryId: target.deliveryId,

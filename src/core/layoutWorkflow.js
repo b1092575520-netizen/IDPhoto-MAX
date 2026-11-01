@@ -744,6 +744,10 @@
           successResults.push({ templateName: templateNames[index], result: singleResult });
         } catch (error) {
           failures.push({ templateName: templateNames[index], error: error });
+          if (runOptions.activeDeliveryTask && window.IDPhotoDeliveryService.retainForegroundFailure) {
+            try { await window.IDPhotoDeliveryService.retainForegroundFailure(runOptions.activeDeliveryTask); }
+            catch (retainError) { reportError("delivery-retain", retainError); }
+          }
           // A cancelled order is the staff's decision: the background must not redo it.
           if (isCancellation(error)) markDeliveryFailure(runOptions.activeDeliveryTask, error);
           reportError("execute " + templateNames[index], error);

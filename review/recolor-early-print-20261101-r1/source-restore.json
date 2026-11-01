@@ -1,0 +1,24 @@
+{
+  "base": "cba836746128b9f92cf81ccff887922b5320b25a",
+  "root": "D:\\software\\yx-work\\runs\\recolor-r1-swvrjulr",
+  "overlayPaths": [
+    "CHANGELOG.md",
+    "DEV_PROGRESS.md",
+    "docs/delivery-automation.md",
+    "src/core/layoutWorkflow.js",
+    "src/photoshop/deliveryAutomationService.js",
+    "src/photoshop/deliveryService.js",
+    "tests/deliveryAutomationRecovery.test.js"
+  ],
+  "excluded": [
+    "all historical review directories",
+    "_reference"
+  ],
+  "sourceBindings": 12,
+  "postVerifyDocumentationOnly": [
+    "docs/换底色直接打-2026-11-01.md"
+  ],
+  "verifyExitCode": 0,
+  "testsPassed": 497,
+  "releaseChecksPassed": 6
+}
