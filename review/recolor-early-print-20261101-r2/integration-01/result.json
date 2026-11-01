@@ -1,0 +1,471 @@
+{
+  "passed": true,
+  "boundary": "real Windows QueueWorker / disk queue and source / production JS service with isolated stdio storage; child registration visibility delayed by explicit filesystem double; Photoshop and print-bridge doubles; no cloud, no actual printing",
+  "threeColors": {
+    "passed": true,
+    "boundary": "real Windows QueueWorker / disk queue and source / production JS service with isolated stdio storage; child registration visibility delayed by explicit filesystem double; Photoshop and print-bridge doubles; no cloud, no actual printing",
+    "permissions": 4,
+    "redReleasedToAllPublishedMs": 8892,
+    "red": "1d5173963170021e1e7936b1f0e62044",
+    "white": "59e6c7327615ec4a0c05c814b365085d",
+    "blue": "6eb9f61a7268d9c09006b229cc18334c",
+    "code": "XK9598",
+    "psBeforeUpload": {
+      "opens": 0,
+      "renders": 4,
+      "psSaves": 13,
+      "exports": 1,
+      "activates": 16,
+      "permissions": 4
+    },
+    "psAfterUpload": {
+      "opens": 0,
+      "renders": 4,
+      "psSaves": 13,
+      "exports": 1,
+      "activates": 16,
+      "permissions": 4
+    },
+    "publishedPhotos": [
+      {
+        "id": "5996e060ebf31a94481d59616d047cd29eeacb5dabf56ab05466ecd34303f2eb",
+        "name": "photo-61981c772b71.jpg",
+        "sizeBytes": 767,
+        "checksum": "e72afa9b14a2cd8b568f439b9ecc7ba8f6dccefdb87d8ad5f1672932e2269bcb",
+        "width": 80,
+        "height": 100,
+        "status": "published",
+        "revision": 1,
+        "memberId": "12fbf22b29fe6a2db57536436da08f21ef1fae1c0d754b27e0f62529583d0579",
+        "slotId": "5996e060ebf31a94481d59616d047cd29eeacb5dabf56ab05466ecd34303f2eb",
+        "constraints": null,
+        "purpose": "Fixture",
+        "background": "red",
+        "receivedParts": []
+      },
+      {
+        "id": "fcb1c0ef2baea72e4ddd37dd7fcf77c4a8762b017fdc6102aa9bb35f43ad5f46",
+        "name": "photo-c0b52b144836.jpg",
+        "sizeBytes": 767,
+        "checksum": "e72afa9b14a2cd8b568f439b9ecc7ba8f6dccefdb87d8ad5f1672932e2269bcb",
+        "width": 80,
+        "height": 100,
+        "status": "published",
+        "revision": 1,
+        "memberId": "12fbf22b29fe6a2db57536436da08f21ef1fae1c0d754b27e0f62529583d0579",
+        "slotId": "fcb1c0ef2baea72e4ddd37dd7fcf77c4a8762b017fdc6102aa9bb35f43ad5f46",
+        "constraints": null,
+        "purpose": "Fixture",
+        "background": "white",
+        "receivedParts": []
+      },
+      {
+        "id": "b21a11360c1f528a88c65f2eb4736087c4ed6f88f2f4da06a89aaff3c993301f",
+        "name": "photo-99b2705337ac.jpg",
+        "sizeBytes": 767,
+        "checksum": "e72afa9b14a2cd8b568f439b9ecc7ba8f6dccefdb87d8ad5f1672932e2269bcb",
+        "width": 80,
+        "height": 100,
+        "status": "published",
+        "revision": 1,
+        "memberId": "12fbf22b29fe6a2db57536436da08f21ef1fae1c0d754b27e0f62529583d0579",
+        "slotId": "b21a11360c1f528a88c65f2eb4736087c4ed6f88f2f4da06a89aaff3c993301f",
+        "constraints": null,
+        "purpose": "Fixture",
+        "background": "blue",
+        "receivedParts": []
+      }
+    ],
+    "events": [
+      {
+        "at": "2026-11-01T10:16:29.174Z",
+        "action": "worker-start",
+        "pid": 46148
+      },
+      {
+        "at": "2026-11-01T10:16:29.825Z",
+        "action": "render",
+        "code": "XK9598",
+        "link": {
+          "code": "XK9598",
+          "link": "",
+          "reason": "回执里没有专属链接"
+        }
+      },
+      {
+        "at": "2026-11-01T10:16:29.830Z",
+        "action": "hold-first-completion",
+        "task": "1d5173963170021e1e7936b1f0e62044"
+      },
+      {
+        "at": "2026-11-01T10:16:29.834Z",
+        "action": "permission",
+        "jobId": "mvxodk7c-zrmwehhr",
+        "denied": false
+      },
+      {
+        "at": "2026-11-01T10:16:29.837Z",
+        "action": "red-printed",
+        "task": "1d5173963170021e1e7936b1f0e62044",
+        "code": "XK9598"
+      },
+      {
+        "at": "2026-11-01T10:16:30.674Z",
+        "action": "render",
+        "code": "XK9598",
+        "link": {
+          "code": "XK9598",
+          "link": "",
+          "reason": "回执里没有专属链接"
+        }
+      },
+      {
+        "at": "2026-11-01T10:16:30.681Z",
+        "action": "permission",
+        "jobId": "mvxodkuw-794yep09",
+        "denied": false
+      },
+      {
+        "at": "2026-11-01T10:16:30.683Z",
+        "action": "white-printed",
+        "task": "59e6c7327615ec4a0c05c814b365085d",
+        "code": "XK9598",
+        "clickElapsedMs": 846
+      },
+      {
+        "at": "2026-11-01T10:16:30.683Z",
+        "action": "release-red-completion"
+      },
+      {
+        "at": "2026-11-01T10:16:32.319Z",
+        "action": "hold-child-registration",
+        "task": "59e6c7327615ec4a0c05c814b365085d"
+      },
+      {
+        "at": "2026-11-01T10:16:33.184Z",
+        "action": "render",
+        "code": "XK9598",
+        "link": {
+          "code": "XK9598",
+          "link": "",
+          "reason": "回执里没有专属链接"
+        }
+      },
+      {
+        "at": "2026-11-01T10:16:33.185Z",
+        "action": "permission",
+        "jobId": "mvxodmsg-e0kcbvw6",
+        "denied": false
+      },
+      {
+        "at": "2026-11-01T10:16:33.186Z",
+        "action": "repeat-in-handoff",
+        "elapsedMs": 863
+      },
+      {
+        "at": "2026-11-01T10:16:33.809Z",
+        "action": "render",
+        "code": "XK9598",
+        "link": {
+          "code": "XK9598",
+          "link": "",
+          "reason": "回执里没有专属链接"
+        }
+      },
+      {
+        "at": "2026-11-01T10:16:33.813Z",
+        "action": "permission",
+        "jobId": "mvxodn9w-s3ot9tjf",
+        "denied": false
+      },
+      {
+        "at": "2026-11-01T10:16:33.814Z",
+        "action": "blue-in-handoff",
+        "task": "6eb9f61a7268d9c09006b229cc18334c",
+        "elapsedMs": 627,
+        "code": "XK9598"
+      },
+      {
+        "at": "2026-11-01T10:16:34.247Z",
+        "action": "release-white-registration"
+      },
+      {
+        "at": "2026-11-01T10:16:35.298Z",
+        "action": "plugin-runtime-restart"
+      },
+      {
+        "at": "2026-11-01T10:16:36.344Z",
+        "action": "file-completion",
+        "task": "59e6c7327615ec4a0c05c814b365085d"
+      },
+      {
+        "at": "2026-11-01T10:16:38.675Z",
+        "action": "file-completion",
+        "task": "6eb9f61a7268d9c09006b229cc18334c"
+      },
+      {
+        "at": "2026-11-01T10:16:39.575Z",
+        "action": "all-published",
+        "elapsedMs": 8892,
+        "permissions": 4
+      },
+      {
+        "at": "2026-11-01T10:16:42.412Z",
+        "action": "render",
+        "code": "ABCXV6",
+        "link": {
+          "code": "ABCXV6",
+          "link": "",
+          "reason": "回执里没有专属链接"
+        }
+      },
+      {
+        "at": "2026-11-01T10:16:42.418Z",
+        "action": "file-completion",
+        "task": "6bffbdd7b080e4a59b204eb8eb71f8da"
+      },
+      {
+        "at": "2026-11-01T10:16:42.421Z",
+        "action": "permission",
+        "jobId": "mvxodtx0-8zwewkvy",
+        "denied": false
+      },
+      {
+        "at": "2026-11-01T10:16:44.744Z",
+        "action": "render",
+        "code": "ABCXV6",
+        "link": {
+          "code": "ABCXV6",
+          "link": "",
+          "reason": "回执里没有专属链接"
+        }
+      },
+      {
+        "at": "2026-11-01T10:16:44.751Z",
+        "action": "file-completion",
+        "task": "8947df5d6b30eb00d152e0305b264c66"
+      },
+      {
+        "at": "2026-11-01T10:16:44.753Z",
+        "action": "permission",
+        "jobId": "mvxodvpt-ri5t4oo9",
+        "denied": false
+      }
+    ]
+  },
+  "withdrawn": true,
+  "attempts": [
+    {
+      "ok": true,
+      "newPermissionCalls": 1,
+      "code": "ABCXV6",
+      "deliveryId": "6f3099eca295d509e50f03edb017f3c4a620e7157eed49d29e22b51080713ff7",
+      "errors": [],
+      "tasks": [
+        {
+          "id": "1d5173963170021e1e7936b1f0e62044",
+          "token": "D:\\software\\IDPhoto-MAX\\review\\recolor-early-print-20261101-r2\\integration-01\\source\\2026\\2026-11\\2026-11-01\\1d5173963170021e1e7936b1f0e62044",
+          "sourceKey": "source-v2:[\"ISOLATED-CAMERA\",\"2026-11-01T12:34:56.1\"]",
+          "specKey": "variant-v1:80x100:red",
+          "name": "ISOLATED-test.jpg",
+          "mode": "print",
+          "state": "completed",
+          "legacy": false,
+          "code": "XK9598",
+          "bindingCode": "XK9598",
+          "target": {
+            "deliveryId": "12fbf22b29fe6a2db57536436da08f21ef1fae1c0d754b27e0f62529583d0579",
+            "contextKey": "c0bf55c6a374197c5b11c333227708df373d76f54c94bf17efc056fd01eeab5b",
+            "status": "preparing"
+          },
+          "error": "",
+          "createdAt": 1793528189189,
+          "updatedAt": 1793528189831,
+          "completedAt": 1793528189831
+        },
+        {
+          "id": "59e6c7327615ec4a0c05c814b365085d",
+          "token": "D:\\software\\IDPhoto-MAX\\review\\recolor-early-print-20261101-r2\\integration-01\\source\\2026\\2026-11\\2026-11-01\\59e6c7327615ec4a0c05c814b365085d",
+          "sourceKey": "source-v2:[\"ISOLATED-CAMERA\",\"2026-11-01T12:34:56.1\"]",
+          "specKey": "variant-v1:80x100:white",
+          "name": "ISOLATED-test.jpg",
+          "mode": "print",
+          "state": "completed",
+          "legacy": false,
+          "code": "XK9598",
+          "bindingCode": "XK9598",
+          "target": {
+            "deliveryId": "12fbf22b29fe6a2db57536436da08f21ef1fae1c0d754b27e0f62529583d0579",
+            "contextKey": "c0bf55c6a374197c5b11c333227708df373d76f54c94bf17efc056fd01eeab5b",
+            "status": "preparing"
+          },
+          "error": "原交付仍在准备，原任务完成后自动继续",
+          "createdAt": 1793528189839,
+          "updatedAt": 1793528196344,
+          "completedAt": 1793528196344
+        },
+        {
+          "id": "6eb9f61a7268d9c09006b229cc18334c",
+          "token": "D:\\software\\IDPhoto-MAX\\review\\recolor-early-print-20261101-r2\\integration-01\\source\\2026\\2026-11\\2026-11-01\\6eb9f61a7268d9c09006b229cc18334c",
+          "sourceKey": "source-v2:[\"ISOLATED-CAMERA\",\"2026-11-01T12:34:56.1\"]",
+          "specKey": "variant-v1:80x100:blue",
+          "name": "ISOLATED-test.jpg",
+          "mode": "print",
+          "state": "completed",
+          "legacy": false,
+          "code": "XK9598",
+          "bindingCode": "XK9598",
+          "target": {
+            "deliveryId": "12fbf22b29fe6a2db57536436da08f21ef1fae1c0d754b27e0f62529583d0579",
+            "contextKey": "c0bf55c6a374197c5b11c333227708df373d76f54c94bf17efc056fd01eeab5b",
+            "status": "preparing"
+          },
+          "error": "原自动修订仍在完成，保留本次任务，完成后自动继续。",
+          "createdAt": 1793528193188,
+          "updatedAt": 1793528198675,
+          "completedAt": 1793528198675
+        },
+        {
+          "id": "6bffbdd7b080e4a59b204eb8eb71f8da",
+          "token": "D:\\software\\IDPhoto-MAX\\review\\recolor-early-print-20261101-r2\\integration-01\\source\\2026\\2026-11\\2026-11-01\\6bffbdd7b080e4a59b204eb8eb71f8da",
+          "sourceKey": "source-v2:[\"ISOLATED-CAMERA\",\"2026-11-01T12:34:56.1\"]",
+          "specKey": "variant-v1:80x100:red",
+          "name": "ISOLATED-test.jpg",
+          "mode": "print",
+          "state": "completed",
+          "legacy": false,
+          "code": "ABCXV6",
+          "bindingCode": "ABCXV6",
+          "target": {
+            "deliveryId": "6f3099eca295d509e50f03edb017f3c4a620e7157eed49d29e22b51080713ff7",
+            "contextKey": "c0bf55c6a374197c5b11c333227708df373d76f54c94bf17efc056fd01eeab5b",
+            "status": "preparing"
+          },
+          "error": "",
+          "createdAt": 1793528201570,
+          "updatedAt": 1793528202418,
+          "completedAt": 1793528202418
+        }
+      ]
+    },
+    {
+      "ok": true,
+      "newPermissionCalls": 1,
+      "code": "ABCXV6",
+      "deliveryId": "6f3099eca295d509e50f03edb017f3c4a620e7157eed49d29e22b51080713ff7",
+      "errors": [],
+      "tasks": [
+        {
+          "id": "1d5173963170021e1e7936b1f0e62044",
+          "token": "D:\\software\\IDPhoto-MAX\\review\\recolor-early-print-20261101-r2\\integration-01\\source\\2026\\2026-11\\2026-11-01\\1d5173963170021e1e7936b1f0e62044",
+          "sourceKey": "source-v2:[\"ISOLATED-CAMERA\",\"2026-11-01T12:34:56.1\"]",
+          "specKey": "variant-v1:80x100:red",
+          "name": "ISOLATED-test.jpg",
+          "mode": "print",
+          "state": "completed",
+          "legacy": false,
+          "code": "XK9598",
+          "bindingCode": "XK9598",
+          "target": {
+            "deliveryId": "12fbf22b29fe6a2db57536436da08f21ef1fae1c0d754b27e0f62529583d0579",
+            "contextKey": "c0bf55c6a374197c5b11c333227708df373d76f54c94bf17efc056fd01eeab5b",
+            "status": "preparing"
+          },
+          "error": "",
+          "createdAt": 1793528189189,
+          "updatedAt": 1793528189831,
+          "completedAt": 1793528189831
+        },
+        {
+          "id": "59e6c7327615ec4a0c05c814b365085d",
+          "token": "D:\\software\\IDPhoto-MAX\\review\\recolor-early-print-20261101-r2\\integration-01\\source\\2026\\2026-11\\2026-11-01\\59e6c7327615ec4a0c05c814b365085d",
+          "sourceKey": "source-v2:[\"ISOLATED-CAMERA\",\"2026-11-01T12:34:56.1\"]",
+          "specKey": "variant-v1:80x100:white",
+          "name": "ISOLATED-test.jpg",
+          "mode": "print",
+          "state": "completed",
+          "legacy": false,
+          "code": "XK9598",
+          "bindingCode": "XK9598",
+          "target": {
+            "deliveryId": "12fbf22b29fe6a2db57536436da08f21ef1fae1c0d754b27e0f62529583d0579",
+            "contextKey": "c0bf55c6a374197c5b11c333227708df373d76f54c94bf17efc056fd01eeab5b",
+            "status": "preparing"
+          },
+          "error": "原交付仍在准备，原任务完成后自动继续",
+          "createdAt": 1793528189839,
+          "updatedAt": 1793528196344,
+          "completedAt": 1793528196344
+        },
+        {
+          "id": "6eb9f61a7268d9c09006b229cc18334c",
+          "token": "D:\\software\\IDPhoto-MAX\\review\\recolor-early-print-20261101-r2\\integration-01\\source\\2026\\2026-11\\2026-11-01\\6eb9f61a7268d9c09006b229cc18334c",
+          "sourceKey": "source-v2:[\"ISOLATED-CAMERA\",\"2026-11-01T12:34:56.1\"]",
+          "specKey": "variant-v1:80x100:blue",
+          "name": "ISOLATED-test.jpg",
+          "mode": "print",
+          "state": "completed",
+          "legacy": false,
+          "code": "XK9598",
+          "bindingCode": "XK9598",
+          "target": {
+            "deliveryId": "12fbf22b29fe6a2db57536436da08f21ef1fae1c0d754b27e0f62529583d0579",
+            "contextKey": "c0bf55c6a374197c5b11c333227708df373d76f54c94bf17efc056fd01eeab5b",
+            "status": "preparing"
+          },
+          "error": "原自动修订仍在完成，保留本次任务，完成后自动继续。",
+          "createdAt": 1793528193188,
+          "updatedAt": 1793528198675,
+          "completedAt": 1793528198675
+        },
+        {
+          "id": "6bffbdd7b080e4a59b204eb8eb71f8da",
+          "token": "D:\\software\\IDPhoto-MAX\\review\\recolor-early-print-20261101-r2\\integration-01\\source\\2026\\2026-11\\2026-11-01\\6bffbdd7b080e4a59b204eb8eb71f8da",
+          "sourceKey": "source-v2:[\"ISOLATED-CAMERA\",\"2026-11-01T12:34:56.1\"]",
+          "specKey": "variant-v1:80x100:red",
+          "name": "ISOLATED-test.jpg",
+          "mode": "print",
+          "state": "completed",
+          "legacy": false,
+          "code": "ABCXV6",
+          "bindingCode": "ABCXV6",
+          "target": {
+            "deliveryId": "6f3099eca295d509e50f03edb017f3c4a620e7157eed49d29e22b51080713ff7",
+            "contextKey": "c0bf55c6a374197c5b11c333227708df373d76f54c94bf17efc056fd01eeab5b",
+            "status": "preparing"
+          },
+          "error": "",
+          "createdAt": 1793528201570,
+          "updatedAt": 1793528202418,
+          "completedAt": 1793528202418
+        },
+        {
+          "id": "8947df5d6b30eb00d152e0305b264c66",
+          "token": "D:\\software\\IDPhoto-MAX\\review\\recolor-early-print-20261101-r2\\integration-01\\source\\2026\\2026-11\\2026-11-01\\8947df5d6b30eb00d152e0305b264c66",
+          "sourceKey": "source-v2:[\"ISOLATED-CAMERA\",\"2026-11-01T12:34:56.1\"]",
+          "specKey": "variant-v1:80x100:red",
+          "name": "ISOLATED-test.jpg",
+          "mode": "print",
+          "state": "completed",
+          "legacy": false,
+          "code": "ABCXV6",
+          "bindingCode": "ABCXV6",
+          "target": {
+            "deliveryId": "6f3099eca295d509e50f03edb017f3c4a620e7157eed49d29e22b51080713ff7",
+            "contextKey": "c0bf55c6a374197c5b11c333227708df373d76f54c94bf17efc056fd01eeab5b",
+            "status": "preparing"
+          },
+          "error": "",
+          "createdAt": 1793528203256,
+          "updatedAt": 1793528204751,
+          "completedAt": 1793528204751
+        }
+      ]
+    }
+  ],
+  "newCode": "ABCXV6",
+  "newDelivery": "6f3099eca295d509e50f03edb017f3c4a620e7157eed49d29e22b51080713ff7",
+  "permissions": 6,
+  "oldCodeRetired": true,
+  "newDeliveryPhotoCount": 1
+}

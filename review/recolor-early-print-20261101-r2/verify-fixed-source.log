@@ -1,0 +1,709 @@
+
+> idphoto-max-uxp@0.6.30 verify
+> powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1
+
+[1/6] Running automated tests
+
+> idphoto-max-uxp@0.6.30 test
+> node --test
+
+✔ the one-inch strip keeps the approved sizes: 13/12/11/10 pt beside a 430 px portrait (9.5331ms)
+✔ every template gets a readable strip and keeps all four pieces of shop information (6.8523ms)
+✔ every cut strip fits the bag: no edge longer than 8 cm, and it never leaves its free area (4.7998ms)
+✔ the US visa 5×5 strip stands upright on the left of the corner, 5 cm long, shrunk evenly (3.2418ms)
+✔ a missing phone number is shown as not filled in rather than invented (3.1989ms)
+✔ square side expansion overlaps the original image to hide vertical seams (4.1082ms)
+✔ the reported 1280x1918 portrait gets a scaled overlap on both square side fills (2.8392ms)
+✔ square top and bottom expansion uses the same overlap policy (1.3801ms)
+✔ delivery copy is captured after composite/crop but before print resize; electronic path never resizes (7.5266ms)
+✔ an aliased high-resolution result never closes or resizes the original (1.905ms)
+✔ a duplicate that aliases the original is never flattened, resized or closed (3.4738ms)
+✔ cancelling crop closes only the temporary document without a fallback crop (1.7762ms)
+✔ prepareSinglePhoto sends a rectangle object to the Photoshop DOM crop (1.5987ms)
+✔ prepareSinglePhoto rotates a portrait wedding source before resizing it (1.9271ms)
+✔ the Photoshop document-rotation fallback explicitly targets the active document (3.5421ms)
+✔ automatic mismatch without a detected subject crops instead of blindly expanding (1.5331ms)
+✔ automatic mismatch handling crops modest top and bottom background instead of expanding (1.6691ms)
+✔ automatic one-inch mode crops the empty sides without Select Subject or expansion (1.6537ms)
+✔ automatic square mode expands 阿根廷 instead of cropping it (1.5006ms)
+✔ automatic square mode expands 美签5.0 instead of cropping it (1.3937ms)
+✔ automatic square mode expands 美签5.1 instead of cropping it (1.3244ms)
+✔ manual content-aware mode still expands a modest mismatch (1.5495ms)
+✔ a larger save size takes its own copy of the same crop; the layout copy keeps the selected pixels (4.2521ms)
+✔ legacy generative strategy migrates to content-aware (3.1848ms)
+✔ saving the legacy generative strategy persists content-aware (1.3365ms)
+✔ existing direct-crop defaults migrate once to the automatic strategy (1.9328ms)
+✔ the settings UI does not advertise unavailable generative expansion (1.0935ms)
+✔ the retired crop-strategy settings strip is not rendered (0.3425ms)
+✔ a transformed vertical text layer keeps Photoshop's real point size (2.7743ms)
+✔ transformed bounds remain usable when Photoshop does not expose a point size (1.2352ms)
+✔ an unresolved companion merge cannot block automatic recovery of an independent original (8.0518ms)
+✔ a rejected recovered print keeps a diagnostic and does not display a success message (1.6926ms)
+✔ the main operation lock owns a recovered print through its awaited result (2.2911ms)
+✔ a 同行 group left open by an older version closes on the first tick, and its merge still reconciles (1.7598ms)
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345961000,"completedAt":1791345961000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-hxi417gl","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-tretpnw5","cancelled":false},{"at":1791345720000,"action":"permission","jobId":"muxkznpc-4xeu8ngt","cancelled":false},{"at":1791345840000,"action":"permission","jobId":"muxl28ao-17r7r42z","cancelled":false},{"at":1791345960000,"action":"permission","jobId":"muxl4sw0-7kicrbwx","cancelled":false},{"at":1791345960000,"action":"permission","jobId":"muxl4sw0-lw56s6s2","cancelled":false}]}
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002759","uploadStartedAt":1791345961000,"completedAt":1791345961000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-hxi417gl","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-tretpnw5","cancelled":false},{"at":1791345720000,"action":"permission","jobId":"muxkznpc-4xeu8ngt","cancelled":false},{"at":1791345840000,"action":"permission","jobId":"muxl28ao-17r7r42z","cancelled":false},{"at":1791345960000,"action":"permission","jobId":"muxl4sw0-7kicrbwx","cancelled":false},{"at":1791345960000,"action":"permission","jobId":"muxl4sw0-lw56s6s2","cancelled":false}]}
+[REP-01 slow code] {"kind":"unknown","started":1791345600000,"completed":1791345961000,"permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-hxi417gl","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-tretpnw5","cancelled":false},{"at":1791345720000,"action":"permission","jobId":"muxkznpc-4xeu8ngt","cancelled":false},{"at":1791345840000,"action":"permission","jobId":"muxl28ao-17r7r42z","cancelled":false},{"at":1791345960000,"action":"permission","jobId":"muxl4sw0-7kicrbwx","cancelled":false},{"at":1791345960000,"action":"permission","jobId":"muxl4sw0-lw56s6s2","cancelled":false}],"before":{"opens":0,"renders":6,"saves":15,"exports":1,"permissions":6},"after":{"opens":0,"renders":6,"saves":15,"exports":1,"permissions":6}}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345961000,"completedAt":1791345961000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-40tivh3u","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-sgd2j57a","cancelled":false},{"at":1791345720000,"action":"permission","jobId":"muxkznpc-nr7yssj6","cancelled":false},{"at":1791345840000,"action":"permission","jobId":"muxl28ao-k6yjswlj","cancelled":false},{"at":1791345960000,"action":"permission","jobId":"muxl4sw0-jrw6qa7e","cancelled":false},{"at":1791345960000,"action":"permission","jobId":"muxl4sw0-v27wwpjr","cancelled":false}]}
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002759","uploadStartedAt":1791345961000,"completedAt":1791345961000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-40tivh3u","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-sgd2j57a","cancelled":false},{"at":1791345720000,"action":"permission","jobId":"muxkznpc-nr7yssj6","cancelled":false},{"at":1791345840000,"action":"permission","jobId":"muxl28ao-k6yjswlj","cancelled":false},{"at":1791345960000,"action":"permission","jobId":"muxl4sw0-jrw6qa7e","cancelled":false},{"at":1791345960000,"action":"permission","jobId":"muxl4sw0-v27wwpjr","cancelled":false}]}
+[REP-01 slow code] {"kind":"TASK_PENDING","started":1791345600000,"completed":1791345961000,"permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-40tivh3u","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-sgd2j57a","cancelled":false},{"at":1791345720000,"action":"permission","jobId":"muxkznpc-nr7yssj6","cancelled":false},{"at":1791345840000,"action":"permission","jobId":"muxl28ao-k6yjswlj","cancelled":false},{"at":1791345960000,"action":"permission","jobId":"muxl4sw0-jrw6qa7e","cancelled":false},{"at":1791345960000,"action":"permission","jobId":"muxl4sw0-v27wwpjr","cancelled":false}],"before":{"opens":0,"renders":6,"saves":15,"exports":1,"permissions":6},"after":{"opens":0,"renders":6,"saves":15,"exports":1,"permissions":6}}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-tnqzt4yl","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-dvranwkz","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-qchn1k7v","cancelled":false}]}
+[0.6.30 evidence] {"scenario":"edge","task":"0000000000000000000000000000273b","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-tnqzt4yl","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-dvranwkz","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-qchn1k7v","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-fkhb0al8","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-x72xmgqs","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-rx54bkxw","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-5epczfwv","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002752","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-rx54bkxw","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-5epczfwv","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-pji4qbr5","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-qnmojywx","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-ykgu33e1","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-hadmoxsp","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002752","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-ykgu33e1","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-hadmoxsp","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-cnxw893r","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-liks607u","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"0000000000000000000000000000274d","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-1957clat","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-8ll62xst","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-qlalesv4","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-jxhjdr06","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"0000000000000000000000000000274d","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-pmyu9icw","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-fwvyatnk","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-zz5o7nvu","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-ief1a8b4","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-fp9seh3s","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-mwj135u0","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-soueu2ii","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-f5ft2tub","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-cvpggxav","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-md70hfts","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-2u7fzoha","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-l6m63qy8","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"#1","task":"00000000000000000000000000002723","uploadStartedAt":1791345605000,"completedAt":1791345605000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-rbyd2i7r","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-yzklnqwe","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence #2] [{"at":1791345600000,"action":"permission","jobId":"muxkx340-8wqdt9we","cancelled":false},{"at":1791345600000,"action":"query","ids":["00000000000000000000000000002711"]},{"at":1791345600000,"action":"permission","jobId":"muxkx340-0jhidx5y","cancelled":true}]
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"#3","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-7fbliwud","cancelled":true},{"at":1791345600000,"action":"permission","jobId":"muxkx340-uusx1lrd","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-uij8svxk","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"#4","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-bwnkl5co","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-5om3c444","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-1luq254h","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence #5] {"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-qizl0p41","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-4jtpvv6y","cancelled":false}],"at":1791345600000,"upload":"stopped: original code invalid, no manifest handed off"}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"#6","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-eubp94n1","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-4uddg1ks","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"#7","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-yre8wnen","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-4vr9q3pl","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002711","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-2idw6e7m","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence #8] {"clock":"simulated","ordinaryAndFirst":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-u5uyvkp9","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-4h3gx8q6","cancelled":false}],"multi":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-7wrx3t83","cancelled":false},{"at":1791345600000,"action":"query","ids":["00000000000000000000000000002711"]},{"at":1791345600000,"action":"permission","jobId":"muxkx340-88qwehdz","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-gdjsayd9","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-zkjbk0lc","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-qm4rdcxs","cancelled":false}]}
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002731","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-gdjsayd9","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-zkjbk0lc","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-qm4rdcxs","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-6mp8pvt5","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-ansjaqyp","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-9osm9o0v","cancelled":true}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002730","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-zq70vhtg","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-3moce3wm","cancelled":true},{"at":1791345600000,"action":"permission","jobId":"muxkx340-11b4wtga","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+✔ REP-01 R-01/R-06/R-07: same and different specifications print during unknown (76.5523ms)
+✔ REP-01 R-01/R-06/R-07: same and different specifications print during TASK_PENDING (48.4568ms)
+✔ REP-01 red-white-blue consecutive clicks queue exactly one of each, R-01/R-08 (48.8535ms)
+✔ REP-01 R-08: failed foreground click never leaves a Photoshop recovery job (40.863ms)
+✔ REP-01 failed later click at ratio retains bytes without a late Photoshop redo (24.1563ms)
+✔ REP-01 failed later click at render retains bytes without a late Photoshop redo (13.7119ms)
+✔ REP-01 fallback rejects real invalidity: unknown (33.885ms)
+✔ REP-01 fallback rejects real invalidity: offline (32.36ms)
+✔ REP-01 fallback rejects real invalidity: consumer (31.7493ms)
+✔ REP-01 fallback rejects real invalidity: source (24.5416ms)
+✔ REP-01 fallback rejects real invalidity: cancelled (41.6155ms)
+✔ REP-01 fallback rejects real invalidity: withdrawn (28.8748ms)
+✔ REP-01 fallback rejects real invalidity: conflict (21.0646ms)
+✔ REP-01 fallback rejects real invalidity: code (23.0156ms)
+✔ REP-01 fallback rejects real invalidity: context (27.7824ms)
+✔ REP-01 fallback rejects real invalidity: delivery (22.5748ms)
+✔ REP-01 fallback rejects real invalidity: child-conflict (28.5529ms)
+✔ REP-02 ended history: early=true, remote=withdrawn, click=white (37.4914ms)
+✔ REP-02 ended history: early=true, remote=withdrawn, click=blue (38.4168ms)
+✔ REP-02 ended history: early=false, remote=withdrawn, click=white (29.5164ms)
+✔ REP-02 ended history: early=false, remote=withdrawn, click=blue (29.4804ms)
+✔ REP-02 ended history: early=true, remote=ready, click=white (29.2971ms)
+✔ REP-02 ended history: early=true, remote=ready, click=blue (30.6406ms)
+✔ REP-02 in-flight unknown still rejects ended original withdrawn (27.0903ms)
+✔ REP-02 in-flight unknown still rejects ended original cancelled (19.7768ms)
+✔ REP-02 in-flight TASK_PENDING still rejects ended original withdrawn (29.3511ms)
+✔ REP-02 in-flight TASK_PENDING still rejects ended original cancelled (25.0343ms)
+✔ REP-02 in-flight local-completed still rejects ended original withdrawn (21.3692ms)
+✔ REP-02 in-flight local-completed still rejects ended original cancelled (21.2733ms)
+✔ 0.6.30 #1 red then white immediately: same dedicated code, one permission, file-only upload (13.2255ms)
+✔ 0.6.30 #2 denied white permission stops the order across restart (14.4745ms)
+✔ 0.6.30 #3 an unrelated denial does not delay file-only upload (12.7377ms)
+✔ 0.6.30 #4 repeated white click prints twice and uploads one photo (19.5704ms)
+✔ 0.6.30 #5 cancelling the parent after early print never silently changes the printed code (15.5781ms)
+✔ 0.6.30 #6 same background different size also prints before ready (13.914ms)
+✔ 0.6.30 #7 restart before and after manifest handoff preserves bytes and exactly one completion (22.7777ms)
+✔ 0.6.30 unprinted local pending task is stopped before a fresh click; unknown backend cannot authorize early print (10.6551ms)
+✔ 0.6.30 accepted pending task is reused for the next click instead of duplicated (7.7015ms)
+✔ 0.6.30 #8 ordinary mode, first coded order and multi-size preserve the normal output dimensions (19.0631ms)
+✔ 0.6.30 a pending click that failed before JPEG creation can be superseded safely (10.3369ms)
+✔ 0.6.30 cancelled parent before the click creates a new order with a new code (12.3613ms)
+✔ 0.6.30 several backgrounds can print while the first and earlier uploads are still preparing (19.453ms)
+✔ 0.6.30 unknown or disconnected target never prints a locally remembered code (20.0608ms)
+✔ 0.6.30 damaged artifacts, markers, source bindings and changed codes stop file-only recovery (79.7091ms)
+✔ 0.6.30 duplicate cancellation keeps the previously printed photo queued, first cancellation allows another click (29.5171ms)
+✔ 0.6.30 a receipt for another code never supplies the early print's dedicated link (10.1838ms)
+✔ offline electronic work saves immutable context and photo before handshake; reconnect resumes the same task and bytes (18.9477ms)
+✔ unfinished offline work does not block another reliable original or replace its saved pixels (9.5188ms)
+✔ operator stopping a code wait persists across reload and excludes the task from automatic output (4.8668ms)
+✔ automatic code polling keeps one nonce within its window and defers Photoshop work until confirmed (13.3707ms)
+✔ an output-started marker protects an interrupted task from repeated rendering or printing (8.5237ms)
+✔ a persisted complete signal reconciles a stale pending index after reload without outputting again (8.9299ms)
+✔ recovered printing persists a notification and prints once only after an explicit click (20.3253ms)
+✔ simultaneous explicit recovery-print clicks have one durable output owner (15.5519ms)
+✔ tampered recovery notification fingerprints cannot expose a print action (12.946ms)
+✔ delayed storage reads cannot let a second print begin after the first operation releases its owner (12.6134ms)
+✔ a workflow printer failure rejects success and persists an unconfirmed state without automatic retries (20.0773ms)
+✔ a reprint failure is reported after it happens, but an old one no longer greets every startup (20.5251ms)
+✔ a skipped printer result is not reported as a submitted print (11.2362ms)
+✔ a bad old notice token does not hide another customer's valid recovered print notice (16.094ms)
+✔ a corrupt old notice is isolated while later valid notices remain actionable (13.5026ms)
+✔ every damaged notice retains a diagnostic before the next valid customer is offered (20.0579ms)
+✔ an unavailable old task directory is retained and isolated so another pending original can recover (9.8018ms)
+✔ an interrupted recovered print remains visible as unconfirmed and cannot be resubmitted (11.5472ms)
+✔ a manifest the delivery manager rejected is parked and never asked for a code again (9.0452ms)
+✔ a rejection written while waiting ends the wait at once with the real reason (5.4218ms)
+✔ a failed recovery print reports the real cause instead of a completed-task refusal (20.5223ms)
+✔ a recovered print reuses the code its recovery confirmed minutes ago instead of waiting on the delivery manager (13.6795ms)
+✔ a sheet that fails while drawing the info bar is redone in the background and then offered for printing (13.5214ms)
+✔ a drawing that keeps failing stops after two background redos and stays locked (12.8177ms)
+✔ a task locked only by its marker goes back to the queue once an abort record replaces the marker (13.8301ms)
+✔ Esc during a layout parks the order: no background redo, and the same photo can be laid out again (7.3855ms)
+✔ Esc in the panel stops the run at its next step and parks the order (5.5419ms)
+✔ Esc during a background redo parks it instead of starting it again (8.7782ms)
+✔ after 阻止 the background waits ten minutes, and an order it finished meanwhile offers no print (12.4164ms)
+✔ a background '可以打印' is retired once the same code and size is printed from the panel (8.9766ms)
+✔ an order cancelled in the delivery manager stops automatic recovery instead of asking every minute (10-28) (12.938ms)
+✔ a withdrawal recorded in receipt.json stops recovery before another code request is written (6.7928ms)
+✔ a cancel answered while waiting ends the wait at once and parks the order (5.0772ms)
+✔ an exact legacy capture key is retained across the identity upgrade, and multiple matches stop (8.7373ms)
+✔ 1寸 and 标准2寸 deliver the same saved photo, so they share one specification (5.5827ms)
+✔ different reliable originals sharing a filename never borrow a previous delivery or member (3.837ms)
+✔ same original and specification replace only the verified current file with its original name (5.4413ms)
+✔ a different background appends to the same verified member without replacing the original (3.5648ms)
+✔ retired original codes create a fresh delivery without reviving the old file or member (5.3135ms)
+✔ a trusted withdrawn or cancelled predecessor starts fresh but frozen records remain protected (10.1538ms)
+✔ unknown or blocked predecessor never silently guesses a new customer (7.7299ms)
+✔ same-specification replacement refuses ambiguous file ownership (3.4938ms)
+✔ nonce, fingerprint and consumer mismatches cannot authorize an automation result (13.2581ms)
+✔ an old backend capability refuses even a fresh automatic task before a manifest is accepted (1.8796ms)
+✔ the most recent matching specification remains replaceable beyond a 32-task query window (54.1268ms)
+✔ companion merge reuses the earliest original customer's code and exact current versions (12.0264ms)
+✔ a merge result arriving after explicit companion close reconciles without reopening (7.2246ms)
+✔ a merge result after twenty minutes of idle time reconciles without activating an expired session (6.3714ms)
+✔ a single selected customer cannot reactivate a companion closed during its initial query (8.0324ms)
+✔ opening records its activation before waiting for a connection and respects a close after reload (4.7368ms)
+✔ opening an already active empty companion preserves the same activation session (1.62ms)
+✔ a closed merge intent remains closed when its original operation is reconciled after reload (18.1555ms)
+✔ a legacy merge intent without an activation session can reconcile but never activate companions (11.7864ms)
+✔ a late merge cannot overwrite another active companion session opened after its close (6.8706ms)
+✔ a timed-out merge persists one intent across reload and protects its sources without blocking an independent customer (12.2219ms)
+✔ an unresolved active companion merge keeps a new original pending without creating an independent delivery (9.7543ms)
+✔ an original accepted while a companion merge is waiting still restores to its merged root after close (8.2594ms)
+✔ a confirmed merge preserves new originals registered in the same active session while awaiting its result (9.1138ms)
+✔ retrying the same timed-out merge reuses its operation and clears intent only after confirmed convergence (13.5829ms)
+✔ a previous task without a code is queried without a fabricated code binding (5.569ms)
+✔ a companion group's first pending task remains its anchor before code confirmation (5.5252ms)
+✔ a previously standalone task's delayed confirmation cannot join a later companion group (2.2726ms)
+✔ delayed confirmation from a closed group cannot change a new group opened in the same millisecond (2.4409ms)
+✔ the recent companion picker drops cancelled, retired and unverified deliveries after refreshing (50.1391ms)
+✔ a retired original alias cannot be revived by repeated metadata refreshes to a different primary code (9.1984ms)
+✔ repeated code confirmation retains the immutable original binding code (4.296ms)
+✔ same source/specification recovers the original pending task while other customers continue (8.2553ms)
+✔ source bindings and per-specification history survive reload without filename matching (2.6986ms)
+✔ failed writes do not advance a task, change a source, or reopen a group (2.5886ms)
+✔ damaged or unreadable indexes fail closed and preserve the original storage (2.1233ms)
+✔ invalid task state and identity changes are rejected before persistence (1.5761ms)
+✔ legacy, stopped, and blocked tasks remain visible but never auto resume (1.819ms)
+✔ completed means reliable completion only; group picker requires ready confirmation and deduplicates delivery (2.1583ms)
+✔ group idle expiry uses real elapsed time across reload and background updates do not renew it (1.5796ms)
+✔ new layout renews group idle time; turning off and clock reversal close it reliably (2.3947ms)
+✔ an expiry storage failure reports failure instead of reusing the stale group (2.8782ms)
+✔ multiple store instances preserve each other's mutations (1.4741ms)
+✔ group limit, duplicate members and oversized target reject the whole mutation (3.6016ms)
+✔ lossy target values and circular data are rejected without stripping recovery fields (1.4603ms)
+✔ a later corrupted index or mismatched original token is never overwritten (4.8629ms)
+✔ task capacity refuses new work and retains all existing recovery tokens (163.7141ms)
+✔ unresolved merge intent survives group closing, reload and idle expiry (2.0164ms)
+✔ merge-intent persistence failure retains the original intent until explicit confirmed resolution (3.4731ms)
+✔ an existing pre-intent index loads without rewriting it, while corrupt intents fail closed (1.9073ms)
+✔ group sessions distinguish immediate reopen and reject stale updates from the previous session (1.5661ms)
+✔ active legacy groups without a stable session are durably closed rather than revived (1.1579ms)
+✔ legacy group migration failure preserves the previous index and refuses a usable session (3.1994ms)
+✔ the first confirmed code remains immutable while a task's displayed current code changes (1.8281ms)
+✔ a pre-binding index preserves its recorded code without rewriting the raw recovery evidence (11.3714ms)
+✔ an active-session update cannot reopen a closed or expired group (4.3655ms)
+✔ resaving one original keeps the identity despite new filenames, save IDs, pixels and signatures (4.1099ms)
+✔ capture identity distinguishes cameras and subseconds, without changing when a save ID appears (2.8083ms)
+✔ missing, invalid or contradictory strong identity returns empty instead of filename or visual guesses (1.8965ms)
+✔ original XMP fields are preferred over changing DocumentID and support the document-info legacy identity (6.1509ms)
+✔ a verified camera ImageUniqueID remains authoritative and rejects a conflicting document-info identity (1.5282ms)
+✔ same specification and background replace, different sizes or backgrounds have independent keys (2.582ms)
+✔ fresh camera capture without strong IDs uses subsecond capture identity and keeps it after a Photoshop save (1.7687ms)
+✔ capture fallback requires subsecond, preserves a zero subsecond and rejects actual time conflicts (1.6185ms)
+✔ new capture identity recognizes an exact old source-v1 capture and refuses a conflicting strong ID (1.6973ms)
+✔ a 本店片 photo is known by its open document, and a camera identity still wins (10-31) (3.4352ms)
+✔ handoff fingerprint matches standard SHA-256 for UTF8 and JPEG block boundaries (339.7591ms)
+✔ crossed and stale receipts cannot attach another customer code; missing or invalid receipt stays pending (9.6278ms)
+✔ A B C out-of-order receipts and replay preserve separate stable task identities (1.7602ms)
+✔ fresh confirmation requires request nonce, original connection and delivery; cache or terminal is never authority (1.5031ms)
+✔ an entry link counts only for its own code and in the WeChat short-link shape (1.7251ms)
+[delivery] info strip encoded without a copy +1500ms
+[delivery] info strip pixels unavailable, using a cropped copy Error: 信息条像素范围不符
+    at evalmachine.<anonymous>:602:99
+    at async Object.executeAsModal (D:\software\yx-work\runs\recolor-r2-c_gx031b\tests\deliveryService.test.js:58:82)
+    at async encodeInfo (evalmachine.<anonymous>:596:5)
+    at async cropInfo (evalmachine.<anonymous>:620:21)
+    at async complete (evalmachine.<anonymous>:721:26)
+    at async Object.electronic (evalmachine.<anonymous>:776:17)
+    at async TestContext.<anonymous> (D:\software\yx-work\runs\recolor-r2-c_gx031b\tests\deliveryService.test.js:580:67)
+    at async Test.run (node:internal/test_runner/test:1125:7)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+[delivery] info strip pixels unavailable, using a cropped copy Error: pixels unavailable
+    at TestContext.<anonymous> (D:\software\yx-work\runs\recolor-r2-c_gx031b\tests\deliveryService.test.js:579:42)
+    at Test.runInAsyncScope (node:async_hooks:228:14)
+    at Test.run (node:internal/test_runner/test:1118:25)
+    at Test.processPendingSubtests (node:internal/test_runner/test:787:18)
+    at Test.postRun (node:internal/test_runner/test:1247:19)
+    at Test.run (node:internal/test_runner/test:1175:12)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+✔ timeout and reload retain one immutable logical task; explicit electronic retry confirms a new attempt without new delivery (27.071ms)
+✔ a failed request write resumes the same independently verified prepared photo, without recropping or replacing task identity (15.8424ms)
+✔ retry refuses changed photo, changed snapshot, consumer, directory identity, or prior output; no completion is invented (38.2165ms)
+✔ stopping local wait and late valid receipts never auto-output; a different customer requires explicit deferral (7.9767ms)
+✔ bound authentication diagnostics differ from timeout; stale/cross-task errors cannot become this task diagnosis (28.1499ms)
+✔ a slow but bounded cloud confirmation completes once, outside Photoshop modal execution (7.3014ms)
+✔ concurrent starts and retries have one owner, one task and one output (31.9649ms)
+✔ print retry runs the real workflow on saved pixels and frozen template/options; no new prepare or task (34.41ms)
+✔ connection requires this nonce and directory; local readiness creates no delivery or code (19.8215ms)
+✔ historical electronic delivery requires this-photo confirmation; unknown dates stay empty and next photos remain blocked (48.7278ms)
+✔ electronic delivery binds original pixels, completion and code; info failure stays independent and records string errors (9.3761ms)
+✔ missing, stale, foreign, terminal or invalid code blocks electronic output and preserves the uncompleted handoff (71.9134ms)
+✔ complete cannot export artifacts or publish with an empty code (3.1244ms)
+✔ electronic pickup error survives secondary status and cleanup failures for the native popup (20.0951ms)
+✔ cleanup failure after successful electronic completion is not mislabeled as a pickup rejection (9.293ms)
+✔ regeneration preserves original task/complete signal and selects that photo; tampered photo is rejected (8.6199ms)
+✔ regeneration refuses cached, terminal, failed and cross-connection confirmations; never creates supplement (54.2647ms)
+✔ management during rendering refuses export when the new confirmation has a different code (19.8784ms)
+✔ multi export uses independent real-dimension encodes and v2 durable unconfirmed draft (14.6336ms)
+✔ multi rejects impossible bytes, upscaling, changed ratio and duplicate paths without publishing (8.3844ms)
+✔ multi explicit target binds only this request and never sticks to the following customer (6.9568ms)
+✔ multi local archives bind each exact file ordinal and retry local failure without recreating or completing the batch (11.7336ms)
+✔ completed electronic task survives reload; deliberate repeat keeps request/code and never creates a customer (19.8041ms)
+✔ repeat refuses replaced photo, root, consumer, terminal status and stale replies without new outputs (53.433ms)
+✔ a changed code after rendering stops repeat completion; another deliberate attempt can use the new code (11.758ms)
+✔ backend information pickup uses the original generator and binds result without completing or uploading again (17.5308ms)
+✔ information pickup recovers acknowledgement loss without rerendering, and explicitly repairs a missing image (9.2347ms)
+✔ information pickup rejects cross-task, traversal, foreign connection and changed photo without a result (45.3215ms)
+✔ information pickup preserves a failed task for explicit retry and never treats rendering-time rotation as success (12.3864ms)
+✔ specification archive reuses exact immutable JPEG and legacy dimensions keep normal export (6.3235ms)
+✔ a code confirmed moments ago is not asked for again; one confirmed over two minutes ago is (9.3957ms)
+✔ the info strip is encoded straight from the sheet without duplicating it (9.8057ms)
+✔ when the pixels do not come back right the strip is cropped from a copy as before (15.5742ms)
+✔ a cancelled pixel read does not fall back to a copy (6.2535ms)
+✔ a confirmed code brings its own mini-program link to the info card; a link for another code is dropped (16.4197ms)
+✔ the plan hint says whether a code is new or reused, and hides when unknown (3.0115ms)
+✔ a recovered task only prints after the operator clicks print (4.7174ms)
+✔ the 同行 switch and its picker are gone from the panel (10-28) (1.6639ms)
+✔ closeWithoutSaving closes through the shared document interface (4.7947ms)
+✔ active document info does not query Photoshop when no document is open (3.4169ms)
+✔ active document info keeps the batchPlay fallback for an open document (1.7398ms)
+✔ active document info includes parsed source-camera XMP metadata (1.6808ms)
+✔ metadata read is pinned to the original document even if the active tab changes (1.3042ms)
+✔ close fallback targets its document ID even when another document becomes active (1.3048ms)
+✔ native closeWithoutSaving uses the original object without a generic close command (2.2179ms)
+✔ both drawings of the store link read back as the link at every card size and turn (1208.3994ms)
+✔ the default code is drawn in place with the store logo; the pixels are released (42.8045ms)
+✔ a damaged logo still prints the code without it; a Photoshop without pixel drawing prints no code (19.8173ms)
+✔ Settings replaces the code from a square image, closes only that picture, and can go back (483.7411ms)
+✔ a cancelled picker, a blank picture or a non-link code keeps the current code (124.9953ms)
+✔ the order's own link is a fixed version 6 / version 4 code with the logo that reads back at every card size (899.4964ms)
+✔ anything doubtful about the order's link prints the store code and says why (41.063ms)
+✔ exportSingleJpg keeps the largest JPG per source and approximate aspect ratio (16.0144ms)
+✔ managed archive keeps independent upload/local hashes and never assigns another customer the existing archive (72.9531ms)
+✔ managed photo recovers its exact map after private-index and handoff registration failures (60.6909ms)
+✔ SWO-01 ordinary archives never acquire a later delivery; the identical picture saved without a code gives way (132.7439ms)
+✔ a merely similar ordinary photo (fuzzy identity) is kept beside the managed archive (75.073ms)
+✔ one managed save publishes its plan, map, root marker and index in a single bridge launch (92.4315ms)
+✔ SWO-R1 larger same-task keeper retains its real ordinal across smaller-spec retries and restart (39.5761ms)
+✔ SWO-R1 local map, completion receipt, shared/private indexes and handoff failures recover without another photo save (160.8988ms)
+✔ SWO-R1 missing or conflicting evidence and changed bytes stop reuse without saving or deleting (138.2256ms)
+✔ SWO-R1 losing both completion writes retains the reserved output and refuses inferred recovery (23.2002ms)
+✔ SWO-R1 a stale same-task index cannot authorize replacing a smaller file without its immutable map (25.3092ms)
+✔ SWO-R1 failed Photoshop save removes only its incomplete reservation and later retries reuse the successful output (26.6613ms)
+✔ external-camera photos are laid out but skipped before JPG or NAS storage access (1.4463ms)
+✔ historical photos are treated like external photos and never reach JPG or NAS storage (1.0701ms)
+✔ a plugin export with real eligibility still skips all JPG and NAS storage (2.9742ms)
+✔ exportSingleJpg recognizes a numbered legacy export with a full matching source identity (1.4878ms)
+✔ NAS authorization can be replaced and cleared (1.9289ms)
+✔ a failed persistent token does not retain the previous NAS authorization (2.4521ms)
+✔ NAS export restores the authorized folder from its persistent token (1.6103ms)
+✔ a failed JPG save removes the incomplete file (1.6549ms)
+✔ first archive retains a completed JPG when index creation, writing or rename fails (42.2012ms)
+✔ three backgrounds and two sizes retain three largest JPGs despite resized-image identity drift (43.7182ms)
+✔ archive identity survives plugin restart and an empty local cache (20.0172ms)
+✔ a colliding short token alone cannot authorize deletion of an unrelated JPG (15.2915ms)
+✔ concurrent exports serialize lookup, save and cleanup (39.9869ms)
+✔ unknown background or failed source analysis skips all archive access (1.7974ms)
+✔ missing eligibility service blocks saving before storage access (1.1856ms)
+✔ a failed larger save preserves the previously archived smaller JPG and queue recovers (15.3256ms)
+✔ archive index write failure preserves the new JPG and previous copy with an explicit warning (17.9692ms)
+✔ corrupt shared index recovers from the private record and keeps the larger photo (20.0583ms)
+✔ cleanup failure is reported instead of claiming the smaller JPG was replaced (15.8135ms)
+✔ near-identical aspect ratios on opposite rounding boundaries still share the largest export (14.5703ms)
+✔ real camera eligibility and original analysis jointly block old and undated shop photos (17.7628ms)
+✔ partial index write keeps the previous committed identity index intact (13.9429ms)
+✔ archive index is hidden after first save, replacement and duplicate reuse (21.0659ms)
+✔ attribute failure preserves photo and valid index and reports a separate warning (21.4165ms)
+✔ combined index executor replaces standalone launches and preserves JPGs if its receipt fails (22.6561ms)
+✔ all built-in size pairs keep the maximum only for the specified near-ratio pairs, in either order (1691.3073ms)
+✔ all screenshot-size orders survive bridge denial and restart, keeping one largest JPG per color (1239.8042ms)
+✔ custom dimensions use a symmetric threshold and an intermediate ratio cannot erase an incompatible keeper (14.931ms)
+✔ a private index path mismatch refuses cleanup instead of trusting a cache collision (17.8727ms)
+✔ laying the same photo out again for the same customer keeps one archive JPG (14.6569ms)
+✔ an earlier archive stays when the redo is not a recorded replacement of it (53.0211ms)
+✔ a blocked bridge keeps the earlier archive until the redo is saved again (17.1787ms)
+✔ information bar text creation reuses one target layer id snapshot (15.02ms)
+✔ information bar avatar reuses a named photo layer from the target canvas (13.139ms)
+✔ 香港台湾 3.0x4.0 places each one-inch style line with a single move (10.1908ms)
+✔ 阿根廷 4.0x4.0 places each one-inch style line with a single move (5.8568ms)
+✔ one-inch renders the pickup card inside its band (6.1055ms)
+✔ one-inch renders the pickup card inside its band with the code (4.033ms)
+✔ one-inch renders the pickup card inside its band when the code image is broken (3.258ms)
+✔ standard-two-inch renders the pickup card inside its band (3.0697ms)
+✔ standard-two-inch renders the pickup card inside its band with the code (4.1211ms)
+✔ standard-two-inch renders the pickup card inside its band when the code image is broken (5.9003ms)
+✔ visa-two-inch renders the pickup card inside its band (3.8124ms)
+✔ visa-two-inch renders the pickup card inside its band with the code (6.4474ms)
+✔ visa-two-inch renders the pickup card inside its band when the code image is broken (4.9277ms)
+✔ small-two-inch renders the pickup card inside its band (3.455ms)
+✔ small-two-inch renders the pickup card inside its band with the code (4.8268ms)
+✔ small-two-inch renders the pickup card inside its band when the code image is broken (3.4072ms)
+✔ hongkong-taiwan renders the pickup card inside its band (7.1611ms)
+✔ hongkong-taiwan renders the pickup card inside its band with the code (4.9083ms)
+✔ hongkong-taiwan renders the pickup card inside its band when the code image is broken (2.8679ms)
+✔ brazil renders the pickup card inside its band (12.2896ms)
+✔ brazil renders the pickup card inside its band with the code (6.0916ms)
+✔ brazil renders the pickup card inside its band when the code image is broken (3.1044ms)
+✔ argentina renders the pickup card inside its band (3.1189ms)
+✔ argentina renders the pickup card inside its band with the code (5.5907ms)
+✔ argentina renders the pickup card inside its band when the code image is broken (5.3303ms)
+✔ us-visa renders the pickup card inside its band (3.8277ms)
+✔ us-visa renders the pickup card inside its band with the code (2.6441ms)
+✔ us-visa renders the pickup card inside its band when the code image is broken (2.5435ms)
+✔ us-visa-51 renders the pickup card inside its band (2.7944ms)
+✔ us-visa-51 renders the pickup card inside its band with the code (5.758ms)
+✔ us-visa-51 renders the pickup card inside its band when the code image is broken (10.331ms)
+✔ graduation renders the pickup card inside its band (3.0863ms)
+✔ graduation renders the pickup card inside its band with the code (3.6167ms)
+✔ graduation renders the pickup card inside its band when the code image is broken (3.3579ms)
+✔ wedding renders the pickup card inside its band (3.5043ms)
+✔ wedding renders the pickup card inside its band with the code (3.1098ms)
+✔ wedding renders the pickup card inside its band when the code image is broken (2.8394ms)
+✔ invalid or missing code is rejected before any information-bar layers are created (32.4275ms)
+✔ ordinary mode never renders a pickup code, including one left in caller options (29.5784ms)
+✔ debug mode gives v5 layers unique DEBUG names (5.3002ms)
+✔ every ordinary strip stays inside its bar, and vertical strips turn the whole block (35.2826ms)
+✔ one-inch prints the per-order code with its wording, and the store code when it does not read back (10.7915ms)
+✔ standard-two-inch prints the per-order code with its wording, and the store code when it does not read back (15.0272ms)
+✔ visa-two-inch prints the per-order code with its wording, and the store code when it does not read back (8.5736ms)
+✔ small-two-inch prints the per-order code with its wording, and the store code when it does not read back (13.7934ms)
+✔ hongkong-taiwan prints the per-order code with its wording, and the store code when it does not read back (20.7238ms)
+✔ brazil prints the per-order code with its wording, and the store code when it does not read back (9.4066ms)
+✔ argentina prints the per-order code with its wording, and the store code when it does not read back (9.7927ms)
+✔ us-visa prints the per-order code with its wording, and the store code when it does not read back (15.2712ms)
+✔ us-visa-51 prints the per-order code with its wording, and the store code when it does not read back (10.9778ms)
+✔ graduation prints the per-order code with its wording, and the store code when it does not read back (14.385ms)
+✔ wedding prints the per-order code with its wording, and the store code when it does not read back (12.492ms)
+✔ debug bounds include the combined shop-name/date text layer (8.1964ms)
+✔ duplicateLayerToDocument rejects when no new target layer exists (4.3369ms)
+✔ placePhotoCopies creates one unique layer for each slot (2.4826ms)
+✔ placePhotoCopies snapshots existing target layer ids only once (5.9673ms)
+✔ moveLayerTo skips Photoshop work when the layer is already positioned (1.2835ms)
+✔ moving an earlier text layer selects that layer before Photoshop transforms (1.4108ms)
+✔ duplicateLayerToDocument does not reactivate the active target document (1.1817ms)
+✔ moveLayerTo recalculates batchPlay offset after a partial DOM move (1.4308ms)
+✔ moveLayerTo rejects when the final bounds miss the target (1.3789ms)
+✔ pickup-code failure blocks canvas, archive, completion and print, cleaning only owned copies (14.1597ms)
+✔ a confirmed code reaches the strip and prints once even if later completion persistence fails (2.9131ms)
+✔ ordinary layout never invokes delivery (2.0075ms)
+✔ several sizes of one customer each print a sheet with one shared code; the same shape is delivered once (2.9927ms)
+✔ a different shape prints at once with the shared code while the first photo is still uploading (2.7002ms)
+✔ a later size never starts a delivery of its own after the first size lost its code (1.8889ms)
+✔ the sheet is placed while the delivery manager answers, and the code reaches it afterwards (18.0856ms)
+✔ the layout task owns a successful template transaction and closes its processed photo (3.5459ms)
+✔ a failed layout closes both documents and the task continues with later templates (2.3838ms)
+✔ an export failure remains a successful layout result (1.8853ms)
+✔ visual acceptance never calls JPG or NAS export (2.047ms)
+✔ cancellation stops later templates before they can export or print (2.4178ms)
+✔ workflow rejects a processed document wrapper sharing the original ID without cleanup (1.7544ms)
+✔ all templates share one original analysis taken before the first crop (1.828ms)
+✔ a source-document mismatch stops before crop, export and print (1.7228ms)
+✔ historical source leaves every information bar blank while preserving layout (7.5793ms)
+✔ external/history/unknown ordinary multi-template runs never render any strip or contact delivery, even offline (7.5793ms)
+✔ plugin-export reason keeps ordinary layout blank and never starts delivery (3.6733ms)
+✔ confirmed historical layout shows a coded strip with the real or unknown date and does not change archive metadata (5.07ms)
+✔ quick print submits each successful layout once and keeps the final document open (1.5901ms)
+✔ a blocked DS-RX1 print remains a successful layout and later templates continue (3.2249ms)
+✔ a DS-RX1 driver error is isolated from layout and JPG export (4.5749ms)
+✔ archive commit and duplicate hide piggyback on exactly one print request per layout (4.967ms)
+✔ a failed combined launch never falls back to a second permission request (2.1717ms)
+✔ cancelling combined print stops later templates and cleans only the processed copy (3.0804ms)
+✔ photos from other cameras get no larger saved copy; shop photos still do, and both copies close together (4.2599ms)
+✔ the panel's reading of the original (or the background the operator picked) is kept, not taken again (1.5837ms)
+✔ the per-order link follows its code to every size, including a shared and an early-printed one (5.0973ms)
+✔ a sheet without a per-order link passes none, and ordinary sheets never get one (4.3253ms)
+✔ 本店片 works the same across several sizes: one shared code, every sheet has its strip, each shape archived once (10-31) (2.409ms)
+✔ manifest, README, and changelog agree on the current version (7.211ms)
+✔ the filesystem-discovered third-party manifest uses a host object (0.3284ms)
+✔ the release UI does not expose an internal build marker (0.7926ms)
+✔ the retired background replacement module is not shipped (0.9865ms)
+✔ automatic crop does not ship Photoshop Select Subject (1.3049ms)
+✔ main initializes the settings view controller (0.4578ms)
+✔ camera registration actions use the UXP-safe flex layout (0.4653ms)
+✔ the centralized layout path applies source eligibility to every information bar (0.5498ms)
+✔ visual acceptance selects every template and disables all export side effects (0.6963ms)
+✔ quick print is fixed to DS-RX1 and loads before the layout workflow (0.8269ms)
+✔ the compact layout keeps every template visible and groups visa two-inch correctly (0.6831ms)
+✔ settings use a two-column home and one detail page without retired strips (1.117ms)
+✔ JPG names expose only the template, pixels, background, and short identity token (6.665ms)
+✔ short names still include unknown background when analysis is unavailable (1.2929ms)
+✔ original pixel analysis uses the supplied document ID inside modal scope and disposes data (13.3501ms)
+✔ failed pixel reads dispose image data and propagate the failure (2.0725ms)
+✔ flat or incomplete samples cannot manufacture matching person identities (8.4955ms)
+✔ long hair and dark clothes no longer hide a white, blue or red background (84.1342ms)
+✔ the relaxed reading never guesses: mixed colours or different top corners stay unknown (36.6341ms)
+✔ batchPlay applies one consistent non-dialog execution policy (2.0458ms)
+✔ new document resolution never accepts a stale DOM return or ambiguous document ownership (3.2451ms)
+✔ batchPlay lets a Photoshop module request synchronous execution explicitly (1.9814ms)
+✔ executeAsModal owns the command label and unsupported-runtime error (3.4038ms)
+✔ Photoshop error descriptors reject the operation even when the promise resolves (3.218ms)
+✔ document activation uses the real app.activeDocument API without an activate method (2.111ms)
+✔ modal cancellation remains detectable when the host throws an untyped error (3.5302ms)
+✔ a modal scope busy with the operator's tool is retried, but a started callback never runs twice (15.501ms)
+✔ pickup mode starts off, persists explicit choices, and leaves other settings alone (3.6735ms)
+✔ an unreadable or invalid preference uses ordinary mode; a failed write is reported (2.1064ms)
+✔ mode stays on across new/external/historical/unknown/next new photos: button (24.3645ms)
+✔ mode stays on across new/external/historical/unknown/next new photos: doubleClick (4.3786ms)
+✔ mode stays on across new/external/historical/unknown/next new photos: shortcut (3.9082ms)
+✔ an exported photo stays ordinary (4.3121ms)
+✔ ordinary button, double click and shortcut honor the persisted pickup switch; visual acceptance bypasses it (6.5939ms)
+✔ pickup failure shows one native alert and retains selection for correction: throw=false (8.6982ms)
+✔ pickup failure shows one native alert and retains selection for correction: throw=true (6.4363ms)
+✔ a preference write failure cannot make the UI claim the mode changed (2.4916ms)
+✔ pickup mode routes an unsaved subsecond camera photo to delivery and retains concrete plain reasons (5.0889ms)
+✔ plain card gives the same specific reason before and during layout: plugin-export (5.8787ms)
+✔ plain card gives the same specific reason before and during layout: historical-source (2.9274ms)
+✔ plain card gives the same specific reason before and during layout: missing-serial (3.4768ms)
+✔ plain card gives the same specific reason before and during layout: no-registered-camera (2.4131ms)
+✔ plain card gives the same specific reason before and during layout: external-camera (2.9236ms)
+✔ plain card gives the same specific reason before and during layout: unverified-capture-date (3.4562ms)
+✔ plain card gives the same specific reason before and during layout: missing-source-identity (4.1504ms)
+✔ an unreadable background picked as red still gets a pickup code (6.7944ms)
+✔ an unreadable background picked as blue still gets a pickup code (2.8438ms)
+✔ an unreadable background picked as white still gets a pickup code (5.2062ms)
+✔ an unreadable background with 只排版 prints without a code (3.8387ms)
+✔ Esc on the background question makes nothing and the next Esc stays harmless (2.9151ms)
+✔ pickup alerts say what actually happened: auto-continue, no code, or which sizes already came out (8.2179ms)
+✔ the panel no longer offers electronic, current-customer or pending-delivery entries (0.6415ms)
+✔ 本店片 shows only with pickup codes on, vouches for the next layout only and switches itself off (10-31) (4.1104ms)
+✔ attribute-only bridge hides new and replaced indexes without changing bytes or accepting photos (3449.3415ms)
+✔ the Windows bridge validates the fixed printer, paper, copies, and image dimensions (0.4321ms)
+✔ the Windows bridge prints silently once and exposes a no-print validation mode (0.3241ms)
+✔ the bridge uses an unambiguous integer DrawImage overload (0.2104ms)
+✔ the bridge centers the image at its actual 600 PPI size instead of fitting it to the page (0.3512ms)
+✔ combined request commits a hidden index even when the print is rejected, without submitting (368.7711ms)
+✔ bridge claims allow one submission and publish complete JSON using the real filesystem (296.6586ms)
+✔ invalid jobs receive a result before any printer lookup or submission (305.8868ms)
+✔ archive records publish hidden without overwriting identities or accepting photos (5225.7842ms)
+✔ one launch commits a batch of records and the index in order and stops at the first failure (1052.4826ms)
+resident trigger-to-result ms: 61
+✔ a resident bridge takes later jobs from fresh triggers, ignores old ones, and exits when idle (6552.4887ms)
+✔ quick print exports a JPEG copy and opens one fixed DS-RX1 bridge job (12.0932ms)
+✔ quick print reports a bridge rejection without claiming a print (1.806ms)
+✔ quick print fails closed when the Windows bridge cannot be launched (4.6992ms)
+✔ quick print times out without retrying or claiming a print (1.5707ms)
+✔ hiding archive index uses an attribute-only job and requires a matching no-print receipt (4.4192ms)
+✔ one shell launch carries both print and archive, retaining separate results even if printing fails (3.2648ms)
+✔ failure before bridge launch cleans the unsubmitted image and job (1.2646ms)
+✔ an in-progress result file is read again without launching another print (1.5338ms)
+✔ failure after submission is reported as unknown, preserving evidence (1.4523ms)
+✔ cancelling print image export is preserved as cancellation and leaves no job (1.7682ms)
+✔ quick print rejects a missing layout document before creating a job (1.0352ms)
+✔ the print service never reads or rewrites Photoshop print settings (0.4341ms)
+✔ blocking the permission prompt prints nothing, says so in Chinese and leaves no job behind (1.7785ms)
+✔ blocking the prompt for an archive record fails in Chinese and removes the job (2.2817ms)
+✔ other launch exceptions keep the unknown-outcome evidence (1.9494ms)
+✔ bridge reasons are shown in Chinese, including a missing temporary image (7.1053ms)
+✔ a temporary print JPG Photoshop never wrote is exported once more, and never launched empty (2.6829ms)
+✔ archive records and the index travel with the print, or in one archive-only launch (5.1946ms)
+✔ every print launches the bridge and its permission prompt, and leaves no files (2.1859ms)
+✔ a portrait wedding source is measured after a 90-degree orientation correction (2.0259ms)
+✔ portrait sources are not auto-rotated for ordinary portrait templates (0.9491ms)
+✔ release verification covers tests, syntax, versions, and Photoshop execution locality (1.5294ms)
+✔ the release package contains runtime files and the one-click Windows installer (0.4668ms)
+✔ the installer deploys into Photoshop's logged UXP External discovery folder and supports a no-write dry run (0.3285ms)
+✔ the Windows EXE builder embeds the verified package and emits a SHA256 file (0.4912ms)
+✔ installer preserves the registered versioned path and rejects missing or unsafe registration (558.0469ms)
+✔ installer preserves correct read-only associations and repairs missing or stale defaults (344.3795ms)
+✔ settings backup writes the versioned profile without a NAS persistent token (2.4043ms)
+✔ settings restore reads one JSON file through the profile seam (1.2654ms)
+✔ legacy settings migrate into one versioned profile without losing approved values (7.0696ms)
+✔ updating one profile section preserves every other section (1.4722ms)
+✔ a backup round-trip restores the profile and rejects malformed input (2.4659ms)
+✔ unavailable storage cannot report a successful settings save (1.1218ms)
+✔ corrupt or future settings are not silently overwritten by defaults or migration (1.766ms)
+✔ init reads the active Canon camera and binds settings actions only once (6.6266ms)
+✔ an external photo without camera metadata finishes with saving disabled (2.447ms)
+✔ settings cards only navigate on click so pointer travel cannot open the wrong detail (191.2944ms)
+✔ backup and restore refresh every settings field and clear runtime template overrides (2.5616ms)
+✔ portrait crop preserves headroom and removes excess mostly from the bottom (4.4953ms)
+✔ a 6960x4640 landscape portrait crops empty sides around the subject (2.825ms)
+✔ a wide foreground still crops the landscape background without automatic expansion (1.0028ms)
+✔ fast composition crops without requiring subject detection (0.9483ms)
+✔ a 1:1 target is marked for the square-template expansion policy (1.0572ms)
+✔ Canon XMP camera metadata is parsed from both attributes and elements (21.5549ms)
+✔ the shop Canon sample BodySerialNumber is parsed from Photoshop XMP (4.9503ms)
+✔ a capture date from a previous day is treated as a historical source (3.4118ms)
+✔ plugin-generated document names have a separate ineligible reason even without XMP date (1.6677ms)
+✔ only registered camera serial numbers are eligible for automatic saving (1.4638ms)
+✔ the same registered serial is not duplicated (1.2305ms)
+✔ information-bar content follows the same shop-camera eligibility as JPG saving (2.0754ms)
+✔ registered camera without a trustworthy capture date never authorizes saving (2.3802ms)
+✔ reopened exports stay historical after Photoshop copy suffix or extension changes (1.6957ms)
+✔ digitizing or editing an old shop photo today cannot substitute for DateTimeOriginal (2.0041ms)
+✔ capture identity fields are kept separately from mutable save metadata (1.648ms)
+✔ 本店片 makes an AI-retouched shop photo eligible for this layout only; a plugin-made sheet stays refused (10-31) (1.3817ms)
+✔ clearing all runtime overrides reveals the restored persistent values (6.1655ms)
+✔ stage5 retains old overrides without applying them and restores saved code geometry (3.6558ms)
+✔ v5 debug rectangles cannot extend into photos or exceed the six-centimeter strip (2.2981ms)
+✔ plain clicks toggle multiple templates in click order (8.5263ms)
+✔ double click keeps the existing selection and includes its button (0.8992ms)
+✔ double activation deduplicates click detail 2 and dblclick events (0.8997ms)
+✔ completed layout clears all selected templates (0.8708ms)
+✔ the plugin starts without a preselected template (1.0854ms)
+✔ the selection service loads before main without a delayed click timer (0.8331ms)
+✔ all reference templates have unique in-bounds slots (10.4724ms)
+✔ all eleven pickup cards fit 60mm (user 10-29: 78mm did not go in the bag), keep clear of photos and paper bleed, and never overlap (24.2065ms)
+✔ counter-clockwise placement puts reading top on the photo side and reading left at the sheet bottom (3.7514ms)
+✔ ordinary bars use the one-inch style on every template; US 5x5 keeps five photos and an upright corner strip (5.6759ms)
+✔ only US 5x5 loses its lower-right photo and 标准2寸 sits 24px lower; all other slots match the frozen pre-stage5 baseline (6.293ms)
+✔ the layout plan Photoshop actually draws keeps the one-inch style marker for every ordinary bar (5.9754ms)
+✔ saved photos use the largest pixels among the same or nearly the same shape (within 1%) (3.9888ms)
+✔ 结婚照 keeps the one-inch text size beside its landscape thumbnail (user 10-20) (4.1457ms)
+✔ per-order wording says how to open the mini-program without scanning; codes keep their tested size (user 10-28) (8.5407ms)
+ℹ tests 509
+ℹ suites 0
+ℹ pass 509
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 17934.5497
+[2/6] Checking JavaScript syntax
+[3/6] Validating manifest and version documents
+[4/6] Checking release UI surface
+[5/6] Validating Photoshop execution seam and retired features
+[6/6] Validating release files
+Release verification passed: IDPhoto MAX v0.6.30

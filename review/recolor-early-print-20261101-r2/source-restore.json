@@ -1,0 +1,23 @@
+{
+  "base": "c9b2eb4e4cc7ffa6595de5d73b465cbcb3401f7b",
+  "root": "D:\\software\\yx-work\\runs\\recolor-r2-c_gx031b",
+  "overlayPaths": [
+    "CHANGELOG.md",
+    "DEV_PROGRESS.md",
+    "docs/delivery-automation.md",
+    "src/photoshop/deliveryAutomationService.js",
+    "src/photoshop/deliveryService.js",
+    "tests/deliveryAutomationRecovery.test.js"
+  ],
+  "excluded": [
+    "all historical review directories",
+    "_reference"
+  ],
+  "sourceBindings": 12,
+  "postVerifyDocumentationOnly": [
+    "docs/换底色直接打-2026-11-01.md"
+  ],
+  "verifyExitCode": 0,
+  "testsPassed": 509,
+  "releaseChecksPassed": 6
+}

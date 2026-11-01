@@ -1,0 +1,214 @@
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-sgxhugjw","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-w0jsejy5","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-ck43otqf","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-435jcejk","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"0000000000000000000000000000274d","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-439hggis","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-guhxwkmr","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-5u4tm0d4","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-zmkcaeqm","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"0000000000000000000000000000274d","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-uonu03nk","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-eqp0mj4w","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-sex84ogn","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-g41fmfxz","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-6n268ujn","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-mggim09f","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-nw4809i1","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-s42voxm7","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-tzzi73iv","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-b6pwt5nh","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-onpebo7g","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-28t9r8j6","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+✖ REP-02 ended history: early=true, remote=withdrawn, click=white (30.7034ms)
+✖ REP-02 ended history: early=true, remote=withdrawn, click=blue (11.9658ms)
+✔ REP-02 ended history: early=false, remote=withdrawn, click=white (16.5838ms)
+✔ REP-02 ended history: early=false, remote=withdrawn, click=blue (16.1365ms)
+✖ REP-02 ended history: early=true, remote=ready, click=white (15.162ms)
+✖ REP-02 ended history: early=true, remote=ready, click=blue (17.4777ms)
+✖ REP-02 in-flight unknown still rejects ended original withdrawn (10.9627ms)
+✖ REP-02 in-flight unknown still rejects ended original cancelled (13.9297ms)
+✖ REP-02 in-flight TASK_PENDING still rejects ended original withdrawn (9.6634ms)
+✖ REP-02 in-flight TASK_PENDING still rejects ended original cancelled (10.7625ms)
+✖ REP-02 in-flight local-completed still rejects ended original withdrawn (12.01ms)
+✖ REP-02 in-flight local-completed still rejects ended original cancelled (13.3097ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 2
+ℹ fail 10
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 252.8173
+
+✖ failing tests:
+
+test at tests\deliveryAutomationRecovery.test.js:366:5
+✖ REP-02 ended history: early=true, remote=withdrawn, click=white (30.7034ms)
+  AssertionError [ERR_ASSERTION]: 原交付尚未核对，请等待原任务，不会重复建单
+  
+  false !== true
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:388:16)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests\deliveryAutomationRecovery.test.js:366:5
+✖ REP-02 ended history: early=true, remote=withdrawn, click=blue (11.9658ms)
+  AssertionError [ERR_ASSERTION]: 原交付尚未核对，请等待原任务，不会重复建单
+  
+  false !== true
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:388:16)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests\deliveryAutomationRecovery.test.js:366:5
+✖ REP-02 ended history: early=true, remote=ready, click=white (15.162ms)
+  TypeError: Cannot read properties of undefined (reading 'deliveryId')
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:399:45)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+
+test at tests\deliveryAutomationRecovery.test.js:366:5
+✖ REP-02 ended history: early=true, remote=ready, click=blue (17.4777ms)
+  TypeError: Cannot read properties of undefined (reading 'deliveryId')
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:399:45)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+
+test at tests\deliveryAutomationRecovery.test.js:411:5
+✖ REP-02 in-flight unknown still rejects ended original withdrawn (10.9627ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /纸上印的取件码.*请重排/. Input:
+  
+  '原交付尚未核对，请等待原任务，不会重复建单'
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:421:14)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '原交付尚未核对，请等待原任务，不会重复建单',
+    expected: /纸上印的取件码.*请重排/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at tests\deliveryAutomationRecovery.test.js:411:5
+✖ REP-02 in-flight unknown still rejects ended original cancelled (13.9297ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /纸上印的取件码.*请重排/. Input:
+  
+  '原交付尚未核对，请等待原任务，不会重复建单'
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:421:14)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '原交付尚未核对，请等待原任务，不会重复建单',
+    expected: /纸上印的取件码.*请重排/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at tests\deliveryAutomationRecovery.test.js:411:5
+✖ REP-02 in-flight TASK_PENDING still rejects ended original withdrawn (9.6634ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /纸上印的取件码.*请重排/. Input:
+  
+  '原交付尚未核对，请等待原任务，不会重复建单'
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:421:14)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '原交付尚未核对，请等待原任务，不会重复建单',
+    expected: /纸上印的取件码.*请重排/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at tests\deliveryAutomationRecovery.test.js:411:5
+✖ REP-02 in-flight TASK_PENDING still rejects ended original cancelled (10.7625ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /纸上印的取件码.*请重排/. Input:
+  
+  '原交付尚未核对，请等待原任务，不会重复建单'
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:421:14)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '原交付尚未核对，请等待原任务，不会重复建单',
+    expected: /纸上印的取件码.*请重排/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at tests\deliveryAutomationRecovery.test.js:411:5
+✖ REP-02 in-flight local-completed still rejects ended original withdrawn (12.01ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  true !== false
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:420:14)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests\deliveryAutomationRecovery.test.js:411:5
+✖ REP-02 in-flight local-completed still rejects ended original cancelled (13.3097ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  true !== false
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:420:14)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

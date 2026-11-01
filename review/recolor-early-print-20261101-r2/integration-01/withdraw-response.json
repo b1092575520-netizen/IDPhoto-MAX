@@ -1,0 +1,17 @@
+{
+  "ok": true,
+  "data": {
+    "delivery": {
+      "id": "12fbf22b29fe6a2db57536436da08f21ef1fae1c0d754b27e0f62529583d0579",
+      "title": "ISOLATED-test.jpg",
+      "status": "withdrawn",
+      "code": "XK9598",
+      "createdAt": 1793528189608,
+      "publishedRevision": 3,
+      "fileCount": 3
+    },
+    "code": "XK9598",
+    "customerRecoveries": 0,
+    "completed": true
+  }
+}

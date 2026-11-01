@@ -339,11 +339,18 @@
     saved.status = statusFile ? JSON.parse(await statusFile.read({ format: format(false) })) : {};
     return { task: saved, photo: prepared.photo };
   }
-  async function resolveDependencies(ids, current) {
+  async function resolveDependencies(ids, current, summaries) {
     var records = window.IDPhotoDeliveryAutomationService.store().tasks(), result = {};
     for (var id of ids) {
       var record = records.find(function (item) { return item.id === id; });
       if (!record || !["pending", "retryable", "completed"].includes(record.state)) continue;
+      var summary = summaries.find(function (item) { return item.taskId === id; });
+      // A local complete only hands files over. Only this task's live remote
+      // result can retire its early binding; ended records keep requireItem's
+      // existing cancel/withdraw semantics, including blocked terminal replies.
+      if (summary && summary.known && !summary.errorCode &&
+          (["cancelled", "withdrawn"].includes(summary.status) ||
+           summary.status === "ready" && !summary.blocked && !summary.pendingBatch)) continue;
       var folder = await fs().getEntryForPersistentToken(record.token);
       if (!await optionalEntry(folder, "early-print.json")) continue;
       var saved = await preparedTask(folder), early = await readEarlyPrint(saved.task);
@@ -361,6 +368,8 @@
       summary.blocked === true && summary.errorCode === "TASK_PENDING" && !summary.deliveryId);
   }
   function verifyEarlyTarget(early, summary) {
+    if (summary && summary.known && !summary.errorCode && ["cancelled", "withdrawn"].includes(summary.status))
+      throw window.IDPhotoDeliveryAutomationService.invalidEarly(early.code, summary.code);
     // Production reports an owned, uploading append as blocked/TASK_PENDING
     // even with a DeliveryId. It authorizes no output; recovery just waits for
     // publication before resolving the next manifest/group version.

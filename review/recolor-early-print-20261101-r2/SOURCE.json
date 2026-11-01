@@ -1,0 +1,79 @@
+{
+  "version": "0.6.30-R2",
+  "base": "c9b2eb4e4cc7ffa6595de5d73b465cbcb3401f7b",
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "4e87b65a2cb9355115dfe0dd344acc8ffbc4d32dafcff2c3738a4f803714784d",
+      "lfNormalizedSha256": "4e87b65a2cb9355115dfe0dd344acc8ffbc4d32dafcff2c3738a4f803714784d",
+      "worktreeSha256": "e805b4ae23a691c68f768309d06816781f145ec58382e691afe6e408a555c791"
+    },
+    {
+      "path": "DEV_PROGRESS.md",
+      "sha256": "350bc2c50747ab8eb9767c151965a7b2c216fd2070c6fb7e3f8279a52f116b22",
+      "lfNormalizedSha256": "350bc2c50747ab8eb9767c151965a7b2c216fd2070c6fb7e3f8279a52f116b22",
+      "worktreeSha256": "a787646a5094b83de3d44bd93ac908d4d9666ff49a44a7b3000fb7624cc6854b"
+    },
+    {
+      "path": "README.md",
+      "sha256": "ebee7c8613c5caddd4c2c23ca6ec4a50614712d82860b2a0c92fa8360e1c51eb",
+      "lfNormalizedSha256": "ebee7c8613c5caddd4c2c23ca6ec4a50614712d82860b2a0c92fa8360e1c51eb",
+      "worktreeSha256": "6e815af13322c34ec43d4920a4ad6d7de40f7011405116207a957f22b756b8b2"
+    },
+    {
+      "path": "docs/delivery-automation.md",
+      "sha256": "8d1014a9a883f40ffd15471c2c2affed921fb50d6b691fb060a851bc3d077af8",
+      "lfNormalizedSha256": "8d1014a9a883f40ffd15471c2c2affed921fb50d6b691fb060a851bc3d077af8",
+      "worktreeSha256": "582135289cd9e0228cff27fb0fba7a211b347d3ca36ab395e39c8c103d6c5779"
+    },
+    {
+      "path": "docs/换底色直接打-2026-11-01.md",
+      "sha256": "282f89f1b6a4e230ef708dc593ae534751d9d049e5bc144a245c95ba88633c95",
+      "lfNormalizedSha256": "282f89f1b6a4e230ef708dc593ae534751d9d049e5bc144a245c95ba88633c95",
+      "worktreeSha256": "701b4a8a6dcbfa98ba1574f89a1376bc64aed250b29c510f81dd0b709fe5500d"
+    },
+    {
+      "path": "manifest.json",
+      "sha256": "7aa6cd802631635d2d34181e256a3f36209aa55e17402f718f580011e4348a43",
+      "lfNormalizedSha256": "7aa6cd802631635d2d34181e256a3f36209aa55e17402f718f580011e4348a43",
+      "worktreeSha256": "d316c41b31aa1acc4defca393b8c1b019f489a48d2410b91f73fe7e7934c7090"
+    },
+    {
+      "path": "package.json",
+      "sha256": "1b45c5d1a5836fe923d485535246d56cdf415f62c91aa6f8d6125fc96da4b4b1",
+      "lfNormalizedSha256": "1b45c5d1a5836fe923d485535246d56cdf415f62c91aa6f8d6125fc96da4b4b1",
+      "worktreeSha256": "3f8846b6095a7479a3bfca30be8764be2351a08e90b7c92f1bbdd1cf36f09629"
+    },
+    {
+      "path": "src/core/layoutWorkflow.js",
+      "sha256": "a28bee72b92018e4693c76adb11c22754acc29f373232854d11330cd688277ae",
+      "lfNormalizedSha256": "a28bee72b92018e4693c76adb11c22754acc29f373232854d11330cd688277ae",
+      "worktreeSha256": "755696316fb7db9b39aed61645b3d58ce17756ef7a5f336aba3d7afb504f3102"
+    },
+    {
+      "path": "src/photoshop/deliveryAutomationService.js",
+      "sha256": "62f1fef3422cc51985723e09f0c7c0fafe9145c7c8c542797812bc4439d7f239",
+      "lfNormalizedSha256": "62f1fef3422cc51985723e09f0c7c0fafe9145c7c8c542797812bc4439d7f239",
+      "worktreeSha256": "62884f5ee074b102aec60e5eb86fdbdf828d7be879602e513d3ce76d3e947ec2"
+    },
+    {
+      "path": "src/photoshop/deliveryService.js",
+      "sha256": "d4b36714d4734831ab1f8ac7216846392c648580eb48f7282be6fc96b11b5415",
+      "lfNormalizedSha256": "d4b36714d4734831ab1f8ac7216846392c648580eb48f7282be6fc96b11b5415",
+      "worktreeSha256": "1141b73c5cb710af3dafeabc562868fc954495425d47518d53b658168c6a7c87"
+    },
+    {
+      "path": "tests/deliveryAutomationRecovery.test.js",
+      "sha256": "525d1fd6f40460ee3b5cbc3639e48e1bc7525dd5a9480a181977e2b1a6defc2c",
+      "lfNormalizedSha256": "525d1fd6f40460ee3b5cbc3639e48e1bc7525dd5a9480a181977e2b1a6defc2c",
+      "worktreeSha256": "5455bfb1b05ba75a71e95db2be681dcb93d5b11cfca770bfc1d18559e58c911e"
+    },
+    {
+      "path": "tests/layoutWorkflow.test.js",
+      "sha256": "db38bc87d55b55ea3ff9bd84abc4f296cbf1f8a44405154d9f29666e0e5ffd46",
+      "lfNormalizedSha256": "b6acd3763baf36b21ff78e48cbf4c7a61972ba919b086939f3cf3d04df01ceb4",
+      "worktreeSha256": "db38bc87d55b55ea3ff9bd84abc4f296cbf1f8a44405154d9f29666e0e5ffd46"
+    }
+  ],
+  "hashMeaning": "sha256 uses Git bytes, retaining unchanged mixed line endings; worktreeSha256 uses actual source bytes"
+}

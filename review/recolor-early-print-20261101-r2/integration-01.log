@@ -1,0 +1,6 @@
+[print] timing ms: jpeg=0 job=1 launch=1 bridge=0
+[print] timing ms: jpeg=0 job=1 launch=0 bridge=0
+[print] timing ms: jpeg=1 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=1 bridge=0
+[print] timing ms: jpeg=1 job=0 launch=0 bridge=1
+[print] timing ms: jpeg=0 job=0 launch=1 bridge=0

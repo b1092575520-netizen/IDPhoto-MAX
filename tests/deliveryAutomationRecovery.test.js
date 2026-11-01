@@ -359,6 +359,81 @@ for (const fault of ["unknown", "offline", "consumer", "source", "cancelled", "w
   });
 }
 
+// REP-02: promoted from the independent ended-history.cjs, with both an old
+// specification and a new color, code/identity assertions, and reloads.
+for (const [early, ended] of [[true, "withdrawn"], [false, "withdrawn"], [true, "ready"]]) {
+  for (const color of ["white", "blue"]) {
+    test("REP-02 ended history: early=" + early + ", remote=" + ended + ", click=" + color, async () => {
+      let h, original, red, white;
+      if (early) {
+        ({ h, original, red, white } = await earlyScenario());
+        ready(h, red); await finishEarly(h, white);
+      } else {
+        h = harness({ automaticRemote: true }); original = h.source();
+        original.info.sourceVariant.backgroundColor = "red";
+        assert.equal((await h.runPrint(original)).ok, true); red = h.service.latest(); ready(h, red);
+        original.info.sourceVariant.backgroundColor = "white";
+        assert.equal((await h.runPrint(original)).ok, true); white = h.service.latest(); ready(h, white);
+      }
+      assert.ok(h.automation.store().tasks().every(t => t.state === "completed"));
+      for (const item of h.remote.values()) Object.assign(item, {
+        status: ended, blocked: ended === "withdrawn", originalCodeActive: ended !== "withdrawn", errorCode: ""
+      });
+      const oldSummaries = JSON.stringify([...h.remote.values()]);
+      h.options.nextCode = ended === "withdrawn" ? "N7EW8A" : red.code;
+      original.info.sourceVariant.backgroundColor = color;
+      let newDelivery;
+      for (let n = 0; n < 2; n++) {
+        h.reload(); const count = h.prints.length, result = await h.runPrint(original), task = h.service.latest();
+        assert.equal(result.ok, true, result.failures.map(x => x.error.message).join(";"));
+        assert.equal(h.prints.length - count, 1);
+        assert.equal(task.code, h.options.nextCode);
+        if (n === 0) {
+          const request = await h.json(task.folder, "request.json");
+          if (ended === "withdrawn") {
+            assert.equal(request.targetDeliveryId, undefined, "new order never revives the withdrawn code");
+            assert.notEqual(task.deliveryId, red.deliveryId);
+          } else assert.equal(request.targetDeliveryId, red.deliveryId, "published history uses normal append/replace");
+          newDelivery = task.deliveryId;
+        } else {
+          if (ended === "withdrawn") {
+            assert.equal(task.preparingTarget.deliveryId, newDelivery);
+            ready(h, { id: task.preparingTarget.taskId }); await finishEarly(h, task);
+          } else assert.equal((await h.json(task.folder, "request.json")).targetDeliveryId, newDelivery);
+        }
+      }
+      assert.equal(JSON.stringify([h.remote.get(red.id), h.remote.get(white.id)]), oldSummaries);
+      assert.equal(await h.service.primeRecovery(), null);
+    });
+  }
+}
+
+for (const window of ["unknown", "TASK_PENDING", "local-completed"]) {
+  for (const ended of ["withdrawn", "cancelled"]) {
+    test("REP-02 in-flight " + window + " still rejects ended original " + ended, async () => {
+      const { h, original, red, white } = await receivingWhite(window === "TASK_PENDING" ? window : "unknown");
+      if (window === "local-completed") {
+        h.options.receipt = true; h.options.holdPublish = true; await finishEarly(h, white);
+        assert.equal(h.remote.get(white.id).status, "preparing");
+        // Local completion is not authority even if receiver state is lost.
+        h.remote.delete(white.id); h.options.receipt = false;
+      }
+      Object.assign(h.remote.get(red.id), { status: ended, blocked: true, errorCode: "", originalCodeActive: false });
+      h.reload(); original.info.sourceVariant.backgroundColor = "blue";
+      const result = await h.runPrint(original);
+      assert.equal(result.ok, false);
+      assert.match(result.failures[0].error.message, /纸上印的取件码.*请重排/);
+      assert.equal(h.prints.length, 2);
+      const before = backgroundCounts(h); h.reload();
+      for (let n = 0; n < 2; n++) {
+        const id = await h.service.primeRecovery();
+        if (typeof id === "string") await h.service.recoverNext(id);
+      }
+      assert.deepEqual(backgroundCounts(h), before);
+    });
+  }
+}
+
 test("0.6.30 #1 red then white immediately: same dedicated code, one permission, file-only upload", async () => {
   const { h, red, white, result } = await earlyScenario({ evidenceCase: "#1" });
   assert.equal(result.ok, true, result.failures.map(x => x.error.message).join(";"));

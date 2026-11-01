@@ -1,0 +1,46 @@
+{
+  "base": "c9b2eb4",
+  "modules": [
+    {
+      "path": "src/core/templateRegistry.js",
+      "lfSha256": "dc7d2578622f18d9083766061d641b7daa1ea22b74023af778b6ff4f345ace16",
+      "unchanged": true
+    },
+    {
+      "path": "src/core/templateOverrideService.js",
+      "lfSha256": "0b6568f929d2b87c468c1042688e2b3f5978b9c01958abf2b7624906b1d9bb76",
+      "unchanged": true
+    },
+    {
+      "path": "src/core/layoutEngine.js",
+      "lfSha256": "b6e7d6a40c9ffcb499942e3b015c3b85d49594ef5576d2f659a4fa0157d7a322",
+      "unchanged": true
+    },
+    {
+      "path": "src/photoshop/cropService.js",
+      "lfSha256": "87fbd66efa36b1af804eda6f13e9eae5617f5b1a860f43ee60c0afe521e28ad4",
+      "unchanged": true
+    },
+    {
+      "path": "src/photoshop/infoBarRenderer.js",
+      "lfSha256": "5c2093d335c60dc66dc5d89661c7fbd167cf3a100e503260afff7be1b8596f2c",
+      "unchanged": true
+    },
+    {
+      "path": "src/core/pickupStripLayout.js",
+      "lfSha256": "638f4caa595712f658e4ff58b366cb1d1ef5fabbafbbbb31a3ecdfc238b7e9ea",
+      "unchanged": true
+    },
+    {
+      "path": "src/photoshop/printService.js",
+      "lfSha256": "dcb7943e0432deba5fad10a4eee1d08852521c78732454011f739b785b7d51ab",
+      "unchanged": true
+    },
+    {
+      "path": "bridge/print-dsrx1.ps1",
+      "lfSha256": "2e8db7ec34fe3ba2a2adeac7b3dd36f648256500bc8041ffb60fe73f86f8a96d",
+      "unchanged": true
+    }
+  ],
+  "boundary": "Source equivalence only, no real Photoshop pixel acceptance"
+}

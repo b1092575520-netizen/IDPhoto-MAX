@@ -1,0 +1,124 @@
+{
+  "old": {
+    "ok": true,
+    "data": {
+      "delivery": {
+        "id": "12fbf22b29fe6a2db57536436da08f21ef1fae1c0d754b27e0f62529583d0579",
+        "title": "ISOLATED-test.jpg",
+        "status": "withdrawn",
+        "code": "XK9598",
+        "createdAt": 1793528189608,
+        "publishedRevision": 3,
+        "fileCount": 3,
+        "groupVersion": 2,
+        "collectionEditVersion": 1,
+        "memberIds": [
+          "12fbf22b29fe6a2db57536436da08f21ef1fae1c0d754b27e0f62529583d0579"
+        ],
+        "routeIds": [
+          "12fbf22b29fe6a2db57536436da08f21ef1fae1c0d754b27e0f62529583d0579"
+        ],
+        "aliases": [
+          "XK9598"
+        ],
+        "pendingBatch": null,
+        "mergeIntent": null
+      },
+      "files": [
+        {
+          "id": "5996e060ebf31a94481d59616d047cd29eeacb5dabf56ab05466ecd34303f2eb",
+          "name": "photo-61981c772b71.jpg",
+          "sizeBytes": 767,
+          "checksum": "e72afa9b14a2cd8b568f439b9ecc7ba8f6dccefdb87d8ad5f1672932e2269bcb",
+          "width": 80,
+          "height": 100,
+          "status": "published",
+          "revision": 1,
+          "memberId": "12fbf22b29fe6a2db57536436da08f21ef1fae1c0d754b27e0f62529583d0579",
+          "slotId": "5996e060ebf31a94481d59616d047cd29eeacb5dabf56ab05466ecd34303f2eb",
+          "constraints": null,
+          "purpose": "Fixture",
+          "background": "red",
+          "receivedParts": []
+        },
+        {
+          "id": "fcb1c0ef2baea72e4ddd37dd7fcf77c4a8762b017fdc6102aa9bb35f43ad5f46",
+          "name": "photo-c0b52b144836.jpg",
+          "sizeBytes": 767,
+          "checksum": "e72afa9b14a2cd8b568f439b9ecc7ba8f6dccefdb87d8ad5f1672932e2269bcb",
+          "width": 80,
+          "height": 100,
+          "status": "published",
+          "revision": 1,
+          "memberId": "12fbf22b29fe6a2db57536436da08f21ef1fae1c0d754b27e0f62529583d0579",
+          "slotId": "fcb1c0ef2baea72e4ddd37dd7fcf77c4a8762b017fdc6102aa9bb35f43ad5f46",
+          "constraints": null,
+          "purpose": "Fixture",
+          "background": "white",
+          "receivedParts": []
+        },
+        {
+          "id": "b21a11360c1f528a88c65f2eb4736087c4ed6f88f2f4da06a89aaff3c993301f",
+          "name": "photo-99b2705337ac.jpg",
+          "sizeBytes": 767,
+          "checksum": "e72afa9b14a2cd8b568f439b9ecc7ba8f6dccefdb87d8ad5f1672932e2269bcb",
+          "width": 80,
+          "height": 100,
+          "status": "published",
+          "revision": 1,
+          "memberId": "12fbf22b29fe6a2db57536436da08f21ef1fae1c0d754b27e0f62529583d0579",
+          "slotId": "b21a11360c1f528a88c65f2eb4736087c4ed6f88f2f4da06a89aaff3c993301f",
+          "constraints": null,
+          "purpose": "Fixture",
+          "background": "blue",
+          "receivedParts": []
+        }
+      ]
+    }
+  },
+  "new": {
+    "ok": true,
+    "data": {
+      "delivery": {
+        "id": "6f3099eca295d509e50f03edb017f3c4a620e7157eed49d29e22b51080713ff7",
+        "title": "ISOLATED-test.jpg",
+        "status": "ready",
+        "code": "ABCXV6",
+        "createdAt": 1793528202295,
+        "publishedRevision": 2,
+        "fileCount": 1,
+        "groupVersion": 1,
+        "collectionEditVersion": 1,
+        "memberIds": [
+          "6f3099eca295d509e50f03edb017f3c4a620e7157eed49d29e22b51080713ff7"
+        ],
+        "routeIds": [
+          "6f3099eca295d509e50f03edb017f3c4a620e7157eed49d29e22b51080713ff7"
+        ],
+        "aliases": [
+          "ABCXV6"
+        ],
+        "pendingBatch": null,
+        "mergeIntent": null
+      },
+      "files": [
+        {
+          "id": "80d3c3dfb9fa298ee9e571b8c9eea2ddf8b84c228f85622d4e00f869f330a55b",
+          "name": "photo-61981c772b71.jpg",
+          "sizeBytes": 767,
+          "checksum": "e72afa9b14a2cd8b568f439b9ecc7ba8f6dccefdb87d8ad5f1672932e2269bcb",
+          "width": 80,
+          "height": 100,
+          "status": "published",
+          "revision": 2,
+          "memberId": "6f3099eca295d509e50f03edb017f3c4a620e7157eed49d29e22b51080713ff7",
+          "slotId": "47da852af22e6b6697f0b706054ba21a6b029c9a35417ace72d6c68d41eb5012",
+          "constraints": null,
+          "purpose": "Fixture",
+          "background": "red",
+          "receivedParts": []
+        }
+      ]
+    }
+  }
+}

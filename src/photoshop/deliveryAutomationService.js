@@ -150,12 +150,18 @@
     if (connected.automationProtocol !== PROTOCOL) throw new Error("后台尚不支持自动交付，请使用本轮配套后台；原任务保留");
     if (task.sourceIdentity && task.sourceIdentity !== connected.sourceIdentity) throw new Error("原交接目录身份已变化，停止自动恢复");
     task.consumerId = connected.consumerId; task.sourceIdentity = connected.sourceIdentity;
-    var plan = task.automation, dependencies = service.resolveDependencies ? await service.resolveDependencies(plan.previousTaskIds, task) : {};
-    var ids = Array.from(new Set(plan.previousTaskIds.concat(Object.keys(dependencies).map(function (id) {
-      return dependencies[id].targetTaskId;
-    }), plan.groupTaskIds)));
+    var plan = task.automation;
+    var ids = Array.from(new Set(plan.previousTaskIds.concat(plan.groupTaskIds)));
     if (ids.length > 32) throw new Error("原片规格记录超出核对范围，请在后台人工处理");
     var items = ids.length ? await query(ids, root, connected) : [];
+    // The child itself decides whether its early-print binding is still live.
+    // Published/ended history goes through requireItem just like any old spec.
+    var dependencies = service.resolveDependencies ? await service.resolveDependencies(plan.previousTaskIds, task, items) : {};
+    var missingTargets = Array.from(new Set(Object.keys(dependencies).map(function (id) {
+      return dependencies[id].targetTaskId;
+    }).filter(function (id) { return !ids.includes(id); })));
+    if (ids.length + missingTargets.length > 32) throw new Error("原片规格记录超出核对范围，请在后台人工处理");
+    if (missingTargets.length) items = items.concat(await query(missingTargets, root, connected));
     var waitingDependency = false;
     var same = plan.previousTaskIds.map(function (id) {
       var item = items.find(function (value) { return value.taskId === id; }), early = dependencies[id];

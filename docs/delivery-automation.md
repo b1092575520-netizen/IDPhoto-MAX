@@ -43,3 +43,9 @@ EXIF `53`表示原始亚秒数字；Photoshop可能写成内嵌`.053`。有单�
 已有 v2 先打记录的补传单，request 已暴露但仍 unknown，或已登记但返回 `TASK_PENDING` 且无 DeliveryId 时，本次查询回查记录中的 targetTaskId。只有原连接一致、原目标 known 且未 blocked、码有效、状态 ready/preparing，并且 code/contextKey/deliveryId 与记录一致，才准许前台输出。同规格复用原补传单及原成片；不同规格也先打，等待前面规格远端发布后才生成追加清单，使用新查回的 groupVersion。本地写完 complete 不代表远端发布。已拥有的 pendingBatch 上传阶段仅后台等待，不授权新输出或并发追加。
 
 后续规格的本地 context 保存 `foregroundOnly`。前台失败而未形成完整先打输出时，没有暴露 request 的任务停下，店员恢复连接后可再点；已有 request 的保留任务和原字节并待人工核对，不重复建单。自动恢复同样检查此标记；只有提交确认且附件完整的先打任务可以纯文件补传，不落入旧 PS 重排/存档恢复。
+
+### REP-02 / R2 已终结的先打历史
+
+先通过本次 `queryTasks` 查询每份历史先打任务自身的远端状态，再决定是否读取其早打依赖。已知且无错误的 ready（未 blocked、无 pendingBatch）、withdrawn 或 cancelled，按普通旧规格进入原有 `requireItem` 逻辑：有效则沿当前码追加/替换；撤回或取消则作为结束的旧交付，新点击取新码，不复活旧码。远端撤回本身返回 blocked 不阻断原有终态分支。
+
+未登记、TASK_PENDING/无 DeliveryId、TASK_PENDING/pendingBatch 上传中以及 preparing 仍保留早打绑定、原连接校验和串行补传保护。本地 completed 不能让在途记录绕过远端校验。在途记录回查发现原目标已撤回或取消时，继续拒绝并提示纸上码失效、请重排。错误、冲突、未知与离线不作为已终结的授权结果。

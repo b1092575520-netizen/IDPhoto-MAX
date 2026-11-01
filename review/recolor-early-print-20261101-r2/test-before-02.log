@@ -1,0 +1,198 @@
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-hzovxije","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-90ie307n","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-sbh7oai8","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-39u4clkh","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"0000000000000000000000000000274d","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-al84wysy","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-4ky9wx9q","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-p7yw6901","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-sdpk4s8a","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"0000000000000000000000000000274d","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-5jmq60rs","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-wqit18yl","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-i1rs1vl9","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-yg6rc8gz","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-i71zdjjx","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-zf91mhnz","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-2gvgmspo","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-jama49rs","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-lvqri9gq","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-jmbvtukt","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-aoo245z5","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-1f9537yf","cancelled":false}]}
+✖ REP-02 ended history: early=true, remote=withdrawn, click=white (29.4845ms)
+✖ REP-02 ended history: early=true, remote=withdrawn, click=blue (12.4906ms)
+✔ REP-02 ended history: early=false, remote=withdrawn, click=white (15.2504ms)
+✔ REP-02 ended history: early=false, remote=withdrawn, click=blue (15.6374ms)
+✔ REP-02 ended history: early=true, remote=ready, click=white (16.0368ms)
+✔ REP-02 ended history: early=true, remote=ready, click=blue (18.0258ms)
+✖ REP-02 in-flight unknown still rejects ended original withdrawn (10.6818ms)
+✖ REP-02 in-flight unknown still rejects ended original cancelled (13.2758ms)
+✖ REP-02 in-flight TASK_PENDING still rejects ended original withdrawn (12.8924ms)
+✖ REP-02 in-flight TASK_PENDING still rejects ended original cancelled (13.7426ms)
+✖ REP-02 in-flight local-completed still rejects ended original withdrawn (11.5528ms)
+✖ REP-02 in-flight local-completed still rejects ended original cancelled (10.0047ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 4
+ℹ fail 8
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 247.6568
+
+✖ failing tests:
+
+test at tests\deliveryAutomationRecovery.test.js:366:5
+✖ REP-02 ended history: early=true, remote=withdrawn, click=white (29.4845ms)
+  AssertionError [ERR_ASSERTION]: 原交付尚未核对，请等待原任务，不会重复建单
+  
+  false !== true
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:388:16)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests\deliveryAutomationRecovery.test.js:366:5
+✖ REP-02 ended history: early=true, remote=withdrawn, click=blue (12.4906ms)
+  AssertionError [ERR_ASSERTION]: 原交付尚未核对，请等待原任务，不会重复建单
+  
+  false !== true
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:388:16)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests\deliveryAutomationRecovery.test.js:413:5
+✖ REP-02 in-flight unknown still rejects ended original withdrawn (10.6818ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /纸上印的取件码.*请重排/. Input:
+  
+  '原交付尚未核对，请等待原任务，不会重复建单'
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:425:14)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '原交付尚未核对，请等待原任务，不会重复建单',
+    expected: /纸上印的取件码.*请重排/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at tests\deliveryAutomationRecovery.test.js:413:5
+✖ REP-02 in-flight unknown still rejects ended original cancelled (13.2758ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /纸上印的取件码.*请重排/. Input:
+  
+  '原交付尚未核对，请等待原任务，不会重复建单'
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:425:14)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '原交付尚未核对，请等待原任务，不会重复建单',
+    expected: /纸上印的取件码.*请重排/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at tests\deliveryAutomationRecovery.test.js:413:5
+✖ REP-02 in-flight TASK_PENDING still rejects ended original withdrawn (12.8924ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /纸上印的取件码.*请重排/. Input:
+  
+  '原交付尚未核对，请等待原任务，不会重复建单'
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:425:14)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '原交付尚未核对，请等待原任务，不会重复建单',
+    expected: /纸上印的取件码.*请重排/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at tests\deliveryAutomationRecovery.test.js:413:5
+✖ REP-02 in-flight TASK_PENDING still rejects ended original cancelled (13.7426ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /纸上印的取件码.*请重排/. Input:
+  
+  '原交付尚未核对，请等待原任务，不会重复建单'
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:425:14)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '原交付尚未核对，请等待原任务，不会重复建单',
+    expected: /纸上印的取件码.*请重排/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at tests\deliveryAutomationRecovery.test.js:413:5
+✖ REP-02 in-flight local-completed still rejects ended original withdrawn (11.5528ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /纸上印的取件码.*请重排/. Input:
+  
+  '原交付尚未核对，请等待原任务，不会重复建单'
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:425:14)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '原交付尚未核对，请等待原任务，不会重复建单',
+    expected: /纸上印的取件码.*请重排/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at tests\deliveryAutomationRecovery.test.js:413:5
+✖ REP-02 in-flight local-completed still rejects ended original cancelled (10.0047ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /纸上印的取件码.*请重排/. Input:
+  
+  '原交付尚未核对，请等待原任务，不会重复建单'
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:425:14)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '原交付尚未核对，请等待原任务，不会重复建单',
+    expected: /纸上印的取件码.*请重排/,
+    operator: 'match',
+    diff: 'simple'
+  }
