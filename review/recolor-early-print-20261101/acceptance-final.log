@@ -1,0 +1,84 @@
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"#1","task":"00000000000000000000000000002723","uploadStartedAt":1791345605000,"completedAt":1791345605000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-67k3a378","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-tue9vbwo","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence #2] [{"at":1791345600000,"action":"permission","jobId":"muxkx340-4z9l7y54","cancelled":false},{"at":1791345600000,"action":"query","ids":["00000000000000000000000000002711"]},{"at":1791345600000,"action":"permission","jobId":"muxkx340-m3xypoqg","cancelled":true}]
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"#3","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-mez19xwl","cancelled":true},{"at":1791345600000,"action":"permission","jobId":"muxkx340-d7bcaubx","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-8lvrrhyu","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"#4","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-q35dejng","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-t1hwgbww","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-w179s8iq","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence #5] {"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-qsnsrox7","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-1bjq44hd","cancelled":false}],"at":1791345600000,"upload":"stopped: original code invalid, no manifest handed off"}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"#6","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-oei96iz0","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-u8fxu95t","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"#7","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-bze0m592","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-lyslmd3p","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002711","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-ht8lax06","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence #8] {"clock":"simulated","ordinaryAndFirst":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-9qhnwwdr","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-nhipzsnd","cancelled":false}],"multi":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-f7zhhqa5","cancelled":false},{"at":1791345600000,"action":"query","ids":["00000000000000000000000000002711"]},{"at":1791345600000,"action":"permission","jobId":"muxkx340-wwn6t2r1","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-1d5jyac0","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-oiznoch0","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-ie2olod6","cancelled":false}]}
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002731","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-1d5jyac0","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-oiznoch0","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-ie2olod6","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-g3z1tdyz","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-m6ogqkiz","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-eo44v6aq","cancelled":true}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[0.6.30 evidence] {"scenario":"edge","task":"00000000000000000000000000002730","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","jobId":"muxkx340-2exqndaq","cancelled":false},{"at":1791345600000,"action":"permission","jobId":"muxkx340-rg5pw39v","cancelled":true},{"at":1791345600000,"action":"permission","jobId":"muxkx340-cg09z1wb","cancelled":false}]}
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=0 bridge=0
+✔ 0.6.30 #1 red then white immediately: same dedicated code, one permission, file-only upload (26.1547ms)
+✔ 0.6.30 #2 denied white permission stops the order across restart (10.7447ms)
+✔ 0.6.30 #3 an unrelated denial does not delay file-only upload (11.2685ms)
+✔ 0.6.30 #4 repeated white click prints twice and uploads one photo (12.0037ms)
+✔ 0.6.30 #5 cancelling the parent after early print never silently changes the printed code (8.692ms)
+✔ 0.6.30 #6 same background different size also prints before ready (11.129ms)
+✔ 0.6.30 #7 restart before and after manifest handoff preserves bytes and exactly one completion (12.998ms)
+✔ 0.6.30 unprinted local pending task is stopped before a fresh click; unknown backend cannot authorize early print (6.705ms)
+✔ 0.6.30 accepted pending task is reused for the next click instead of duplicated (8.5836ms)
+✔ 0.6.30 #8 ordinary mode, first coded order and multi-size preserve the normal output dimensions (13.1849ms)
+✔ 0.6.30 a pending click that failed before JPEG creation can be superseded safely (6.0302ms)
+✔ 0.6.30 cancelled parent before the click creates a new order with a new code (6.65ms)
+✔ 0.6.30 several backgrounds can print while the first and earlier uploads are still preparing (15.6915ms)
+✔ 0.6.30 unknown or disconnected target never prints a locally remembered code (12.3553ms)
+✔ 0.6.30 damaged artifacts, markers, source bindings and changed codes stop file-only recovery (51.9817ms)
+✔ 0.6.30 duplicate cancellation keeps the previously printed photo queued, first cancellation allows another click (19.5065ms)
+✔ 0.6.30 a receipt for another code never supplies the early print's dedicated link (7.7837ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 311.0286

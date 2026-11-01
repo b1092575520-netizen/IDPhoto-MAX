@@ -1,0 +1,372 @@
+{
+  "clock": "simulated unit clock; real elapsed integration is separate",
+  "events": [
+    {
+      "tag": "0.6.30 evidence",
+      "record": {
+        "scenario": "#1",
+        "task": "00000000000000000000000000002723",
+        "uploadStartedAt": 1791345605000,
+        "completedAt": 1791345605000,
+        "uploadElapsedMs": 0,
+        "clock": "simulated",
+        "permissions": [
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-ti122uy5",
+            "cancelled": false
+          },
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-29hnlm5z",
+            "cancelled": false
+          }
+        ]
+      }
+    },
+    {
+      "tag": "0.6.30 evidence #2",
+      "record": [
+        {
+          "at": 1791345600000,
+          "action": "permission",
+          "jobId": "muxkx340-wkv3oak6",
+          "cancelled": false
+        },
+        {
+          "at": 1791345600000,
+          "action": "query",
+          "ids": [
+            "00000000000000000000000000002711"
+          ]
+        },
+        {
+          "at": 1791345600000,
+          "action": "permission",
+          "jobId": "muxkx340-ke06sx8y",
+          "cancelled": true
+        }
+      ]
+    },
+    {
+      "tag": "0.6.30 evidence",
+      "record": {
+        "scenario": "#3",
+        "task": "00000000000000000000000000002723",
+        "uploadStartedAt": 1791345600000,
+        "completedAt": 1791345600000,
+        "uploadElapsedMs": 0,
+        "clock": "simulated",
+        "permissions": [
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-qerahu4m",
+            "cancelled": true
+          },
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-krujtc0a",
+            "cancelled": false
+          },
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-plzzfpz5",
+            "cancelled": false
+          }
+        ]
+      }
+    },
+    {
+      "tag": "0.6.30 evidence",
+      "record": {
+        "scenario": "#4",
+        "task": "00000000000000000000000000002723",
+        "uploadStartedAt": 1791345600000,
+        "completedAt": 1791345600000,
+        "uploadElapsedMs": 0,
+        "clock": "simulated",
+        "permissions": [
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-my8i5t0v",
+            "cancelled": false
+          },
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-ggk99f7r",
+            "cancelled": false
+          },
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-scyf6o49",
+            "cancelled": false
+          }
+        ]
+      }
+    },
+    {
+      "tag": "0.6.30 evidence #5",
+      "record": {
+        "clock": "simulated",
+        "permissions": [
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-r7m38mla",
+            "cancelled": false
+          },
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-fkjcwelx",
+            "cancelled": false
+          }
+        ],
+        "at": 1791345600000,
+        "upload": "stopped: original code invalid, no manifest handed off"
+      }
+    },
+    {
+      "tag": "0.6.30 evidence",
+      "record": {
+        "scenario": "#6",
+        "task": "00000000000000000000000000002723",
+        "uploadStartedAt": 1791345600000,
+        "completedAt": 1791345600000,
+        "uploadElapsedMs": 0,
+        "clock": "simulated",
+        "permissions": [
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-wyh6p5ev",
+            "cancelled": false
+          },
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-4aiz7jwf",
+            "cancelled": false
+          }
+        ]
+      }
+    },
+    {
+      "tag": "0.6.30 evidence",
+      "record": {
+        "scenario": "#7",
+        "task": "00000000000000000000000000002723",
+        "uploadStartedAt": 1791345600000,
+        "completedAt": 1791345600000,
+        "uploadElapsedMs": 0,
+        "clock": "simulated",
+        "permissions": [
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-l1t96qto",
+            "cancelled": false
+          },
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-x7qw853e",
+            "cancelled": false
+          }
+        ]
+      }
+    },
+    {
+      "tag": "0.6.30 evidence",
+      "record": {
+        "scenario": "edge",
+        "task": "00000000000000000000000000002711",
+        "uploadStartedAt": 1791345600000,
+        "completedAt": 1791345600000,
+        "uploadElapsedMs": 0,
+        "clock": "simulated",
+        "permissions": [
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-ih9g8uxd",
+            "cancelled": false
+          }
+        ]
+      }
+    },
+    {
+      "tag": "0.6.30 evidence #8",
+      "record": {
+        "clock": "simulated",
+        "ordinaryAndFirst": [
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-y787k7hj",
+            "cancelled": false
+          },
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-do2wcphk",
+            "cancelled": false
+          }
+        ],
+        "multi": [
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-97xa3wwy",
+            "cancelled": false
+          },
+          {
+            "at": 1791345600000,
+            "action": "query",
+            "ids": [
+              "00000000000000000000000000002711"
+            ]
+          },
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-ds5j2b4d",
+            "cancelled": false
+          }
+        ]
+      }
+    },
+    {
+      "tag": "0.6.30 evidence",
+      "record": {
+        "scenario": "edge",
+        "task": "00000000000000000000000000002723",
+        "uploadStartedAt": 1791345600000,
+        "completedAt": 1791345600000,
+        "uploadElapsedMs": 0,
+        "clock": "simulated",
+        "permissions": [
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-7cozzdyg",
+            "cancelled": false
+          },
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-cax92ei8",
+            "cancelled": false
+          },
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-9dpc99sk",
+            "cancelled": false
+          }
+        ]
+      }
+    },
+    {
+      "tag": "0.6.30 evidence",
+      "record": {
+        "scenario": "edge",
+        "task": "00000000000000000000000000002731",
+        "uploadStartedAt": 1791345600000,
+        "completedAt": 1791345600000,
+        "uploadElapsedMs": 0,
+        "clock": "simulated",
+        "permissions": [
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-7cozzdyg",
+            "cancelled": false
+          },
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-cax92ei8",
+            "cancelled": false
+          },
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-9dpc99sk",
+            "cancelled": false
+          }
+        ]
+      }
+    },
+    {
+      "tag": "0.6.30 evidence",
+      "record": {
+        "scenario": "edge",
+        "task": "00000000000000000000000000002723",
+        "uploadStartedAt": 1791345600000,
+        "completedAt": 1791345600000,
+        "uploadElapsedMs": 0,
+        "clock": "simulated",
+        "permissions": [
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-ou4owtkw",
+            "cancelled": false
+          },
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-nmc011az",
+            "cancelled": false
+          },
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-a485go6h",
+            "cancelled": true
+          }
+        ]
+      }
+    },
+    {
+      "tag": "0.6.30 evidence",
+      "record": {
+        "scenario": "edge",
+        "task": "00000000000000000000000000002730",
+        "uploadStartedAt": 1791345600000,
+        "completedAt": 1791345600000,
+        "uploadElapsedMs": 0,
+        "clock": "simulated",
+        "permissions": [
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-fkwv7cj3",
+            "cancelled": false
+          },
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-jp8upkh7",
+            "cancelled": true
+          },
+          {
+            "at": 1791345600000,
+            "action": "permission",
+            "jobId": "muxkx340-set6wj3u",
+            "cancelled": false
+          }
+        ]
+      }
+    }
+  ]
+}

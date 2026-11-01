@@ -370,7 +370,7 @@
     }
 
     function markDeliveryFailure(deliveryTask, error) {
-      if (deliveryTask && deliveryTask.automation && !deliveryTask.completionWritten)
+      if (deliveryTask && !deliveryTask.preservePending && deliveryTask.automation && !deliveryTask.completionWritten)
         window.IDPhotoDeliveryAutomationService.failure(deliveryTask, error);
     }
 
@@ -405,7 +405,7 @@
           deliveryTask = runOptions.resumeDeliveryTask ||
             await requireMethod("IDPhotoDeliveryService", "begin")(docInfo, "print", template, getSettings(), runOptions.deliveryIntent, runOptions);
           if (!deliveryTask) throw new Error("未创建有效的交付任务。");
-          runOptions.activeDeliveryTask = deliveryTask;
+          runOptions.activeDeliveryTask = deliveryTask.preservePending ? null : deliveryTask;
           runOptions.historicalDelivery = deliveryTask.historical === true;
           runOptions.deliveryDateText = deliveryTask.dateText || "";
           runOptions.deliverySettings = deliveryTask.settings;
@@ -449,7 +449,7 @@
       runOptions.entryLink = sharedOnly ? shared.entryLink || null : null;
       if (deliveryTask) {
         try {
-          if (runOptions.resumeDeliveryTask) {
+          if (runOptions.resumeDeliveryTask || deliveryTask.printOnly) {
             runOptions.pickupCode = window.IDPhotoDeliveryProtocol.requirePickupCode(deliveryTask.code);
             runOptions.entryLink = deliveryTask.entryLink || null;
           } else {
@@ -503,6 +503,11 @@
 
       if (deliveryTask) {
         try {
+          if (deliveryTask.printOnly) {
+            earlyPrint = true;
+            if (!deliveryTask.preservePending)
+              await requireMethod("IDPhotoDeliveryService", "markEarlyPrint")(deliveryTask, deliveryTask.preparingTarget);
+          }
           if (codePromise) {
             try {
               runOptions.pickupCode = await codePromise;
@@ -510,13 +515,12 @@
               window.IDPhotoDeliveryProtocol.requirePickupCode(runOptions.pickupCode);
             } catch (codeError) {
               var preparing = codeError && (codeError.code === "AUTO_TARGET_PREPARING" || codeError.causeCode === "AUTO_TARGET_PREPARING");
-              if (!(preparing && shared && shared.code)) throw codeError;
-              // The customer's first photo is still uploading: this size prints now with the
-              // shared code and its photo joins the same delivery in the background.
+              if (!(preparing && deliveryTask.preparingTarget)) throw codeError;
+              // Only the live query supplies this code and the matching receipt's link.
               markDeliveryFailure(deliveryTask, codeError);
-              await requireMethod("IDPhotoDeliveryService", "markEarlyPrint")(deliveryTask, shared.code);
-              runOptions.pickupCode = shared.code;
-              runOptions.entryLink = shared.entryLink || null;
+              await requireMethod("IDPhotoDeliveryService", "markEarlyPrint")(deliveryTask, deliveryTask.preparingTarget);
+              runOptions.pickupCode = deliveryTask.preparingTarget.code;
+              runOptions.entryLink = deliveryTask.preparingTarget.entryLink || null;
               earlyPrint = true;
             }
           }
@@ -527,7 +531,7 @@
               deliveryResult.message += "；注意：这个尺寸的取件码和前面的不一样";
           } else {
             deliveryResult = { requested: true, ok: true, taskId: deliveryTask.id, earlyPrint: true,
-              message: "取件码 " + runOptions.pickupCode + "，这个尺寸的电子版稍后自动补上" };
+              message: "取件码 " + runOptions.pickupCode + " · 这张电子版稍后自动补上" };
           }
         } catch (deliveryError) {
           markDeliveryFailure(deliveryTask, deliveryError);
@@ -542,6 +546,8 @@
       try {
         checkCancel(runOptions.cancelRequest);
         layoutResult = await finishLayout(targetDocument, placed, template, docInfo, runOptions);
+        if (earlyPrint && !deliveryTask.preservePending)
+          await requireMethod("IDPhotoDeliveryService", "saveEarlyOutput")(deliveryTask, targetDocument, layoutResult.layoutPlan.infoBar);
       } catch (layoutError) {
         await closeTargetDocument(targetDocument, "layout failed");
         targetDocument = null;
@@ -552,6 +558,7 @@
             if (await requireMethod("IDPhotoDeliveryService", "abortOutput")(deliveryTask, layoutError)) layoutError.autoRedo = true;
           } catch (abortError) { reportError("delivery-abort", abortError); }
         }
+        if (earlyPrint) { layoutError.retryable = false; markDeliveryFailure(deliveryTask, layoutError); }
         throw layoutError;
       }
       if (deliveryTask && deliveryTask.fingerprint && !earlyPrint) {
@@ -606,8 +613,8 @@
       try {
         try {
           status("步骤8：单张 JPG 导出检查");
-          if (sharedOnly || earlyPrint) {
-            exportResult = { ok: true, skipped: true, message: sharedOnly ? "同一顾客这张照片已存过" : "电子版补上后再存档" };
+          if (sharedOnly || earlyPrint && !deliveryTask.fingerprint || deliveryTask && deliveryTask.preservePending) {
+            exportResult = { ok: true, skipped: true, message: sharedOnly ? "同一顾客这张照片已存过" : "存档待下次前台打印" };
           } else {
             exportResult = await exportSingleJpg(saveDocument, saveTemplate, docInfo, exportOptions);
           }
@@ -619,7 +626,9 @@
         }
         status("步骤9：DS-RX1 快速打印检查");
         if (!printAttempted) await submitPrint();
-        if (printResult && printResult.cancelled) {
+        if (earlyPrint && !deliveryTask.preservePending)
+          await requireMethod("IDPhotoDeliveryService", "finishEarlyOutput")(deliveryTask, printResult);
+        if (printResult && (printResult.cancelled || earlyPrint && printResult.reason === "permission-denied")) {
           var printCancellation = new Error("用户已取消打印准备");
           printCancellation.cancelled = true;
           throw printCancellation;

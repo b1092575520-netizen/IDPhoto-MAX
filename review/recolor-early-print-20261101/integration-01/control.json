@@ -1,0 +1,1 @@
+{"version":1,"checksum":"4923f1c7ed6301881fadb810338f5f9158e1377241989b7490efdfa8578bfd56","payload":"{\"Owner\":\"r2-owner\",\"Context\":\"r2-owner\",\"Deny\":\"\",\"Lose\":\"\",\"Stale\":\"\",\"HoldCreate\":false,\"HoldAfterCreate\":false}","durable":{"target":"control.json","generation":1,"checksum":"86e305cd0d0e160f7976a1e410e700dfd06c4b78db3552ae76fd2a59269ef063"}}

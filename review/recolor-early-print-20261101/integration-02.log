@@ -1,0 +1,15 @@
+[print] timing ms: jpeg=0 job=1 launch=0 bridge=0
+[print] timing ms: jpeg=1 job=0 launch=0 bridge=0
+[print] timing ms: jpeg=0 job=0 launch=1 bridge=0
+AssertionError [ERR_ASSERTION]: one red and exactly one white, no blue or duplicate white
+
+1 !== 2
+
+    at main (D:\software\IDPhoto-MAX\review\recolor-early-print-20261101\verify-integration.cjs:141:10) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: 1,
+  expected: 2,
+  operator: 'strictEqual',
+  diff: 'simple'
+}

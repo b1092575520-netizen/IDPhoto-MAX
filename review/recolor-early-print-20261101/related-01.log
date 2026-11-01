@@ -1,0 +1,156 @@
+[0.6.30 evidence] {"task":"00000000000000000000000000002723","uploadStartedAt":1791345605000,"completedAt":1791345605000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","cancelled":false},{"at":1791345600000,"action":"permission","cancelled":false}]}
+[0.6.30 evidence #2] [{"at":1791345600000,"action":"permission","cancelled":false},{"at":1791345600000,"action":"query","ids":["00000000000000000000000000002711"]},{"at":1791345600000,"action":"permission","cancelled":true}]
+[0.6.30 evidence] {"task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","cancelled":false},{"at":1791345600000,"action":"permission","cancelled":false}]}
+[0.6.30 evidence] {"task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","cancelled":false},{"at":1791345600000,"action":"permission","cancelled":false},{"at":1791345600000,"action":"permission","cancelled":false}]}
+[0.6.30 evidence] {"task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","cancelled":false},{"at":1791345600000,"action":"permission","cancelled":false}]}
+[0.6.30 evidence] {"task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","cancelled":false},{"at":1791345600000,"action":"permission","cancelled":false}]}
+[0.6.30 evidence] {"task":"00000000000000000000000000002711","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","cancelled":false}]}
+✔ 0.6.30 #1 red then white immediately: same dedicated code, one permission, file-only upload (31.681ms)
+✔ 0.6.30 #2 denied white permission stops the order across restart (9.7435ms)
+✔ 0.6.30 #3 an unrelated denial does not delay file-only upload (12.9952ms)
+✔ 0.6.30 #4 repeated white click prints twice and uploads one photo (15.6296ms)
+✔ 0.6.30 #5 cancelling the parent after early print never silently changes the printed code (9.2751ms)
+✔ 0.6.30 #6 same background different size also prints before ready (10.7308ms)
+✔ 0.6.30 #7 restart before and after manifest handoff preserves bytes and exactly one completion (18.1616ms)
+✔ 0.6.30 unprinted local pending task is stopped before a fresh click; unknown backend cannot authorize early print (12.3022ms)
+✔ 0.6.30 accepted pending task is reused for the next click instead of duplicated (11.197ms)
+✔ offline electronic work saves immutable context and photo before handshake; reconnect resumes the same task and bytes (12.7189ms)
+✔ unfinished offline work does not block another reliable original or replace its saved pixels (12.993ms)
+✔ operator stopping a code wait persists across reload and excludes the task from automatic output (5.6575ms)
+✔ automatic code polling keeps one nonce within its window and defers Photoshop work until confirmed (11.6136ms)
+✔ an output-started marker protects an interrupted task from repeated rendering or printing (8.7107ms)
+✔ a persisted complete signal reconciles a stale pending index after reload without outputting again (12.8648ms)
+✔ recovered printing persists a notification and prints once only after an explicit click (13.0299ms)
+✔ simultaneous explicit recovery-print clicks have one durable output owner (10.0749ms)
+✔ tampered recovery notification fingerprints cannot expose a print action (15.4762ms)
+✔ delayed storage reads cannot let a second print begin after the first operation releases its owner (9.8264ms)
+✔ a workflow printer failure rejects success and persists an unconfirmed state without automatic retries (13.4474ms)
+✔ a reprint failure is reported after it happens, but an old one no longer greets every startup (14.6341ms)
+✔ a skipped printer result is not reported as a submitted print (8.9459ms)
+✔ a bad old notice token does not hide another customer's valid recovered print notice (13.0814ms)
+✔ a corrupt old notice is isolated while later valid notices remain actionable (14.474ms)
+✔ every damaged notice retains a diagnostic before the next valid customer is offered (22.1365ms)
+✔ an unavailable old task directory is retained and isolated so another pending original can recover (6.2719ms)
+✔ an interrupted recovered print remains visible as unconfirmed and cannot be resubmitted (9.9272ms)
+✔ a manifest the delivery manager rejected is parked and never asked for a code again (8.8302ms)
+✔ a rejection written while waiting ends the wait at once with the real reason (5.5283ms)
+✔ a failed recovery print reports the real cause instead of a completed-task refusal (15.1767ms)
+✔ a recovered print reuses the code its recovery confirmed minutes ago instead of waiting on the delivery manager (11.4875ms)
+✔ a sheet that fails while drawing the info bar is redone in the background and then offered for printing (13.1097ms)
+✔ a drawing that keeps failing stops after two background redos and stays locked (12.6134ms)
+✔ a task locked only by its marker goes back to the queue once an abort record replaces the marker (16.3381ms)
+✔ Esc during a layout parks the order: no background redo, and the same photo can be laid out again (9.1791ms)
+✔ Esc in the panel stops the run at its next step and parks the order (5.2107ms)
+✔ Esc during a background redo parks it instead of starting it again (6.9386ms)
+✔ after 阻止 the background waits ten minutes, and an order it finished meanwhile offers no print (12.8066ms)
+✔ a background '可以打印' is retired once the same code and size is printed from the panel (7.2152ms)
+✔ an order cancelled in the delivery manager stops automatic recovery instead of asking every minute (10-28) (8.8068ms)
+✔ a withdrawal recorded in receipt.json stops recovery before another code request is written (9.8415ms)
+✔ a cancel answered while waiting ends the wait at once and parks the order (5.0117ms)
+✔ an exact legacy capture key is retained across the identity upgrade, and multiple matches stop (6.7374ms)
+✔ 1寸 and 标准2寸 deliver the same saved photo, so they share one specification (5.916ms)
+✔ different reliable originals sharing a filename never borrow a previous delivery or member (2.892ms)
+✔ same original and specification replace only the verified current file with its original name (4.293ms)
+✔ a different background appends to the same verified member without replacing the original (3.3551ms)
+✔ retired original codes create a fresh delivery without reviving the old file or member (3.7047ms)
+✔ a trusted withdrawn or cancelled predecessor starts fresh but frozen records remain protected (9.1464ms)
+✔ unknown or blocked predecessor never silently guesses a new customer (6.0733ms)
+✔ same-specification replacement refuses ambiguous file ownership (3.3984ms)
+✔ nonce, fingerprint and consumer mismatches cannot authorize an automation result (9.6431ms)
+✔ an old backend capability refuses even a fresh automatic task before a manifest is accepted (1.3577ms)
+✔ the most recent matching specification remains replaceable beyond a 32-task query window (50.2736ms)
+✔ companion merge reuses the earliest original customer's code and exact current versions (7.8228ms)
+✔ a merge result arriving after explicit companion close reconciles without reopening (6.6303ms)
+✔ a merge result after twenty minutes of idle time reconciles without activating an expired session (6.102ms)
+✔ a single selected customer cannot reactivate a companion closed during its initial query (3.8233ms)
+✔ opening records its activation before waiting for a connection and respects a close after reload (5.2272ms)
+✔ opening an already active empty companion preserves the same activation session (1.7092ms)
+✔ a closed merge intent remains closed when its original operation is reconciled after reload (8.9566ms)
+✔ a legacy merge intent without an activation session can reconcile but never activate companions (6.1529ms)
+✔ a late merge cannot overwrite another active companion session opened after its close (4.936ms)
+✔ a timed-out merge persists one intent across reload and protects its sources without blocking an independent customer (8.7324ms)
+✔ an unresolved active companion merge keeps a new original pending without creating an independent delivery (7.0481ms)
+✔ an original accepted while a companion merge is waiting still restores to its merged root after close (7.4178ms)
+✔ a confirmed merge preserves new originals registered in the same active session while awaiting its result (5.9196ms)
+✔ retrying the same timed-out merge reuses its operation and clears intent only after confirmed convergence (8.5374ms)
+✔ a previous task without a code is queried without a fabricated code binding (2.4402ms)
+✔ a companion group's first pending task remains its anchor before code confirmation (2.3503ms)
+✔ a previously standalone task's delayed confirmation cannot join a later companion group (2.3773ms)
+✔ delayed confirmation from a closed group cannot change a new group opened in the same millisecond (2.8815ms)
+✔ the recent companion picker drops cancelled, retired and unverified deliveries after refreshing (23.9141ms)
+✔ a retired original alias cannot be revived by repeated metadata refreshes to a different primary code (5.3912ms)
+✔ repeated code confirmation retains the immutable original binding code (3.2721ms)
+✔ pickup-code failure blocks canvas, archive, completion and print, cleaning only owned copies (12.3468ms)
+✔ a confirmed code reaches the strip and prints once even if later completion persistence fails (2.2026ms)
+✔ ordinary layout never invokes delivery (1.1788ms)
+✔ several sizes of one customer each print a sheet with one shared code; the same shape is delivered once (2.5082ms)
+✖ a different shape prints at once with the shared code while the first photo is still uploading (3.46ms)
+✔ a later size never starts a delivery of its own after the first size lost its code (1.7438ms)
+✔ the sheet is placed while the delivery manager answers, and the code reaches it afterwards (7.4981ms)
+✔ the layout task owns a successful template transaction and closes its processed photo (1.2155ms)
+✔ a failed layout closes both documents and the task continues with later templates (1.2537ms)
+✔ an export failure remains a successful layout result (2.0424ms)
+✔ visual acceptance never calls JPG or NAS export (1.7714ms)
+✔ cancellation stops later templates before they can export or print (1.5009ms)
+✔ workflow rejects a processed document wrapper sharing the original ID without cleanup (1.8139ms)
+✔ all templates share one original analysis taken before the first crop (1.2491ms)
+✔ a source-document mismatch stops before crop, export and print (1.576ms)
+✔ historical source leaves every information bar blank while preserving layout (1.0806ms)
+✔ external/history/unknown ordinary multi-template runs never render any strip or contact delivery, even offline (2.915ms)
+✔ plugin-export reason keeps ordinary layout blank and never starts delivery (1.5738ms)
+✔ confirmed historical layout shows a coded strip with the real or unknown date and does not change archive metadata (3.9261ms)
+✔ quick print submits each successful layout once and keeps the final document open (1.8133ms)
+✔ a blocked DS-RX1 print remains a successful layout and later templates continue (1.5819ms)
+✔ a DS-RX1 driver error is isolated from layout and JPG export (1.4541ms)
+✔ archive commit and duplicate hide piggyback on exactly one print request per layout (2.8996ms)
+✔ a failed combined launch never falls back to a second permission request (1.4122ms)
+✔ cancelling combined print stops later templates and cleans only the processed copy (1.2845ms)
+✔ photos from other cameras get no larger saved copy; shop photos still do, and both copies close together (3.8849ms)
+✔ the panel's reading of the original (or the background the operator picked) is kept, not taken again (1.7761ms)
+✖ the per-order link follows its code to every size, including a shared and an early-printed one (3.9189ms)
+✔ a sheet without a per-order link passes none, and ordinary sheets never get one (2.8652ms)
+✔ 本店片 works the same across several sizes: one shared code, every sheet has its strip, each shape archived once (10-31) (1.6652ms)
+ℹ tests 105
+ℹ suites 0
+ℹ pass 103
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 586.3837
+
+✖ failing tests:
+
+test at tests\layoutWorkflow.test.js:236:1
+✖ a different shape prints at once with the shared code while the first photo is still uploading (3.46ms)
+  AssertionError [ERR_ASSERTION]: ["原交付仍在准备，原任务完成后自动继续"]
+  
+  false !== true
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\layoutWorkflow.test.js:244:10)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests\layoutWorkflow.test.js:595:1
+✖ the per-order link follows its code to every size, including a shared and an early-printed one (3.9189ms)
+  AssertionError [ERR_ASSERTION]: ["原交付仍在准备"]
+  
+  false !== true
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\layoutWorkflow.test.js:606:12)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

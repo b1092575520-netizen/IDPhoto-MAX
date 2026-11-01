@@ -1,0 +1,93 @@
+D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:154
+      shell: { openPath: async jobPath => {
+           ^
+
+SyntaxError: Unexpected token ':'
+    at wrapSafe (node:internal/modules/cjs/loader:1743:18)
+    at Module._compile (node:internal/modules/cjs/loader:1786:20)
+    at Object..js (node:internal/modules/cjs/loader:1943:10)
+    at Module.load (node:internal/modules/cjs/loader:1533:32)
+    at Module._load (node:internal/modules/cjs/loader:1335:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+
+Node.js v24.14.1
+✖ tests\deliveryAutomationRecovery.test.js (42.3478ms)
+✔ an exact legacy capture key is retained across the identity upgrade, and multiple matches stop (6.6205ms)
+✔ 1寸 and 标准2寸 deliver the same saved photo, so they share one specification (3.7386ms)
+✔ different reliable originals sharing a filename never borrow a previous delivery or member (2.3886ms)
+✔ same original and specification replace only the verified current file with its original name (3.0392ms)
+✔ a different background appends to the same verified member without replacing the original (3.1246ms)
+✔ retired original codes create a fresh delivery without reviving the old file or member (3.6596ms)
+✔ a trusted withdrawn or cancelled predecessor starts fresh but frozen records remain protected (9.0884ms)
+✔ unknown or blocked predecessor never silently guesses a new customer (5.676ms)
+✔ same-specification replacement refuses ambiguous file ownership (2.1331ms)
+✔ nonce, fingerprint and consumer mismatches cannot authorize an automation result (8.0834ms)
+✔ an old backend capability refuses even a fresh automatic task before a manifest is accepted (1.1551ms)
+✔ the most recent matching specification remains replaceable beyond a 32-task query window (30.418ms)
+✔ companion merge reuses the earliest original customer's code and exact current versions (6.0148ms)
+✔ a merge result arriving after explicit companion close reconciles without reopening (4.3117ms)
+✔ a merge result after twenty minutes of idle time reconciles without activating an expired session (4.6966ms)
+✔ a single selected customer cannot reactivate a companion closed during its initial query (2.9212ms)
+✔ opening records its activation before waiting for a connection and respects a close after reload (3.236ms)
+✔ opening an already active empty companion preserves the same activation session (1.1224ms)
+✔ a closed merge intent remains closed when its original operation is reconciled after reload (6.6215ms)
+✔ a legacy merge intent without an activation session can reconcile but never activate companions (5.4463ms)
+✔ a late merge cannot overwrite another active companion session opened after its close (4.3712ms)
+✔ a timed-out merge persists one intent across reload and protects its sources without blocking an independent customer (6.7585ms)
+✔ an unresolved active companion merge keeps a new original pending without creating an independent delivery (5.199ms)
+✔ an original accepted while a companion merge is waiting still restores to its merged root after close (5.8939ms)
+✔ a confirmed merge preserves new originals registered in the same active session while awaiting its result (5.1973ms)
+✔ retrying the same timed-out merge reuses its operation and clears intent only after confirmed convergence (6.4823ms)
+✔ a previous task without a code is queried without a fabricated code binding (1.7999ms)
+✔ a companion group's first pending task remains its anchor before code confirmation (1.4281ms)
+✔ a previously standalone task's delayed confirmation cannot join a later companion group (1.451ms)
+✔ delayed confirmation from a closed group cannot change a new group opened in the same millisecond (1.7061ms)
+✔ the recent companion picker drops cancelled, retired and unverified deliveries after refreshing (18.3362ms)
+✔ a retired original alias cannot be revived by repeated metadata refreshes to a different primary code (3.325ms)
+✔ repeated code confirmation retains the immutable original binding code (2.5921ms)
+✔ pickup-code failure blocks canvas, archive, completion and print, cleaning only owned copies (9.3432ms)
+✔ a confirmed code reaches the strip and prints once even if later completion persistence fails (1.6859ms)
+✔ ordinary layout never invokes delivery (1.1034ms)
+✔ several sizes of one customer each print a sheet with one shared code; the same shape is delivered once (2.1036ms)
+✔ a different shape prints at once with the shared code while the first photo is still uploading (2.2182ms)
+✔ a later size never starts a delivery of its own after the first size lost its code (1.9426ms)
+✔ the sheet is placed while the delivery manager answers, and the code reaches it afterwards (7.3536ms)
+✔ the layout task owns a successful template transaction and closes its processed photo (1.6552ms)
+✔ a failed layout closes both documents and the task continues with later templates (1.553ms)
+✔ an export failure remains a successful layout result (1.8055ms)
+✔ visual acceptance never calls JPG or NAS export (1.4966ms)
+✔ cancellation stops later templates before they can export or print (1.2633ms)
+✔ workflow rejects a processed document wrapper sharing the original ID without cleanup (1.6491ms)
+✔ all templates share one original analysis taken before the first crop (1.1935ms)
+✔ a source-document mismatch stops before crop, export and print (1.0874ms)
+✔ historical source leaves every information bar blank while preserving layout (0.9367ms)
+✔ external/history/unknown ordinary multi-template runs never render any strip or contact delivery, even offline (2.7992ms)
+✔ plugin-export reason keeps ordinary layout blank and never starts delivery (1.411ms)
+✔ confirmed historical layout shows a coded strip with the real or unknown date and does not change archive metadata (2.7671ms)
+✔ quick print submits each successful layout once and keeps the final document open (1.1205ms)
+✔ a blocked DS-RX1 print remains a successful layout and later templates continue (0.9774ms)
+✔ a DS-RX1 driver error is isolated from layout and JPG export (0.9678ms)
+✔ archive commit and duplicate hide piggyback on exactly one print request per layout (2.1773ms)
+✔ a failed combined launch never falls back to a second permission request (1.0027ms)
+✔ cancelling combined print stops later templates and cleans only the processed copy (1.4119ms)
+✔ photos from other cameras get no larger saved copy; shop photos still do, and both copies close together (2.2537ms)
+✔ the panel's reading of the original (or the background the operator picked) is kept, not taken again (1.0546ms)
+✔ the per-order link follows its code to every size, including a shared and an early-printed one (2.1809ms)
+✔ a sheet without a per-order link passes none, and ordinary sheets never get one (2.4796ms)
+✔ 本店片 works the same across several sizes: one shared code, every sheet has its strip, each shape archived once (10-31) (1.4833ms)
+ℹ tests 64
+ℹ suites 0
+ℹ pass 63
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 261.6857
+
+✖ failing tests:
+
+test at tests\deliveryAutomationRecovery.test.js:1:1
+✖ tests\deliveryAutomationRecovery.test.js (42.3478ms)
+  'test failed'

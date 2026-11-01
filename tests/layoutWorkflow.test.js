@@ -155,7 +155,9 @@ function loadWorkflow(options = {}) {
     // The photo is saved under Photoshop; the code request runs while the sheet is built.
     savePhoto: async (_task, document) => { calls.push("save-photo:" + document.name); return { path: "photo.jpg" }; },
     requestCode: async (task) => { calls.push("request-code"); return options.delivery.prepare(task); },
-    markEarlyPrint: async (_task, code) => { calls.push("early-print:" + code); }
+    markEarlyPrint: async (_task, target) => { calls.push("early-print:" + target.code); },
+    saveEarlyOutput: async () => { calls.push("save-early-output"); },
+    finishEarlyOutput: async () => { calls.push("finish-early-output"); }
   }, options.delivery);
   if (options.analyzeDocument) context.window.IDPhotoVariantService = { analyzeDocument: options.analyzeDocument };
   if (options.closeMany) context.window.IDPhotoDocumentService.closeManyWithoutSaving = async (documents) => {
@@ -236,7 +238,7 @@ test('several sizes of one customer each print a sheet with one shared code; the
 test('a different shape prints at once with the shared code while the first photo is still uploading',async()=>{
   const begins=[],codes=[];let requests=0;
   const delivery={begin:async(_i,_m,template)=>{begins.push(template.id);return {id:'task-'+begins.length};},
-    prepare:async task=>{requests++;if(requests===2){const e=Error('原交付仍在准备，原任务完成后自动继续');e.code='AUTO_TARGET_PREPARING';e.retryable=true;throw e;}
+    prepare:async task=>{requests++;if(requests===2){task.preparingTarget={code:'A2B3C4'};const e=Error('原交付仍在准备，原任务完成后自动继续');e.code='AUTO_TARGET_PREPARING';e.retryable=true;throw e;}
       task.fingerprint='saved';return 'A2B3C4';},complete:async()=>({info:'saved',message:'prepared'})};
   const loaded=loadWorkflow({templates:shapeTemplates,saveSizes:shapeSizes,delivery,inspectRender:o=>codes.push(o.pickupCode)});
   const result=await loaded.workflow.run({templateNames:['1寸','小2寸'],sourceDocument:{id:101},docInfo:{id:101,sourceMetadata:{}},
@@ -598,7 +600,7 @@ test('the per-order link follows its code to every size, including a shared and 
     const seen=[];let requests=0;
     const delivery={begin:async(_i,_m,template)=>({id:'task-'+template.id}),
       prepare:async task=>{requests++;
-        if(preparingSecond&&requests===2){const e=Error('原交付仍在准备');e.code='AUTO_TARGET_PREPARING';e.retryable=true;throw e;}
+        if(preparingSecond&&requests===2){task.preparingTarget={code:'A2B3C4',entryLink:{code:'A2B3C4',link,reason:''}};const e=Error('原交付仍在准备');e.code='AUTO_TARGET_PREPARING';e.retryable=true;throw e;}
         task.fingerprint='saved';task.entryLink={code:'A2B3C4',link,reason:''};return 'A2B3C4';},
       complete:async()=>({info:'saved',message:'prepared'})};
     const loaded=loadWorkflow({templates:shapeTemplates,saveSizes:shapeSizes,delivery,inspectRender:o=>seen.push([o.pickupCode,o.entryLink&&o.entryLink.code,o.entryLink&&o.entryLink.link])});

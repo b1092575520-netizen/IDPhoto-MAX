@@ -1,0 +1,79 @@
+{
+  "version": "0.6.30",
+  "base": "e9c0cf4e869f797e9c4029ad7ac1a71b7f7a2cad",
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "c414c39c317201f646a81b123f1a98d7e1a43c06a4a5af070f1e4c54ab66e8fb",
+      "worktreeSha256": "886eb53b0a2ad20fba3ebda83397d79413661484de657a03391b0450b15e909d",
+      "gitBlob": "586485d7c47578c5b6f0166e3f414cca353fbf71"
+    },
+    {
+      "path": "DEV_PROGRESS.md",
+      "sha256": "b1712000c8295d93766978ed459c215caede45c6e11d3f592f7360d1f1d98351",
+      "worktreeSha256": "437ee188cb4230746e7db0c40623877241996d804a5ebecfad96220039590486",
+      "gitBlob": "1ed11f4ca538573386dfb4b6d21982d5c132128f"
+    },
+    {
+      "path": "README.md",
+      "sha256": "ebee7c8613c5caddd4c2c23ca6ec4a50614712d82860b2a0c92fa8360e1c51eb",
+      "worktreeSha256": "6e815af13322c34ec43d4920a4ad6d7de40f7011405116207a957f22b756b8b2",
+      "gitBlob": "15c3491d69f89c1af6651a2bc0b42d74a31257c1"
+    },
+    {
+      "path": "docs/delivery-automation.md",
+      "sha256": "c671d6d2b8183ae8bb08a0a0a65fbcffc7abe02fb432803c8aed75cce2d82f65",
+      "worktreeSha256": "25aee9e8011abe90e3c16b4fb8ac3baef2a90f77ad9f7409a08a31dc46711de5",
+      "gitBlob": "3782c69a545c40555b0d141aa219699511732519"
+    },
+    {
+      "path": "docs/换底色直接打-2026-11-01.md",
+      "sha256": "c3ca4e6697f2203c77f3b4762022aa211f3e4542537b0ec2587c4af2c9cd1859",
+      "worktreeSha256": "abe0525d286967f665dc1c5d1afb0263bf31d9247bac21ee4474ebfd6ebe786c",
+      "gitBlob": "52570eeffb86f412dd2f47bfadf91915799ceb03"
+    },
+    {
+      "path": "manifest.json",
+      "sha256": "7aa6cd802631635d2d34181e256a3f36209aa55e17402f718f580011e4348a43",
+      "worktreeSha256": "d316c41b31aa1acc4defca393b8c1b019f489a48d2410b91f73fe7e7934c7090",
+      "gitBlob": "fb49155e2b03ac2816cb27cd0ada458090a1fc1f"
+    },
+    {
+      "path": "package.json",
+      "sha256": "1b45c5d1a5836fe923d485535246d56cdf415f62c91aa6f8d6125fc96da4b4b1",
+      "worktreeSha256": "3f8846b6095a7479a3bfca30be8764be2351a08e90b7c92f1bbdd1cf36f09629",
+      "gitBlob": "475d070f601b7763ba1243874e46ecbe5fafedf0"
+    },
+    {
+      "path": "src/core/layoutWorkflow.js",
+      "sha256": "4c08a7ab2dee873a1b7b3d3f8bd26d3da5422f51959935f1b9666945d4153c0a",
+      "worktreeSha256": "5b0573868dc9009d078781e73f802a1479deb13296bf9b5d9450b79258892928",
+      "gitBlob": "bea77b3944a8593e876d945c00a71ec787520b6c"
+    },
+    {
+      "path": "src/photoshop/deliveryAutomationService.js",
+      "sha256": "1a45faed07f36bfe10792d37da8a3c02010e156c071ecb6aa0b22b04ea729e87",
+      "worktreeSha256": "50dd91d5b459268ff30bf07f1d9c2b6d24a7266d638df76700c7a1a6cf8684cf",
+      "gitBlob": "0ff42198e70e50ed92b0c464dd5a79d498bef7c5"
+    },
+    {
+      "path": "src/photoshop/deliveryService.js",
+      "sha256": "502d71b01d20d0e4e2fac673241f8685f489ef376368c3bfac8299478f4743f7",
+      "worktreeSha256": "c20b7e641f4a11ad390289fc857a42eb75450030ec3e89b12a31eef4a92aa676",
+      "gitBlob": "d35c8849c79409e63a52a489db5ea1f1e42d442e"
+    },
+    {
+      "path": "tests/deliveryAutomationRecovery.test.js",
+      "sha256": "490e853b11c6daae8d0939bcb11ed257475e4a6213bfde1c6e73edbf2385e3c5",
+      "worktreeSha256": "7bd2b78aaa3581d32e66d844fac8d2ff5152f930582cd7d9ccaa0ca951d9c703",
+      "gitBlob": "08e2751b2ec753adaf01564a7547a76804419632"
+    },
+    {
+      "path": "tests/layoutWorkflow.test.js",
+      "sha256": "db38bc87d55b55ea3ff9bd84abc4f296cbf1f8a44405154d9f29666e0e5ffd46",
+      "worktreeSha256": "db38bc87d55b55ea3ff9bd84abc4f296cbf1f8a44405154d9f29666e0e5ffd46",
+      "gitBlob": "5b8780a78322c4a091df48e85b92ee3fc9b146b9"
+    }
+  ],
+  "hashMeaning": "sha256 and gitBlob bind staged Git bytes; worktreeSha256 accounts for existing Windows line-ending filters"
+}

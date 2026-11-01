@@ -1,0 +1,6 @@
+[print] timing ms: jpeg=1 job=0 launch=0 bridge=1
+[print] timing ms: jpeg=1 job=0 launch=0 bridge=1
+[print] timing ms: jpeg=0 job=1 launch=0 bridge=0
+Error: isolated fixture deadline exceeded
+    at until (D:\software\IDPhoto-MAX\review\recolor-early-print-20261101\verify-integration.cjs:29:9)
+    at async main (D:\software\IDPhoto-MAX\review\recolor-early-print-20261101\verify-integration.cjs:121:3)

@@ -1,0 +1,172 @@
+✖ 0.6.30 #1 red then white immediately: same dedicated code, one permission, file-only upload (19.7167ms)
+✖ 0.6.30 #2 denied white permission stops the order across restart (6.5848ms)
+✖ 0.6.30 #3 an unrelated denial does not delay file-only upload (6.5483ms)
+✖ 0.6.30 #4 repeated white click prints twice and uploads one photo (5.812ms)
+✖ 0.6.30 #5 cancelling the parent after early print never silently changes the printed code (6.1716ms)
+✖ 0.6.30 #6 same background different size also prints before ready (5.9253ms)
+✖ 0.6.30 #7 restart before and after manifest handoff preserves bytes and exactly one completion (5.4248ms)
+✖ 0.6.30 unprinted local pending task is stopped before a fresh click; unknown backend cannot authorize early print (3.7541ms)
+✖ 0.6.30 accepted pending task is reused for the next click instead of duplicated (5.7528ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 0
+ℹ fail 9
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 128.3879
+
+✖ failing tests:
+
+test at tests\deliveryAutomationRecovery.test.js:193:1
+✖ 0.6.30 #1 red then white immediately: same dedicated code, one permission, file-only upload (19.7167ms)
+  AssertionError [ERR_ASSERTION]: 原交付仍在准备，原任务完成后自动继续
+  
+  false !== true
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:195:10)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests\deliveryAutomationRecovery.test.js:209:1
+✖ 0.6.30 #2 denied white permission stops the order across restart (6.5848ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  false !== true
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:214:10)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests\deliveryAutomationRecovery.test.js:223:1
+✖ 0.6.30 #3 an unrelated denial does not delay file-only upload (6.5483ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  false !== true
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:225:10)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests\deliveryAutomationRecovery.test.js:228:1
+✖ 0.6.30 #4 repeated white click prints twice and uploads one photo (5.812ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  false !== true
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:230:10)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests\deliveryAutomationRecovery.test.js:240:1
+✖ 0.6.30 #5 cancelling the parent after early print never silently changes the printed code (6.1716ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  false !== true
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:241:67)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests\deliveryAutomationRecovery.test.js:249:1
+✖ 0.6.30 #6 same background different size also prints before ready (5.9253ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  false !== true
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:254:10)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests\deliveryAutomationRecovery.test.js:259:1
+✖ 0.6.30 #7 restart before and after manifest handoff preserves bytes and exactly one completion (5.4248ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  false !== true
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:260:67)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests\deliveryAutomationRecovery.test.js:272:1
+✖ 0.6.30 unprinted local pending task is stopped before a fresh click; unknown backend cannot authorize early print (3.7541ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  false !== true
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:276:53)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests\deliveryAutomationRecovery.test.js:283:1
+✖ 0.6.30 accepted pending task is reused for the next click instead of duplicated (5.7528ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  false !== true
+  
+      at TestContext.<anonymous> (D:\software\IDPhoto-MAX\tests\deliveryAutomationRecovery.test.js:288:53)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

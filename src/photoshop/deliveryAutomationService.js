@@ -46,6 +46,10 @@
       backgroundColor: info.sourceVariant && info.sourceVariant.backgroundColor || "unknown"
     });
   }
+  function discardedOutput(item) {
+    return item.state === "stopped" && ([CANCELLED_TEXT, "店员已重新排"].includes(item.error) ||
+      /^纸上印的取件码 .+，请重排这个尺寸$/.test(item.error || ""));
+  }
   function plan(info, mode, template, historical) {
     var source = sourceKey(info);
     if (!source && !historical) return { kind: "plain", text: "原片身份不明 · 信息条留白" };
@@ -53,7 +57,7 @@
     if (!spec) throw new Error("照片规格或底色无法核对，请确认后再交付");
     if (!source) source = "historical:" + protocol().id();
     var previous = store().source(source), group = store().group();
-    var tasks = store().tasks().filter(function (item) { return item.sourceKey === source; });
+    var tasks = store().tasks().filter(function (item) { return item.sourceKey === source && !discardedOutput(item); });
     var lastBySpec = {};
     tasks.forEach(function (item) { lastBySpec[item.specKey] = item; });
     // An order the staff cancelled (Esc, or in the delivery manager) never blocks laying the same photo out again.
@@ -118,6 +122,18 @@
     if (!valid(item)) return null;
     return item;
   }
+  function invalidEarly(code, nextCode) {
+    var error = new Error("纸上印的取件码 " + code + " 已不能用，现在是 " + (nextCode || "无有效码") + "，请重排这个尺寸");
+    error.code = "EARLY_CODE_INVALID"; error.retryable = false; return error;
+  }
+  async function inspectTask(task, id) {
+    if (store().mergeIntent()) throw new Error("同行合并尚未核对，原任务保留，请先核对合并结果");
+    var root = await fs().getEntryForPersistentToken(task.sourceRootToken);
+    var connected = await window.IDPhotoDeliveryService.connection(root, task.consumerId || undefined);
+    if (connected.automationProtocol !== PROTOCOL || task.sourceIdentity && task.sourceIdentity !== connected.sourceIdentity)
+      throw new Error("原交接目录身份或后台能力已变化，停止自动恢复");
+    return (await query([id], root, connected))[0];
+  }
   async function resolve(task, photo) {
     var merging = store().mergeIntent();
     if (merging) {
@@ -134,10 +150,11 @@
     if (connected.automationProtocol !== PROTOCOL) throw new Error("后台尚不支持自动交付，请使用本轮配套后台；原任务保留");
     if (task.sourceIdentity && task.sourceIdentity !== connected.sourceIdentity) throw new Error("原交接目录身份已变化，停止自动恢复");
     task.consumerId = connected.consumerId; task.sourceIdentity = connected.sourceIdentity;
-    var plan = task.automation, ids = Array.from(new Set(plan.previousTaskIds.concat(plan.groupTaskIds)));
+    var plan = task.automation, dependencies = service.resolveDependencies ? await service.resolveDependencies(plan.previousTaskIds) : {};
+    var ids = Array.from(new Set(plan.previousTaskIds.map(function (id) { return dependencies[id] || id; }).concat(plan.groupTaskIds)));
     if (ids.length > 32) throw new Error("原片规格记录超出核对范围，请在后台人工处理");
     var items = ids.length ? await query(ids, root, connected) : [];
-    var same = plan.previousTaskIds.map(function (id) { return items.find(function (item) { return item.taskId === id; }); });
+    var same = plan.previousTaskIds.map(function (id) { return items.find(function (item) { return item.taskId === (dependencies[id] || id); }); });
     var original = null;
     for (var i = same.length - 1; i >= 0; i--) { original = requireItem(same[i]); if (original) break; }
     var group = plan.groupTaskIds.map(function (id) { return items.find(function (item) { return item.taskId === id; }); });
@@ -155,6 +172,9 @@
       }
       if (original && original.deliveryId !== target.deliveryId) throw new Error("此原片已属于其他交付，请先通过同行列表明确合并");
     }
+    var early = task.earlyPrintBinding;
+    if (early && (!target || target.code !== early.code || target.deliveryId !== early.deliveryId || target.contextKey !== early.contextKey))
+      throw invalidEarly(early.code, target && target.code);
     var descriptor = Object.assign({}, photo, { filename: "photo-" + protocol().sha256(plan.specKey).slice(0, 12) + ".jpg",
       purpose: task.mode === "electronic" ? "电子照片" : task.template.name,
       background: task.docInfo.sourceVariant && task.docInfo.sourceVariant.backgroundColor || "unknown" });
@@ -162,13 +182,20 @@
       mode: task.mode, title: String(task.docInfo.name || "电子成片").slice(0, 120), eligible: true, testOnly: true,
       contextFingerprint: task.contextFingerprint, files: [descriptor] };
     if (target) {
-      if (target.status !== "ready") { var waiting = new Error("原交付仍在准备，原任务完成后自动继续"); waiting.retryable = true; waiting.code = "AUTO_TARGET_PREPARING"; throw waiting; }
+      if (target.status !== "ready") {
+        protocol().requirePickupCode(target.code);
+        if (!target.deliveryId || !target.contextKey) throw new Error("原交付连接绑定不完整，停止先打");
+        task.preparingTarget = { taskId: target.taskId, code: target.code, deliveryId: target.deliveryId,
+          contextKey: target.contextKey, entryLink: await service.entryForTarget(target) };
+        var waiting = new Error("原交付仍在准备，原任务完成后自动继续");
+        waiting.retryable = true; waiting.code = "AUTO_TARGET_PREPARING"; throw waiting;
+      }
       request.targetDeliveryId = target.deliveryId; request.targetContextKey = target.contextKey; request.targetGroupVersion = target.groupVersion;
       request.newMember = !original;
       if (original) {
         if (!original.originalMemberId) throw new Error("原片成员归属无法核实，停止自动追加");
         descriptor.memberId = original.originalMemberId;
-        var records = store().tasks().filter(function (item) { return item.sourceKey === plan.sourceKey && item.specKey === plan.specKey; });
+        var records = store().tasks().filter(function (item) { return item.sourceKey === plan.sourceKey && item.specKey === plan.specKey && !discardedOutput(item); });
         var previous = records.filter(function (item) { return item.id !== task.id; }).pop();
         var version = previous && items.find(function (item) { return item.taskId === previous.id; });
         if (previous && !version) throw new Error("原规格记录尚未核对，停止自动替换");
@@ -217,6 +244,7 @@
     // Esc (10-18): the staff cancelled this order, so it is parked instead of redone in the background.
     if (cancelled(error)) { store().markTask(task.id, { state: "stopped", error: CANCELLED_TEXT }); return; }
     if (error.code === "DELIVERY_ENDED" || error.causeCode === "DELIVERY_ENDED") { store().markTask(task.id, { state: "stopped", error: ENDED_TEXT }); return; }
+    if (error.code === "EARLY_CODE_INVALID" || error.causeCode === "EARLY_CODE_INVALID") { store().markTask(task.id, { state: "stopped", error: error.message }); return; }
     if (error.code === "AUTO_STOPPED" || error.causeCode === "AUTO_STOPPED") { store().markTask(task.id, { state: "stopped", error: error.message }); return; }
     var hard = error.retryable === false || error.retryable !== true && /变化|改变|冲突|损坏|不匹配|不一致|已失效|成员归属|唯一确认|输出痕迹/.test(error.message || "");
     store().markTask(task.id, { state: hard ? "blocked" : "retryable", error: error.message || String(error) });
@@ -297,5 +325,6 @@
   }
   window.IDPhotoDeliveryAutomationService = { plan: plan, resolve: resolve, created: created, confirmed: confirmed, completed: completed,
     failure: failure, store: store, recent: recent, openGroup: openGroup, refreshCompleted: refreshCompleted, bridge: bridge,
+    inspectTask: inspectTask, invalidEarly: invalidEarly,
     stopWaiting: function () { if (!activeBridge) return false; activeBridge.stopped = true; return true; } };
 })();

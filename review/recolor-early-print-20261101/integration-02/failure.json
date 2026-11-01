@@ -1,0 +1,128 @@
+{
+  "errors": [
+    "AssertionError [ERR_ASSERTION]: one red and exactly one white, no blue or duplicate white\n\n1 !== 2\n\n    at main (D:\\software\\IDPhoto-MAX\\review\\recolor-early-print-20261101\\verify-integration.cjs:141:10)"
+  ],
+  "events": [
+    {
+      "at": "2026-11-01T09:00:03.763Z",
+      "action": "worker-start",
+      "pid": 37456
+    },
+    {
+      "at": "2026-11-01T09:00:04.412Z",
+      "action": "render",
+      "code": "P39C35",
+      "link": {
+        "code": "P39C35",
+        "link": "",
+        "reason": "回执里没有专属链接"
+      }
+    },
+    {
+      "at": "2026-11-01T09:00:04.418Z",
+      "action": "hold-first-completion",
+      "task": "de9ff9170a330a22bccfac94a768188d"
+    },
+    {
+      "at": "2026-11-01T09:00:04.422Z",
+      "action": "permission",
+      "jobId": "mvxlna2s-py0mg4kk",
+      "denied": false
+    },
+    {
+      "at": "2026-11-01T09:00:04.424Z",
+      "action": "red-printed",
+      "task": "de9ff9170a330a22bccfac94a768188d",
+      "code": "P39C35"
+    },
+    {
+      "at": "2026-11-01T09:00:05.264Z",
+      "action": "render",
+      "code": "P39C35",
+      "link": {
+        "code": "P39C35",
+        "link": "",
+        "reason": "回执里没有专属链接"
+      }
+    },
+    {
+      "at": "2026-11-01T09:00:05.270Z",
+      "action": "permission",
+      "jobId": "mvxlnaqd-1hvvelwq",
+      "denied": false
+    },
+    {
+      "at": "2026-11-01T09:00:05.272Z",
+      "action": "white-printed",
+      "task": "25f2cd99edabd257cb714ebe9283edb6",
+      "code": "P39C35",
+      "clickElapsedMs": 848
+    },
+    {
+      "at": "2026-11-01T09:00:06.113Z",
+      "action": "render",
+      "code": "P39C35",
+      "link": {
+        "code": "P39C35",
+        "link": "",
+        "reason": "回执里没有专属链接"
+      }
+    },
+    {
+      "at": "2026-11-01T09:00:06.114Z",
+      "action": "permission",
+      "jobId": "mvxlnbdt-0k6oypqz",
+      "denied": false
+    },
+    {
+      "at": "2026-11-01T09:00:07.368Z",
+      "action": "render",
+      "code": "P39C35",
+      "link": {
+        "code": "P39C35",
+        "link": "",
+        "reason": "回执里没有专属链接"
+      }
+    },
+    {
+      "at": "2026-11-01T09:00:07.370Z",
+      "action": "permission",
+      "jobId": "mvxlnccp-d51p3yjf",
+      "denied": true
+    },
+    {
+      "at": "2026-11-01T09:00:07.795Z",
+      "action": "render",
+      "code": "P39C35",
+      "link": {
+        "code": "P39C35",
+        "link": "",
+        "reason": "回执里没有专属链接"
+      }
+    },
+    {
+      "at": "2026-11-01T09:00:07.798Z",
+      "action": "permission",
+      "jobId": "mvxlncom-2yutiyw5",
+      "denied": true
+    },
+    {
+      "at": "2026-11-01T09:00:07.800Z",
+      "action": "release-red-completion"
+    },
+    {
+      "at": "2026-11-01T09:00:09.883Z",
+      "action": "white-code-confirmed",
+      "task": "25f2cd99edabd257cb714ebe9283edb6"
+    },
+    {
+      "at": "2026-11-01T09:00:09.885Z",
+      "action": "plugin-runtime-restart"
+    },
+    {
+      "at": "2026-11-01T09:00:09.896Z",
+      "action": "file-completion",
+      "task": "25f2cd99edabd257cb714ebe9283edb6"
+    }
+  ]
+}

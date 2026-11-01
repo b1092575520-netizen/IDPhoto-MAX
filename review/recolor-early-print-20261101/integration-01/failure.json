@@ -1,0 +1,114 @@
+{
+  "errors": [
+    "Error: isolated fixture deadline exceeded\n    at until (D:\\software\\IDPhoto-MAX\\review\\recolor-early-print-20261101\\verify-integration.cjs:29:9)\n    at async main (D:\\software\\IDPhoto-MAX\\review\\recolor-early-print-20261101\\verify-integration.cjs:121:3)"
+  ],
+  "events": [
+    {
+      "at": "2026-11-01T08:58:48.775Z",
+      "action": "worker-start",
+      "pid": 4668
+    },
+    {
+      "at": "2026-11-01T08:58:49.430Z",
+      "action": "render",
+      "code": "6PW7TM",
+      "link": {
+        "code": "6PW7TM",
+        "link": "",
+        "reason": "回执里没有专属链接"
+      }
+    },
+    {
+      "at": "2026-11-01T08:58:49.436Z",
+      "action": "hold-first-completion",
+      "task": "8a1cc8fc5d957e30158ffbeaef4770cf"
+    },
+    {
+      "at": "2026-11-01T08:58:49.440Z",
+      "action": "permission",
+      "jobId": "mvxllo7z-uddpu0av",
+      "denied": false
+    },
+    {
+      "at": "2026-11-01T08:58:49.443Z",
+      "action": "red-printed",
+      "task": "8a1cc8fc5d957e30158ffbeaef4770cf",
+      "code": "6PW7TM"
+    },
+    {
+      "at": "2026-11-01T08:58:50.272Z",
+      "action": "render",
+      "code": "6PW7TM",
+      "link": {
+        "code": "6PW7TM",
+        "link": "",
+        "reason": "回执里没有专属链接"
+      }
+    },
+    {
+      "at": "2026-11-01T08:58:50.279Z",
+      "action": "permission",
+      "jobId": "mvxllova-cf1272kp",
+      "denied": false
+    },
+    {
+      "at": "2026-11-01T08:58:50.282Z",
+      "action": "white-printed",
+      "task": "d3cc784ceb1c95c361b72cb1ee60bd41",
+      "code": "6PW7TM",
+      "clickElapsedMs": 839
+    },
+    {
+      "at": "2026-11-01T08:58:51.535Z",
+      "action": "render",
+      "code": "6PW7TM",
+      "link": {
+        "code": "6PW7TM",
+        "link": "",
+        "reason": "回执里没有专属链接"
+      }
+    },
+    {
+      "at": "2026-11-01T08:58:51.537Z",
+      "action": "permission",
+      "jobId": "mvxllpu7-iea6x2py",
+      "denied": false
+    },
+    {
+      "at": "2026-11-01T08:58:52.386Z",
+      "action": "render",
+      "code": "6PW7TM",
+      "link": {
+        "code": "6PW7TM",
+        "link": "",
+        "reason": "回执里没有专属链接"
+      }
+    },
+    {
+      "at": "2026-11-01T08:58:52.387Z",
+      "action": "permission",
+      "jobId": "mvxllqhu-dol4mgbk",
+      "denied": true
+    },
+    {
+      "at": "2026-11-01T08:58:53.012Z",
+      "action": "render",
+      "code": "6PW7TM",
+      "link": {
+        "code": "6PW7TM",
+        "link": "",
+        "reason": "回执里没有专属链接"
+      }
+    },
+    {
+      "at": "2026-11-01T08:58:53.016Z",
+      "action": "permission",
+      "jobId": "mvxllqzb-k5e6eib6",
+      "denied": true
+    },
+    {
+      "at": "2026-11-01T08:58:53.017Z",
+      "action": "release-red-completion"
+    }
+  ]
+}

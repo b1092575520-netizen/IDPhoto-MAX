@@ -1,0 +1,15 @@
+[
+  "CHANGELOG.md",
+  "DEV_PROGRESS.md",
+  "README.md",
+  "docs/delivery-automation.md",
+  "docs/换底色直接打-2026-11-01.md",
+  "manifest.json",
+  "package.json",
+  "src/core/layoutWorkflow.js",
+  "src/photoshop/deliveryAutomationService.js",
+  "src/photoshop/deliveryService.js",
+  "tests/deliveryAutomationRecovery.test.js",
+  "tests/layoutWorkflow.test.js",
+  "review/recolor-early-print-20261101"
+]

@@ -1,0 +1,24 @@
+[0.6.30 evidence] {"task":"00000000000000000000000000002723","uploadStartedAt":1791345605000,"completedAt":1791345605000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","cancelled":false},{"at":1791345600000,"action":"permission","cancelled":false}]}
+[0.6.30 evidence #2] [{"at":1791345600000,"action":"permission","cancelled":false},{"at":1791345600000,"action":"query","ids":["00000000000000000000000000002711"]},{"at":1791345600000,"action":"permission","cancelled":true}]
+[0.6.30 evidence] {"task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","cancelled":false},{"at":1791345600000,"action":"permission","cancelled":false}]}
+[0.6.30 evidence] {"task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","cancelled":false},{"at":1791345600000,"action":"permission","cancelled":false},{"at":1791345600000,"action":"permission","cancelled":false}]}
+[0.6.30 evidence] {"task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","cancelled":false},{"at":1791345600000,"action":"permission","cancelled":false}]}
+[0.6.30 evidence] {"task":"00000000000000000000000000002723","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","cancelled":false},{"at":1791345600000,"action":"permission","cancelled":false}]}
+[0.6.30 evidence] {"task":"00000000000000000000000000002711","uploadStartedAt":1791345600000,"completedAt":1791345600000,"uploadElapsedMs":0,"clock":"simulated","permissions":[{"at":1791345600000,"action":"permission","cancelled":false}]}
+✔ 0.6.30 #1 red then white immediately: same dedicated code, one permission, file-only upload (23.5607ms)
+✔ 0.6.30 #2 denied white permission stops the order across restart (8.0689ms)
+✔ 0.6.30 #3 an unrelated denial does not delay file-only upload (7.8973ms)
+✔ 0.6.30 #4 repeated white click prints twice and uploads one photo (10.5906ms)
+✔ 0.6.30 #5 cancelling the parent after early print never silently changes the printed code (6.6872ms)
+✔ 0.6.30 #6 same background different size also prints before ready (10.1829ms)
+✔ 0.6.30 #7 restart before and after manifest handoff preserves bytes and exactly one completion (11.8808ms)
+✔ 0.6.30 unprinted local pending task is stopped before a fresh click; unknown backend cannot authorize early print (5.9842ms)
+✔ 0.6.30 accepted pending task is reused for the next click instead of duplicated (7.2903ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 157.7559

@@ -10,6 +10,7 @@ const template = { id: "one-inch", name: "One inch", widthPx: 600, heightPx: 800
   infoBar: { x: 0, y: 100, width: 1653, height: 555, avatar: { x: 20, y: 120 }, texts: [{ x: 100, y: 140 }] } };
 function harness(options = {}) {
   const files = new Map(), tokens = new Map(), memory = new Map(), closed = [], renders = [], prints = [], opened = [], saves = [], exports = [];
+  const remote = new Map(), events = [];
   let clock = Date.UTC(2026, 9, 7, 4, 0), sequence = 0, serial = 10000, active = null, modalDepth = 0, window;
   class Entry {
     constructor(name, parent, folder = true) {
@@ -45,10 +46,18 @@ function harness(options = {}) {
         const confirmation = JSON.parse(await (await this.getEntry("code-request.json")).read());
         const payload = await (await this.getEntry("request.json")).read();
         const request = JSON.parse(payload);
+        if (options.automaticRemote && !remote.has(request.taskId)) remote.set(request.taskId, {
+          taskId: request.taskId, known: true, blocked: false, originalCodeActive: true, status: "preparing",
+          code: options.nextCode || "A7K3P9", deliveryId: request.targetDeliveryId || "remote-" + request.taskId,
+          contextKey: "c".repeat(64), groupVersion: 1, originalMemberId: "member-A",
+          taskFiles: [{ id: "file-" + request.taskId, filename: request.files[0].filename || "photo.jpg" }]
+        });
+        const summary = remote.get(request.taskId);
         return { read: async () => JSON.stringify({ version: 2, requestId: confirmation.requestId,
           confirmed: true, contextKey: "c".repeat(64), status: "preparing", accepted: true,
           taskId: request.taskId, manifestFingerprint: window.IDPhotoDeliveryProtocol.sha256(payload),
-          deliveryId: request.targetDeliveryId || "remote-" + request.taskId, code: "A7K3P9" }) };
+          deliveryId: request.targetDeliveryId || "remote-" + request.taskId, code: summary ? summary.code : "A7K3P9",
+          entryLinkCode: summary ? summary.code : "A7K3P9", entryLink: "https://mp.weixin.qq.com/a/~testCustomer~~" }) };
       }
       if (!this.children.has(name)) throw Error("Missing " + name);
       return this.children.get(name);
@@ -63,10 +72,25 @@ function harness(options = {}) {
       files.delete(this.nativePath); this.parent.children.delete(this.name);
       this.name = settings.newName; this.parent = folder; this.nativePath = folder.nativePath + "/" + this.name;
       folder.children.set(this.name, this); files.set(this.nativePath, this.value);
+      if (options.automaticRemote && this.name === "complete.json" && remote.has(folder.name)) {
+        const request = JSON.parse(await (await folder.getEntry("request.json")).read());
+        if (request.targetDeliveryId) remote.get(folder.name).status = "ready";
+      }
+      if (options.automaticRemote && folder.name === "automation-requests") {
+        const request = JSON.parse(this.value), responseFolder = await childForTest(folder.parent, "automation-responses");
+        events.push({ at: clock, action: "query", ids: request.taskIds });
+        const items = request.taskIds.map(taskId => remote.get(taskId) || { taskId, known: false, blocked: false });
+        await (await responseFolder.createFile(this.name, { overwrite: true })).write(JSON.stringify({
+          version: 1, protocol: request.protocol, operationId: request.operationId, requestId: request.requestId,
+          sourceIdentity: request.sourceIdentity, consumerId: request.consumerId,
+          fingerprint: window.IDPhotoDeliveryProtocol.sha256(this.value), ok: true, data: { items }
+        }));
+      }
     }
     async delete() { this.parent.children.delete(this.name); files.delete(this.nativePath); }
   }
   const dataRoot = new Entry("local");
+  async function childForTest(folder, name) { try { return await folder.getEntry(name); } catch (_) { return folder.createFolder(name); } }
   function bytes(n) { return new Uint8Array([255, 216, 3, 4, n, 6, 255, 217]).buffer; }
   function doc(width, height, content = bytes(9)) {
     const document = { id: ++sequence, width, height, content, name: "owned-" + sequence,
@@ -119,30 +143,300 @@ function harness(options = {}) {
     IDPhotoLayoutEngine: { createLayoutPlan: () => ({ positions: [{ x: 0, y: 0 }], infoBar: template.infoBar }) },
     IDPhotoLayerService: { placePhotoCopies: async () => ({ placedCount: 1 }) },
     IDPhotoInfoBarRenderer: { renderInfoBar: async (document, bar, settings, values) => {
-      renders.push({ documentId: document.id, code: values.pickupCode }); return { ok: true, createdCount: 1 };
+      renders.push({ documentId: document.id, code: values.pickupCode, entryLink: values.entryLink }); return { ok: true, createdCount: 1 };
     } },
     IDPhotoExportService: { exportSingleJpg: async (document, settings) => { exports.push(settings); return { ok: true }; } },
-    IDPhotoPrintService: { printOneCopy: async document => { prints.push(document.id); return { ok: true, printed: true }; } }
+    IDPhotoPrintService: { lastDeniedAt: () => options.deniedAt || 0, printOneCopy: async document => {
+      prints.push(document.id); events.push({ at: clock, action: "permission", cancelled: Boolean(options.cancelPrint) });
+      return options.cancelPrint ? { ok: false, cancelled: true } : { ok: true, printed: true };
+    } }
   };
   class Clock extends Date { constructor(...values) { super(...(values.length ? values : [clock])); } static now() { return clock; } }
   const context = vm.createContext({ window, console, Date: Clock,
     setTimeout: callback => { clock += 1000; if (options.onSleep) options.onSleep(window.IDPhotoDeliveryService); callback(); },
-    require: name => { assert.equal(name, "uxp"); return { storage: { localFileSystem: filesystem, formats: { binary: "binary", utf8: "utf8" } } }; } });
+    require: name => { assert.equal(name, "uxp"); return { storage: { localFileSystem: filesystem, formats: { binary: "binary", utf8: "utf8" } },
+      shell: { openPath: async jobPath => {
+        assert.ok(options.automaticRemote, "only the isolated bridge double can launch");
+        const jobs = await dataRoot.getEntry("print-jobs"), file = await jobs.getEntry(jobPath.split("/").pop());
+        const job = JSON.parse(await file.read());
+        prints.push(job.jobId); events.push({ at: clock, action: "permission", jobId: job.jobId, cancelled: Boolean(options.cancelPrint) });
+        if (options.cancelPrint) throw Error("Permission denied");
+        const response = await jobs.createFile(file.name.replace(/\.idprint$/, ".result.json"), { overwrite: true });
+        await response.write(JSON.stringify({ schemaVersion: 1, jobId: job.jobId, ok: true, printed: true,
+          printerName: "DS-RX1", paperName: "(6x4)", copies: 1 }));
+        return "";
+      } }
+    }; } });
   const run = name => vm.runInContext(fs.readFileSync(path.join(__dirname, "../src", name + ".js"), "utf8"), context);
   for (const name of ["core/sourceEligibilityService", "core/deliveryIdentity", "core/deliveryProtocol", "core/deliveryAutomationStore", "core/deliverySpecifications", "core/layoutWorkflow"]) run(name);
   window.IDPhotoDeliveryProtocol.id = () => id(++serial);
   const reload = () => { run("photoshop/deliveryAutomationService"); run("photoshop/deliveryService"); };
   reload();
+  if (options.automaticRemote) run("photoshop/printService");
   async function json(folder, name) { return JSON.parse(await (await folder.getEntry(name)).read()); }
-  return { options, memory, files, tokens, renders, prints, opened, saves, exports, closed, source, reload, json, window,
+  return { options, memory, files, tokens, renders, prints, opened, saves, exports, closed, source, reload, json, window, remote, events,
     advance: amount => { clock += amount; }, now: () => clock,
     get service() { return window.IDPhotoDeliveryService; }, get automation() { return window.IDPhotoDeliveryAutomationService; },
     printOptions: { templateNames: [template.name], exportJpg: true, nasArchive: true, quickPrint: true,
       skipPrint: false, closeAfterPrint: false, rowGap: 10, colGap: 10, delivery: true },
-    runPrint: async original => window.IDPhotoLayoutWorkflow.create().run({ templateNames: [template.name], exportJpg: true,
+    runPrint: async (original, extra = {}) => window.IDPhotoLayoutWorkflow.create().run({ templateNames: [template.name], exportJpg: true,
       nasArchive: true, quickPrint: true, rowGap: 10, colGap: 10, delivery: true,
-      sourceDocument: original.document, docInfo: original.info }) };
+      sourceDocument: original.document, docInfo: original.info, ...extra }) };
 }
+
+async function earlyScenario(options = {}, extra = {}) {
+  const h = harness({ automaticRemote: true, ...options }), original = h.source();
+  original.info.sourceVariant.backgroundColor = "red";
+  assert.equal((await h.runPrint(original)).ok, true);
+  const red = h.service.latest();
+  original.info.sourceVariant.backgroundColor = "white";
+  const clickedAt = h.now(), result = await h.runPrint(original, extra), white = h.service.latest();
+  return { h, original, red, white, result, clickedAt };
+}
+function ready(h, red) { h.remote.get(red.id).status = "ready"; }
+async function finishEarly(h, task) {
+  const before = { opens: h.opened.length, renders: h.renders.length, saves: h.saves.length, exports: h.exports.length, permissions: h.prints.length };
+  const started = h.now();
+  assert.equal(await h.service.primeRecovery(), task.id);
+  assert.equal(await h.service.recoverNext(task.id), null);
+  assert.deepEqual({ opens: h.opened.length, renders: h.renders.length, saves: h.saves.length, exports: h.exports.length, permissions: h.prints.length }, before,
+    "file-only recovery never opens, renders, saves through Photoshop, archives or launches the print bridge");
+  assert.equal((await h.json(task.folder, "complete.json")).processingComplete, true);
+  assert.equal(h.automation.store().tasks().find(x => x.id === task.id).state, "completed");
+  console.log("[0.6.30 evidence]", JSON.stringify({ scenario: h.options.evidenceCase || "edge", task: task.id, uploadStartedAt: started, completedAt: h.now(),
+    uploadElapsedMs: h.now() - started, clock: "simulated", permissions: h.events.filter(x => x.action === "permission") }));
+}
+
+test("0.6.30 #1 red then white immediately: same dedicated code, one permission, file-only upload", async () => {
+  const { h, red, white, result } = await earlyScenario({ evidenceCase: "#1" });
+  assert.equal(result.ok, true, result.failures.map(x => x.error.message).join(";"));
+  assert.equal(h.prints.length, 2);
+  assert.equal(h.renders[1].code, h.renders[0].code);
+  assert.equal(h.renders[1].entryLink.link, h.renders[0].entryLink.link);
+  assert.ok(h.renders[1].entryLink.link);
+  assert.match(result.successResults[0].result.deliveryResult.message, /取件码 A7K3P9 · 这张电子版稍后自动补上/);
+  await white.folder.getEntry("layout.jpg"); await white.folder.getEntry("info.jpg");
+  await assert.rejects(white.folder.getEntry("complete.json"));
+  ready(h, red); h.advance(5000);
+  await finishEarly(h, white);
+  assert.equal((await h.json(white.folder, "request.json")).targetDeliveryId, red.deliveryId);
+  assert.equal((await h.json(white.folder, "complete.json")).artifacts.length, 2);
+});
+
+test("0.6.30 #2 denied white permission stops the order across restart", async () => {
+  const h = harness({ automaticRemote: true, evidenceCase: "#2" }), original = h.source();
+  original.info.sourceVariant.backgroundColor = "red"; assert.equal((await h.runPrint(original)).ok, true);
+  const red = h.service.latest(); h.options.cancelPrint = true;
+  original.info.sourceVariant.backgroundColor = "white";
+  assert.equal((await h.runPrint(original)).cancelled, true);
+  const white = h.service.latest();
+  assert.equal(h.automation.store().tasks().find(x => x.id === white.id).error, "店员取消了这单");
+  ready(h, red); h.reload(); assert.equal(await h.service.primeRecovery(), null);
+  await assert.rejects(white.folder.getEntry("request.json"));
+  assert.equal(h.remote.size, 1); assert.equal(h.prints.length, 2);
+  console.log("[0.6.30 evidence #2]", JSON.stringify(h.events));
+});
+
+test("0.6.30 #3 an unrelated denial does not delay file-only upload", async () => {
+  const h = harness({ automaticRemote: true, evidenceCase: "#3" });
+  h.options.cancelPrint = true; await h.runPrint(h.source(2), { delivery: false });
+  assert.equal(h.window.IDPhotoPrintService.lastDeniedAt(), h.now());
+  h.options.cancelPrint = false;
+  const original = h.source(); original.info.sourceVariant.backgroundColor = "red";
+  assert.equal((await h.runPrint(original)).ok, true); const red = h.service.latest();
+  original.info.sourceVariant.backgroundColor = "white";
+  assert.equal((await h.runPrint(original)).ok, true); const white = h.service.latest();
+  assert.ok(h.now() - h.window.IDPhotoPrintService.lastDeniedAt() < 600000);
+  ready(h, red); await finishEarly(h, white);
+});
+
+test("0.6.30 #4 repeated white click prints twice and uploads one photo", async () => {
+  const { h, original, red, white, result } = await earlyScenario({ evidenceCase: "#4" });
+  assert.equal(result.ok, true);
+  const again = await h.runPrint(original);
+  assert.equal(again.ok, true, again.failures.map(x => x.error.message).join(";"));
+  assert.equal(h.prints.length, 3); assert.equal(h.automation.store().tasks().length, 2);
+  assert.equal(h.renders[2].code, h.renders[1].code);
+  assert.equal(h.renders[2].entryLink.link, h.renders[1].entryLink.link);
+  ready(h, red); await finishEarly(h, white);
+  assert.equal(await h.service.primeRecovery(), null); assert.equal(h.remote.size, 2);
+});
+
+test("0.6.30 #5 cancelling the parent after early print never silently changes the printed code", async () => {
+  const { h, original, red, white, result } = await earlyScenario({ evidenceCase: "#5" }); assert.equal(result.ok, true);
+  h.remote.get(red.id).status = "cancelled"; h.remote.get(red.id).originalCodeActive = false;
+  const notice = await h.service.primeRecovery();
+  assert.match(notice.text, /纸上印的取件码 A7K3P9.*请重排/);
+  assert.equal(h.automation.store().tasks().find(x => x.id === white.id).state, "stopped");
+  await assert.rejects(white.folder.getEntry("request.json")); assert.equal(h.prints.length, 2);
+  console.log("[0.6.30 evidence #5]", JSON.stringify({ clock: "simulated", permissions: h.events.filter(x => x.action === "permission"),
+    at: h.now(), upload: "stopped: original code invalid, no manifest handed off" }));
+  h.options.nextCode = "N7EW8A";
+  const reprint = await h.runPrint(original);
+  assert.equal(reprint.ok, true, "the requested reprint must not be blocked by the invalid early task");
+  assert.equal(h.service.latest().code, "N7EW8A");
+});
+
+test("0.6.30 #6 same background different size also prints before ready", async () => {
+  const h = harness({ automaticRemote: true, evidenceCase: "#6" }), original = h.source();
+  assert.equal((await h.runPrint(original)).ok, true); const first = h.service.latest();
+  const secondTemplate = { ...template, name: "Another size", id: "another", widthPx: 700 };
+  h.window.IDPhotoTemplates.getTemplateByName = () => secondTemplate;
+  assert.equal((await h.runPrint(original, { templateNames: [secondTemplate.name] })).ok, true);
+  const second = h.service.latest(); ready(h, first); await finishEarly(h, second);
+  assert.equal(h.prints.length, 2); assert.equal(h.renders[0].code, h.renders[1].code);
+});
+
+test("0.6.30 #7 restart before and after manifest handoff preserves bytes and exactly one completion", async () => {
+  const { h, red, white, result } = await earlyScenario({ evidenceCase: "#7" }); assert.equal(result.ok, true);
+  const before = new Uint8Array(await (await white.folder.getEntry("photo.jpg")).read()).slice();
+  h.reload(); assert.equal(await h.service.primeRecovery(), null, "parent still preparing");
+  ready(h, red); h.options.receipt = false;
+  assert.equal(await h.service.primeRecovery(), null);
+  const payload = await (await white.folder.getEntry("request.json")).read();
+  h.reload(); h.options.receipt = true; await finishEarly(h, white);
+  assert.deepEqual(new Uint8Array(await (await white.folder.getEntry("photo.jpg")).read()), before);
+  assert.equal(await (await white.folder.getEntry("request.json")).read(), payload);
+  h.reload(); assert.equal(await h.service.primeRecovery(), null);
+});
+
+test("0.6.30 unprinted local pending task is stopped before a fresh click; unknown backend cannot authorize early print", async () => {
+  const h = harness({ connection: false, automaticRemote: true }), original = h.source();
+  await h.runPrint(original); const old = h.service.latest();
+  h.options.connection = true;
+  const result = await h.runPrint(original); assert.equal(result.ok, true);
+  assert.equal(h.automation.store().tasks().find(x => x.id === old.id).error, "店员已重新排");
+  assert.equal(h.automation.store().tasks().length, 2);
+  await assert.rejects(old.folder.getEntry("request.json"));
+  assert.equal(h.remote.size, 1);
+});
+
+test("0.6.30 accepted pending task is reused for the next click instead of duplicated", async () => {
+  const h = harness({ automaticRemote: true }), original = h.source();
+  h.window.IDPhotoInfoBarRenderer.renderInfoBar = async () => { throw Error("transform failed"); };
+  await h.runPrint(original); const old = h.service.latest();
+  h.window.IDPhotoInfoBarRenderer.renderInfoBar = async (_d, _b, _s, v) => { h.renders.push({ code: v.pickupCode }); return { ok: true }; };
+  const result = await h.runPrint(original); assert.equal(result.ok, true);
+  assert.equal(h.automation.store().tasks().length, 1); assert.equal(h.prints.length, 1);
+  await finishEarly(h, old); assert.equal(h.remote.size, 1);
+});
+
+test("0.6.30 #8 ordinary mode, first coded order and multi-size preserve the normal output dimensions", async () => {
+  const h = harness({ automaticRemote: true }), original = h.source();
+  assert.equal((await h.runPrint(original, { delivery: false })).ok, true);
+  assert.equal(h.automation.store().tasks().length, 0); assert.equal(h.remote.size, 0);
+  assert.equal((await h.runPrint(original)).ok, true); const first = h.service.latest();
+  assert.equal((await h.json(first.folder, "request.json")).files[0].width, template.widthPx);
+  assert.equal((await h.json(first.folder, "request.json")).files[0].height, template.heightPx);
+  assert.equal((await h.json(first.folder, "complete.json")).artifacts[0].width, 3600);
+  assert.equal((await h.json(first.folder, "complete.json")).artifacts[0].height, 2400);
+  const multi = harness({ automaticRemote: true }), source = multi.source();
+  const second = { ...template, id: "small-two", name: "Small two", widthPx: 700 };
+  multi.window.IDPhotoTemplates.getTemplateByName = name => name === second.name ? second : template;
+  const result = await multi.runPrint(source, { templateNames: [template.name, second.name] });
+  assert.equal(result.ok, true); assert.equal(multi.prints.length, 2);
+  assert.equal(multi.renders[0].code, multi.renders[1].code);
+  assert.equal(multi.renders[0].entryLink.link, multi.renders[1].entryLink.link);
+  console.log("[0.6.30 evidence #8]", JSON.stringify({ clock: "simulated", ordinaryAndFirst: h.events, multi: multi.events }));
+});
+
+test("0.6.30 a pending click that failed before JPEG creation can be superseded safely", async () => {
+  const h = harness({ automaticRemote: true }), original = h.source();
+  const check = h.window.IDPhotoRatioChecker.checkDocumentRatio;
+  h.window.IDPhotoRatioChecker.checkDocumentRatio = () => { throw Error("ratio unavailable"); };
+  assert.equal((await h.runPrint(original)).ok, false); const old = h.service.latest();
+  await assert.rejects(old.folder.getEntry("photo-prepared.json"));
+  h.window.IDPhotoRatioChecker.checkDocumentRatio = check;
+  assert.equal((await h.runPrint(original)).ok, true);
+  assert.equal(h.automation.store().tasks().find(x => x.id === old.id).error, "店员已重新排");
+});
+
+test("0.6.30 cancelled parent before the click creates a new order with a new code", async () => {
+  const h = harness({ automaticRemote: true }), original = h.source();
+  original.info.sourceVariant.backgroundColor = "red"; await h.runPrint(original); const first = h.service.latest();
+  h.remote.get(first.id).status = "withdrawn"; h.remote.get(first.id).originalCodeActive = false;
+  h.options.nextCode = "N7EW8A"; original.info.sourceVariant.backgroundColor = "white";
+  const result = await h.runPrint(original); assert.equal(result.ok, true);
+  const next = h.service.latest(); assert.equal(next.code, "N7EW8A");
+  assert.equal((await h.json(next.folder, "request.json")).targetDeliveryId, undefined);
+});
+
+test("0.6.30 several backgrounds can print while the first and earlier uploads are still preparing", async () => {
+  const { h, red, original, white, result } = await earlyScenario(); assert.equal(result.ok, true);
+  original.info.sourceVariant.backgroundColor = "blue";
+  assert.equal((await h.runPrint(original)).ok, true); const blue = h.service.latest();
+  assert.equal(h.prints.length, 3); assert.equal(h.automation.store().tasks().length, 3);
+  ready(h, red); await finishEarly(h, white); await finishEarly(h, blue);
+  assert.equal((await h.json(blue.folder, "request.json")).files[0].background, "blue");
+  assert.equal(h.remote.size, 3);
+});
+
+test("0.6.30 unknown or disconnected target never prints a locally remembered code", async () => {
+  for (const reason of ["unknown", "offline"]) {
+    const h = harness({ automaticRemote: true }), original = h.source();
+    original.info.sourceVariant.backgroundColor = "red"; await h.runPrint(original); const first = h.service.latest();
+    if (reason === "unknown") h.remote.delete(first.id); else h.options.connection = false;
+    original.info.sourceVariant.backgroundColor = "white";
+    const result = await h.runPrint(original); assert.equal(result.ok, false, reason);
+    assert.equal(h.prints.length, 1, reason); assert.equal(h.renders.length, 1, reason);
+    await assert.rejects(h.service.latest().folder.getEntry("early-print.json"));
+  }
+});
+
+test("0.6.30 damaged artifacts, markers, source bindings and changed codes stop file-only recovery", async () => {
+  for (const fault of ["artifact", "marker", "connection", "code", "legacy", "interrupted-print"]) {
+    const { h, red, white, result } = await earlyScenario(); assert.equal(result.ok, true);
+    ready(h, red);
+    if (fault === "artifact") await (await white.folder.getEntry("layout.jpg")).write(new Uint8Array([1, 2, 3]).buffer);
+    if (["marker", "legacy", "interrupted-print"].includes(fault)) {
+      const value = await h.json(white.folder, "early-print.json");
+      if (fault === "marker") value.contextFingerprint = "f".repeat(64);
+      if (fault === "legacy") value.version = 1;
+      if (fault === "interrupted-print") value.outputState = "prepared";
+      await (await white.folder.getEntry("early-print.json")).write(JSON.stringify(value));
+    }
+    if (fault === "connection") {
+      const value = await h.json(white.folder, "automation-connection.json"); value.sourceIdentity = "another-directory";
+      await (await white.folder.getEntry("automation-connection.json")).write(JSON.stringify(value));
+    }
+    if (fault === "code") h.remote.get(red.id).code = "N7EW8A";
+    h.reload(); const before = h.prints.length, renders = h.renders.length;
+    const notice = await h.service.primeRecovery(); assert.equal(notice.canPrint, false, fault);
+    assert.equal(h.prints.length, before); assert.equal(h.renders.length, renders); assert.equal(h.opened.length, 0);
+    await assert.rejects(white.folder.getEntry("request.json"));
+    assert.equal(h.automation.store().tasks().find(x => x.id === white.id).state, fault === "code" ? "stopped" : "blocked", fault);
+  }
+});
+
+test("0.6.30 duplicate cancellation keeps the previously printed photo queued, first cancellation allows another click", async () => {
+  const { h, red, original, white, result } = await earlyScenario(); assert.equal(result.ok, true);
+  h.options.cancelPrint = true;
+  assert.equal((await h.runPrint(original)).cancelled, true);
+  assert.equal(h.automation.store().tasks().find(x => x.id === white.id).state, "retryable");
+  h.options.cancelPrint = false; ready(h, red); await finishEarly(h, white);
+  const second = harness({ automaticRemote: true }), source = second.source();
+  source.info.sourceVariant.backgroundColor = "red"; await second.runPrint(source); const parent = second.service.latest();
+  source.info.sourceVariant.backgroundColor = "white"; second.options.cancelPrint = true; await second.runPrint(source);
+  second.options.cancelPrint = false; assert.equal((await second.runPrint(source)).ok, true);
+  ready(second, parent); await finishEarly(second, second.service.latest());
+});
+
+test("0.6.30 a receipt for another code never supplies the early print's dedicated link", async () => {
+  const h = harness({ automaticRemote: true }), original = h.source();
+  original.info.sourceVariant.backgroundColor = "red"; await h.runPrint(original); const red = h.service.latest();
+  h.remote.get(red.id).code = "N7EW8A";
+  // A real manager's confirmedCode refuses an old binding; the helper must not
+  // carry A7K3P9's link forward merely because it is present in a local file.
+  const get = red.folder.getEntry.bind(red.folder);
+  red.folder.getEntry = async name => name === "code-response.json" ? { read: async () => JSON.stringify({
+    version: 2, taskId: red.id, requestId: red.confirmationId, manifestFingerprint: red.fingerprint,
+    accepted: true, confirmed: true, status: "preparing", code: "A7K3P9", entryLinkCode: "A7K3P9",
+    entryLink: "https://mp.weixin.qq.com/a/~wrongCustomer~~", contextKey: red.contextKey, deliveryId: red.deliveryId
+  }) } : get(name);
+  original.info.sourceVariant.backgroundColor = "white"; assert.equal((await h.runPrint(original)).ok, true);
+  assert.equal(h.renders[1].code, "N7EW8A"); assert.equal(h.renders[1].entryLink.link, "");
+  assert.match(h.renders[1].entryLink.reason, /核对/);
+});
 
 test("offline electronic work saves immutable context and photo before handshake; reconnect resumes the same task and bytes", async () => {
   const h = harness({ connection: false }), original = h.source();
