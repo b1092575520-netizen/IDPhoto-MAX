@@ -185,6 +185,8 @@
       }
     }
 
+    var activeDirectPortrait = null;
+
     async function renderInfoBar(targetDocument, layoutPlan, template, docInfo, runOptions) {
       var decision;
       var dateText = "";
@@ -221,6 +223,12 @@
         dateText = window.IDPhotoDateService.formatDisplayDate();
       }
       if (runOptions.historicalDelivery || runOptions.resumeDeliveryTask) dateText = runOptions.deliveryDateText || "";
+      var useDirectSource = Boolean(
+        activeDirectPortrait &&
+        activeDirectPortrait.document &&
+        activeDirectPortrait.layerResult &&
+        activeDirectPortrait.layerResult.pixelComposite
+      );
       return await requireMethod("IDPhotoInfoBarRenderer", "renderInfoBar")(
         targetDocument,
         layoutPlan.infoBar,
@@ -231,8 +239,9 @@
           pickupCode: runOptions.pickupCode || "",
           entryLink: runOptions.entryLink || null,
           template: template,
-          sourceDocument: targetDocument,
-          sourceLayerName: template.name + "_照片_1",
+          sourceDocument: useDirectSource ? activeDirectPortrait.document : targetDocument,
+          sourceLayerName: useDirectSource ? null : template.name + "_照片_1",
+          sourceSize: useDirectSource ? activeDirectPortrait.layerResult.sourceSize : null,
           debugMode: Boolean(runOptions.debugMode)
         }
       );
@@ -266,7 +275,8 @@
         processedDocument,
         targetDocument,
         layoutPlan,
-        template
+        template,
+        { separateLayers: Boolean(runOptions.debugMode) }
       );
       return { layoutPlan: layoutPlan, layerResult: layerResult };
     }
@@ -389,6 +399,7 @@
       var deliveryResult = { requested: Boolean(runOptions.delivery), message: "本次未启用电子交付" };
       var codePromise = null;
       var earlyPrint = false;
+      var perf = { templateId: template && template.id || templateName, t0: Date.now() };
 
       if (!template) {
         throw new Error("模板注册表中未找到：" + templateName);
@@ -432,6 +443,7 @@
       status("步骤3：" + templateLabel(template) + " 裁剪与扩图策略：" + getCropStrategyLabel(runOptions.cropStrategy));
       var needsSaveCopy = !sharedOnly && saveTemplate !== template &&
         (Boolean(deliveryTask) || (exportEnabled(runOptions) && archivesSource(docInfo)));
+      var tCropStart = Date.now();
       processResult = await requireMethod("IDPhotoCropService", "prepareSinglePhoto")(
         sourceDocument,
         docInfo,
@@ -440,6 +452,7 @@
         { strategy: runOptions.cropStrategy, keepHighResolution: false,
           saveSize: needsSaveCopy ? { widthPx: saveTemplate.widthPx, heightPx: saveTemplate.heightPx } : null }
       );
+      perf.cropMs = Date.now() - tCropStart;
       if (!processResult || !processResult.document || sameDocument(processResult.document, sourceDocument)) {
         throw new Error("处理后单张不是独立文档，已停止以保护原片");
       }
@@ -453,7 +466,9 @@
             runOptions.pickupCode = window.IDPhotoDeliveryProtocol.requirePickupCode(deliveryTask.code);
             runOptions.entryLink = deliveryTask.entryLink || null;
           } else {
+            var tSavePhotoStart = Date.now();
             var photo = await requireMethod("IDPhotoDeliveryService", "savePhoto")(deliveryTask, saveDocument);
+            perf.savePhotoMs = Date.now() - tSavePhotoStart;
             // No modal scope while the delivery manager answers: the sheet is built meanwhile.
             codePromise = requireMethod("IDPhotoDeliveryService", "requestCode")(deliveryTask, photo);
             codePromise.catch(function () {});
@@ -475,7 +490,9 @@
           checkCancel(runOptions.cancelRequest);
           step("canvas", "creating 3600x2400 600ppi document");
           status("步骤4：" + templateLabel(template) + " 创建 3600x2400px / 600ppi 6 寸拼版画布");
+          var tCanvasStart = Date.now();
           canvasResult = await requireMethod("IDPhotoCanvasService", "createSixInchCanvas")(getDocumentName(template));
+          perf.canvasMs = Date.now() - tCanvasStart;
           targetDocument = canvasResult && canvasResult.document;
           if (!targetDocument) {
             throw new Error("创建画布后未返回新文档对象");
@@ -489,7 +506,10 @@
           throw canvasError;
         }
         checkCancel(runOptions.cancelRequest);
+        var tPlaceStart = Date.now();
         placed = await placeLayout(processResult.document, targetDocument, template, runOptions);
+        perf.placeMs = Date.now() - tPlaceStart;
+        perf.placeMode = placed && placed.layerResult && placed.layerResult.pixelComposite ? "pixel" : "dom";
       } catch (layoutError) {
         if (codePromise) {
           // A started code request finishes before the copies close; the task then waits for recovery.
@@ -509,6 +529,7 @@
               await requireMethod("IDPhotoDeliveryService", "markEarlyPrint")(deliveryTask, deliveryTask.preparingTarget);
           }
           if (codePromise) {
+            var tWaitCodeStart = Date.now();
             try {
               runOptions.pickupCode = await codePromise;
               runOptions.entryLink = deliveryTask.entryLink || null;
@@ -522,6 +543,8 @@
               runOptions.pickupCode = deliveryTask.preparingTarget.code;
               runOptions.entryLink = deliveryTask.preparingTarget.entryLink || null;
               earlyPrint = true;
+            } finally {
+              perf.waitCodeMs = Date.now() - tWaitCodeStart;
             }
           }
           if (!earlyPrint) {
@@ -545,7 +568,17 @@
 
       try {
         checkCancel(runOptions.cancelRequest);
-        layoutResult = await finishLayout(targetDocument, placed, template, docInfo, runOptions);
+        var tInfoStart = Date.now();
+        var previousDirectPortrait = activeDirectPortrait;
+        activeDirectPortrait = processResult && processResult.document
+          ? { document: processResult.document, layerResult: placed && placed.layerResult }
+          : null;
+        try {
+          layoutResult = await finishLayout(targetDocument, placed, template, docInfo, runOptions);
+        } finally {
+          activeDirectPortrait = previousDirectPortrait;
+        }
+        perf.infoBarMs = Date.now() - tInfoStart;
         if (earlyPrint && !deliveryTask.preservePending)
           await requireMethod("IDPhotoDeliveryService", "saveEarlyOutput")(deliveryTask, targetDocument, layoutResult.layoutPlan.infoBar);
       } catch (layoutError) {
@@ -655,6 +688,9 @@
           targetDocument = null;
         }
       }
+      perf.totalMs = Date.now() - perf.t0;
+      delete perf.t0;
+      try { console.log("[perf] " + JSON.stringify(perf)); } catch (_) {}
 
       return {
         ok: true,

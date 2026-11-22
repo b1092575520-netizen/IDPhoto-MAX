@@ -683,7 +683,9 @@
     if (!layer) {
       throw new Error("创建文字图层后未获取到目标图层：" + name);
     }
-    layer.name = name;
+    if (layer.name !== name) {
+      layer.name = name;
+    }
     return layer;
   }
 
@@ -1154,22 +1156,22 @@
     }
     // Font antialiasing after rotation can expand the raster bounds by 1–2 px.
     // Fit the measured result without relaxing the 24 px trim margin.
+    var measured = getLayerSize(layer);
     for (var attempt = 0; attempt < 3; attempt++) {
-      var measured = getLayerSize(layer);
       if (measured.width <= rectangle.width && measured.height <= rectangle.height) break;
       var correction = Math.min(1, Math.max(1, rectangle.width - 2) / measured.width,
         Math.max(1, rectangle.height - 2) / measured.height);
       await scaleLayerByPercent(layer, correction * 100, label);
+      measured = getLayerSize(layer);
     }
     // After a clockwise quarter-turn, the reading-space top edge is the
     // physical right edge. Align measured glyphs there, not at the slot's left
     // edge, otherwise short third lines sink to the end of a tall slot.
-    var alignedX = reading.vertical ? rectangle.x + rectangle.width - getLayerSize(layer).width : rectangle.x;
+    var alignedX = reading.vertical ? rectangle.x + rectangle.width - measured.width : rectangle.x;
     var alignedY = rectangle.y;
     if (align === "center") {
-      var turned = getLayerSize(layer);
-      if (reading.vertical) alignedY = rectangle.y + Math.floor((rectangle.height - turned.height) / 2);
-      else alignedX = rectangle.x + Math.floor((rectangle.width - turned.width) / 2);
+      if (reading.vertical) alignedY = rectangle.y + Math.floor((rectangle.height - measured.height) / 2);
+      else alignedX = rectangle.x + Math.floor((rectangle.width - measured.width) / 2);
     }
     var bounds = await getLayerService().moveLayerTo(layer, alignedX, alignedY, label);
     if (!isBoundsInsideRect(bounds, rectangle)) throw new Error("信息条内容超出安全位置：" + label);
@@ -1188,13 +1190,14 @@
         freeTransformCenterState: { _enum: "quadCenterState", _value: "QCSAverage" },
         angle: { _unit: "angleUnit", _value: -90 }, _options: { dialogOptions: "dontDisplay" } }]);
     }
+    var measured = getLayerSize(layer);
     for (var attempt = 0; attempt < 3; attempt++) {
-      var measured = getLayerSize(layer);
       if (measured.width <= rectangle.width && measured.height <= rectangle.height) break;
       await scaleLayerByPercent(layer, Math.min(1, Math.max(1, rectangle.width - 1) / measured.width,
         Math.max(1, rectangle.height - 1) / measured.height) * 100, label);
+      measured = getLayerSize(layer);
     }
-    var turned = getLayerSize(layer), x, y;
+    var turned = measured, x, y;
     if (reading.vertical) {
       x = rectangle.x + Math.floor((rectangle.width - turned.width) / 2);
       y = align === "end" ? rectangle.y : rectangle.y + rectangle.height - turned.height;
@@ -1208,13 +1211,210 @@
       throw new Error("信息条内容超出安全位置：" + label);
     return bounds;
   }
+  function getImaging() {
+    try {
+      var ps = getPhotoshopModule();
+      var img = ps && ps.imaging;
+      if (
+        img &&
+        typeof img.getPixels === "function" &&
+        typeof img.createImageDataFromBuffer === "function" &&
+        typeof img.putPixels === "function"
+      ) {
+        return img;
+      }
+    } catch (error) {
+      return null;
+    }
+    return null;
+  }
+
+  function resolveSourceSize(options, source) {
+    if (options && options.sourceSize && options.sourceSize.width > 0 && options.sourceSize.height > 0) {
+      return options.sourceSize;
+    }
+    if (source) {
+      return getLayerSize(source);
+    }
+    var doc = options && options.sourceDocument;
+    if (doc && Number(doc.width) > 0 && Number(doc.height) > 0) {
+      return { width: Math.round(Number(doc.width)), height: Math.round(Number(doc.height)) };
+    }
+    return null;
+  }
+
+  function resolveSourceLayer(options) {
+    var source = options && options.sourceLayer;
+    if (!source && options && options.sourceLayerName && options.sourceDocument) {
+      source = getLayerService().findLayerByName(options.sourceDocument.layers, options.sourceLayerName);
+    }
+    if (!source && options && options.sourceDocument) {
+      source = getSourceLayer(options.sourceDocument);
+    }
+    return source;
+  }
+
+  async function tryDrawPortraitWithImaging(targetDocument, sourceDocument, srcSize, rectangle, reading, options, mode, barBg, name) {
+    var layerService = getLayerService();
+    if (
+      isDebugRender(options) ||
+      !sourceDocument ||
+      sourceDocument === targetDocument ||
+      !srcSize ||
+      !(srcSize.width > 0 && srcSize.height > 0) ||
+      getDocumentId(sourceDocument) === null ||
+      getDocumentId(sourceDocument) === undefined ||
+      getDocumentId(targetDocument) === null ||
+      getDocumentId(targetDocument) === undefined ||
+      typeof targetDocument.createLayer !== "function" ||
+      typeof layerService.stampPhotoIntoBuffer !== "function"
+    ) {
+      return null;
+    }
+    var imaging = getImaging();
+    if (!imaging) {
+      return null;
+    }
+
+    var slotW = reading.vertical ? rectangle.height : rectangle.width;
+    var slotH = reading.vertical ? rectangle.width : rectangle.height;
+    var scale = Math.min(slotW / srcSize.width, slotH / srcSize.height);
+    if (mode === "classic") {
+      scale = Math.min(1, scale);
+    }
+    var fitW = Math.max(1, Math.min(slotW, Math.round(srcSize.width * scale)));
+    var fitH = Math.max(1, Math.min(slotH, Math.round(srcSize.height * scale)));
+    var createdLayer = null;
+
+    try {
+      var got = await imaging.getPixels({
+        documentID: getDocumentId(sourceDocument),
+        colorSpace: "RGB",
+        colorProfile: "sRGB IEC61966-2.1",
+        componentSize: 8,
+        applyAlpha: false,
+        targetSize: { width: fitW, height: fitH }
+      });
+      var actualW;
+      var actualH;
+      var srcC;
+      var srcBuf;
+      try {
+        var imgData = got && got.imageData;
+        if (!imgData) {
+          return null;
+        }
+        actualW = Number(imgData.width);
+        actualH = Number(imgData.height);
+        srcC = Number(imgData.components);
+        srcBuf = await imgData.getData();
+      } finally {
+        if (got && got.imageData && typeof got.imageData.dispose === "function") {
+          got.imageData.dispose();
+        }
+      }
+
+      if (
+        !(actualW > 0 && actualH > 0 && srcC >= 3) ||
+        !srcBuf ||
+        srcBuf.length < actualW * actualH * srcC ||
+        actualW > slotW ||
+        actualH > slotH
+      ) {
+        return null;
+      }
+
+      var rotateDeg = reading.vertical ? (mode === "classic" ? 90 : -90) : 0;
+      var placedW = reading.vertical ? actualH : actualW;
+      var placedH = reading.vertical ? actualW : actualH;
+      var outRgb = new Uint8Array(placedW * placedH * 3);
+      layerService.stampPhotoIntoBuffer(
+        outRgb,
+        placedW,
+        placedH,
+        0,
+        0,
+        srcBuf,
+        actualW,
+        actualH,
+        srcC,
+        { x: 0, y: 0, rotate: rotateDeg },
+        barBg
+      );
+
+      var x;
+      var y;
+      if (mode === "classic") {
+        x = reading.vertical
+          ? rectangle.x + rectangle.width - placedW
+          : rectangle.x + Math.floor((rectangle.width - placedW) / 2);
+        y = reading.vertical
+          ? rectangle.y + Math.floor((rectangle.height - placedH) / 2)
+          : rectangle.y;
+      } else {
+        x = reading.vertical
+          ? rectangle.x + Math.floor((rectangle.width - placedW) / 2)
+          : rectangle.x;
+        y = reading.vertical
+          ? rectangle.y + rectangle.height - placedH
+          : rectangle.y + Math.floor((rectangle.height - placedH) / 2);
+      }
+
+      await activateDocument(targetDocument);
+      var layer = await targetDocument.createLayer("pixel", { name: name });
+      createdLayer = layer || null;
+      var layerId = getLayerId(layer);
+      if (!layer || layerId === null || layerId === undefined) {
+        throw new Error("创建信息条头像图层失败");
+      }
+      var outData = await imaging.createImageDataFromBuffer(outRgb, {
+        width: placedW,
+        height: placedH,
+        components: 3,
+        colorSpace: "RGB",
+        colorProfile: "sRGB IEC61966-2.1"
+      });
+      try {
+        await imaging.putPixels({
+          documentID: getDocumentId(targetDocument),
+          layerID: layerId,
+          imageData: outData,
+          targetBounds: { left: x, top: y }
+        });
+      } finally {
+        if (outData && typeof outData.dispose === "function") {
+          outData.dispose();
+        }
+      }
+      await moveLayerToFront(layer, targetDocument);
+      return { left: x, top: y, right: x + placedW, bottom: y + placedH };
+    } catch (error) {
+      window.IDPhotoPhotoshopExecution.throwIfCancelled(error);
+      if (createdLayer) {
+        try {
+          if (typeof createdLayer.delete !== "function") {
+            throw new Error("头像图层不支持 delete");
+          }
+          await createdLayer.delete();
+        } catch (cleanupError) {
+          throw new Error(
+            "信息条头像直绘异常且残留图层清理失败，已停止回退叠加：" +
+              (cleanupError && cleanupError.message ? cleanupError.message : String(cleanupError || "未知错误"))
+          );
+        }
+      }
+      console.warn("[infoBarRenderer] imaging portrait unavailable, falling back to layer copy", error);
+      return null;
+    }
+  }
+
   async function renderPickupStrip(targetDocument, bar, settings, options) {
     var planner = window.IDPhotoPickupStripLayout;
     if (!planner) throw new Error("新版信息条布局模块未加载");
-    var source = options.sourceLayer;
-    if (!source && options.sourceLayerName) source = getLayerService().findLayerByName(options.sourceDocument.layers, options.sourceLayerName);
-    if (!source) source = getSourceLayer(options.sourceDocument);
-    var size = getLayerSize(source), ratio = size.width / size.height;
+    var source = options.sourceSize ? null : resolveSourceLayer(options);
+    var size = resolveSourceSize(options, source);
+    if (!size) throw new Error("信息条头像缺少可复制的源照片图层");
+    var ratio = size.width / size.height;
     var reading = planner.plan(bar, settings, options, ratio);
     if (reading.entryCodeExclusive) {
       // The order's own code is printed only if the exact pixels read back as its link (10-28).
@@ -1249,12 +1449,28 @@
               bounds.right !== rectangle.x + rectangle.width || bounds.bottom !== rectangle.y + rectangle.height)
             throw new Error("小程序码位置不对，已停止输出");
         } else {
-          layer = await duplicateSourceLayerToTarget(options.sourceDocument, targetDocument, source);
-          await activateDocument(targetDocument);
-          layer.name = name;
-          // Stays visible: Photoshop refuses to transform a hidden layer (0.6.13 failed on vertical cards).
-          await moveLayerToFront(layer, targetDocument);
-          bounds = await placePickupLayer(layer, rectangle, reading, name, "start", true);
+          var barBg = colorOrDefault(bar.background, { red: 151, green: 37, blue: 42 });
+          bounds = await tryDrawPortraitWithImaging(
+            targetDocument,
+            options.sourceDocument,
+            size,
+            rectangle,
+            reading,
+            options,
+            "pickup",
+            barBg,
+            name
+          );
+          if (!bounds) {
+            source = source || resolveSourceLayer(options);
+            if (!source) throw new Error("信息条头像缺少可复制的源照片图层");
+            layer = await duplicateSourceLayerToTarget(options.sourceDocument, targetDocument, source);
+            await activateDocument(targetDocument);
+            layer.name = name;
+            // Stays visible: Photoshop refuses to transform a hidden layer (0.6.13 failed on vertical cards).
+            await moveLayerToFront(layer, targetDocument);
+            bounds = await placePickupLayer(layer, rectangle, reading, name, "start", true);
+          }
         }
         evidence.push({ key: region.key, bounds: formatBounds(bounds), slot: rectangle });
       }
@@ -1276,21 +1492,39 @@
   async function renderClassicStrip(targetDocument, bar, settings, options) {
     var planner = window.IDPhotoClassicStripLayout;
     if (!planner) throw new Error("普通信息条布局模块未加载");
-    var source = options.sourceLayer;
-    if (!source && options.sourceLayerName) source = getLayerService().findLayerByName(options.sourceDocument.layers, options.sourceLayerName);
-    if (!source) source = getSourceLayer(options.sourceDocument);
-    var size = getLayerSize(source), reading = planner.plan(bar, settings, options, size.width / size.height);
+    var source = options.sourceSize ? null : resolveSourceLayer(options);
+    var size = resolveSourceSize(options, source);
+    if (!size) throw new Error("信息条头像缺少可复制的源照片图层");
+    var reading = planner.plan(bar, settings, options, size.width / size.height);
     var evidence = [];
     await window.IDPhotoPhotoshopExecution.executeAsModal(async function () {
       await activateDocument(targetDocument);
       await createInfoBarBackground(Object.assign({}, bar, reading.strip), options);
+      var classicBg = colorOrDefault(bar.background, { red: 176, green: 28, blue: 35 });
       for (var region of reading.regions) {
-        var layer = await duplicateSourceLayerToTarget(options.sourceDocument, targetDocument, source);
-        await activateDocument(targetDocument);
-        layer.name = isDebugRender(options) ? DEBUG_LAYER_NAMES.avatar : "信息条小头像";
-        await moveLayerToFront(layer, targetDocument);
+        var avatarName = isDebugRender(options) ? DEBUG_LAYER_NAMES.avatar : "信息条小头像";
         var rectangle = window.IDPhotoPickupStripLayout.placed(bar, reading, region);
-        evidence.push({ key: region.key, bounds: formatBounds(await turnReadingLayer(layer, rectangle, reading, layer.name, "center")), slot: rectangle });
+        var bounds = await tryDrawPortraitWithImaging(
+          targetDocument,
+          options.sourceDocument,
+          size,
+          rectangle,
+          reading,
+          options,
+          "classic",
+          classicBg,
+          avatarName
+        );
+        if (!bounds) {
+          source = source || resolveSourceLayer(options);
+          if (!source) throw new Error("信息条头像缺少可复制的源照片图层");
+          var layer = await duplicateSourceLayerToTarget(options.sourceDocument, targetDocument, source);
+          await activateDocument(targetDocument);
+          layer.name = avatarName;
+          await moveLayerToFront(layer, targetDocument);
+          bounds = await turnReadingLayer(layer, rectangle, reading, layer.name, "center");
+        }
+        evidence.push({ key: region.key, bounds: formatBounds(bounds), slot: rectangle });
       }
       var ids = getLayerService().getDocumentLayerIds(targetDocument);
       for (var item of reading.items) {

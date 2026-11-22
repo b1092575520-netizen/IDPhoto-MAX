@@ -342,7 +342,12 @@
     // even when a retained DOM Layer is passed. Select the verified target
     // before transforming an earlier text layer in the same document.
     var app = getPhotoshopModule().app;
-    if (app && app.activeDocument) app.activeDocument.activeLayers = [layer];
+    if (app && app.activeDocument) {
+      var activeLayers = app.activeDocument.activeLayers;
+      if (!activeLayers || activeLayers.length !== 1 || getLayerId(activeLayers[0]) !== getLayerId(layer)) {
+        app.activeDocument.activeLayers = [layer];
+      }
+    }
     try {
       await moveLayerWithDom(layer, deltaX, deltaY);
       finalBounds = getLayerBounds(layer);
@@ -519,9 +524,291 @@
     return sourceSize;
   }
 
-  async function placePhotoCopies(sourceDocument, targetDocument, layoutPlan, template) {
+  function getImaging() {
+    try {
+      var ps = getPhotoshopModule();
+      var img = ps && ps.imaging;
+      if (
+        img &&
+        typeof img.getPixels === "function" &&
+        typeof img.createImageDataFromBuffer === "function" &&
+        typeof img.putPixels === "function"
+      ) {
+        return img;
+      }
+    } catch (error) {
+      return null;
+    }
+    return null;
+  }
+
+  function normalizeRightAngle(degrees) {
+    if (degrees === undefined || degrees === null || degrees === "") {
+      return 0;
+    }
+    var raw = Number(degrees);
+    if (!Number.isFinite(raw) || Math.abs(raw - Math.round(raw)) > 1e-6) {
+      return null;
+    }
+    var mod = ((Math.round(raw) % 360) + 360) % 360;
+    if (mod === 0 || mod === 90 || mod === 180 || mod === 270) {
+      return mod;
+    }
+    return null;
+  }
+
+  function stampPhotoIntoBuffer(outRgb, boxW, boxH, minX, minY, srcBuf, srcW, srcH, srcC, pos, backgroundRgb) {
+    var angle = normalizeRightAngle(pos && pos.rotate);
+    if (angle === null) {
+      throw new Error("不支持非直角旋转：" + (pos && pos.rotate));
+    }
+    var baseX = Math.round(pos.x) - minX;
+    var baseY = Math.round(pos.y) - minY;
+    var bgR = backgroundRgb ? backgroundRgb.red : 255;
+    var bgG = backgroundRgb ? backgroundRgb.green : 255;
+    var bgB = backgroundRgb ? backgroundRgb.blue : 255;
+    var sx;
+    var sy;
+
+    if (angle === 0 && srcC === 3 && typeof outRgb.set === "function" && typeof srcBuf.subarray === "function") {
+      var rowBytes = srcW * 3;
+      for (sy = 0; sy < srcH; sy += 1) {
+        var srcRowOff = sy * rowBytes;
+        var dstRowOff = ((baseY + sy) * boxW + baseX) * 3;
+        outRgb.set(srcBuf.subarray(srcRowOff, srcRowOff + rowBytes), dstRowOff);
+      }
+      return;
+    }
+
+    for (sy = 0; sy < srcH; sy += 1) {
+      for (sx = 0; sx < srcW; sx += 1) {
+        var srcOff = (sy * srcW + sx) * srcC;
+        var r = srcBuf[srcOff];
+        var g = srcBuf[srcOff + 1];
+        var b = srcBuf[srcOff + 2];
+        if (srcC >= 4) {
+          var a = srcBuf[srcOff + 3];
+          if (a < 255) {
+            if (a === 0) {
+              r = bgR;
+              g = bgG;
+              b = bgB;
+            } else {
+              var inv = 255 - a;
+              r = Math.round((r * a + bgR * inv) / 255);
+              g = Math.round((g * a + bgG * inv) / 255);
+              b = Math.round((b * a + bgB * inv) / 255);
+            }
+          }
+        }
+        var dx;
+        var dy;
+        if (angle === 0) {
+          dx = sx;
+          dy = sy;
+        } else if (angle === 90) {
+          dx = srcH - 1 - sy;
+          dy = sx;
+        } else if (angle === 180) {
+          dx = srcW - 1 - sx;
+          dy = srcH - 1 - sy;
+        } else {
+          dx = sy;
+          dy = srcW - 1 - sx;
+        }
+        var dstOff = ((baseY + dy) * boxW + (baseX + dx)) * 3;
+        outRgb[dstOff] = r;
+        outRgb[dstOff + 1] = g;
+        outRgb[dstOff + 2] = b;
+      }
+    }
+  }
+
+  async function tryPlacePhotoCopiesWithImaging(sourceDocument, targetDocument, layoutPlan, template, options) {
+    if (options && options.separateLayers) {
+      return null;
+    }
+    var imaging = getImaging();
+    var sourceDocId = getDocumentId(sourceDocument);
+    var targetDocId = getDocumentId(targetDocument);
+    var positions = layoutPlan && layoutPlan.positions;
+    if (
+      !imaging ||
+      sourceDocId === null ||
+      sourceDocId === undefined ||
+      targetDocId === null ||
+      targetDocId === undefined ||
+      typeof targetDocument.createLayer !== "function" ||
+      !positions ||
+      !positions.length
+    ) {
+      return null;
+    }
+
+    for (var checkIndex = 0; checkIndex < positions.length; checkIndex += 1) {
+      var checkPos = positions[checkIndex];
+      if (
+        !checkPos ||
+        normalizeRightAngle(checkPos.rotate) === null ||
+        !Number.isFinite(Number(checkPos.x)) ||
+        !Number.isFinite(Number(checkPos.y))
+      ) {
+        return null;
+      }
+    }
+
+    var canvasW = (layoutPlan.canvas && layoutPlan.canvas.widthPx) || readDimension(targetDocument.width) || 3600;
+    var canvasH = (layoutPlan.canvas && layoutPlan.canvas.heightPx) || readDimension(targetDocument.height) || 2400;
+    var result = null;
+    var dirtyLayerError = null;
+
+    try {
+      await window.IDPhotoPhotoshopExecution.executeAsModal(
+        async function () {
+          var createdLayer = null;
+          var got = await imaging.getPixels({
+            documentID: sourceDocId,
+            colorSpace: "RGB",
+            colorProfile: "sRGB IEC61966-2.1",
+            componentSize: 8,
+            applyAlpha: false
+          });
+          var srcW;
+          var srcH;
+          var srcC;
+          var srcBuf;
+          try {
+            var srcImage = got && got.imageData;
+            if (!srcImage) {
+              return;
+            }
+            srcW = Number(srcImage.width);
+            srcH = Number(srcImage.height);
+            srcC = Number(srcImage.components);
+            srcBuf = await srcImage.getData();
+          } finally {
+            if (got && got.imageData && typeof got.imageData.dispose === "function") {
+              got.imageData.dispose();
+            }
+          }
+
+          if (
+            !(srcW > 0 && srcH > 0 && srcC >= 3) ||
+            !srcBuf ||
+            srcBuf.length < srcW * srcH * srcC ||
+            Math.abs(srcW - template.widthPx) > 3 ||
+            Math.abs(srcH - template.heightPx) > 3
+          ) {
+            return;
+          }
+
+          var minX = canvasW;
+          var minY = canvasH;
+          var maxX = 0;
+          var maxY = 0;
+          for (var i = 0; i < positions.length; i += 1) {
+            var pos = positions[i];
+            var angle = normalizeRightAngle(pos.rotate);
+            var placedW = angle === 90 || angle === 270 ? srcH : srcW;
+            var placedH = angle === 90 || angle === 270 ? srcW : srcH;
+            var px = Math.round(pos.x);
+            var py = Math.round(pos.y);
+            if (px < 0 || py < 0 || px + placedW > canvasW || py + placedH > canvasH) {
+              return;
+            }
+            if (px < minX) minX = px;
+            if (py < minY) minY = py;
+            if (px + placedW > maxX) maxX = px + placedW;
+            if (py + placedH > maxY) maxY = py + placedH;
+          }
+
+          var boxW = maxX - minX;
+          var boxH = maxY - minY;
+          if (!(boxW > 0 && boxH > 0)) {
+            return;
+          }
+
+          var outRgb = new Uint8Array(boxW * boxH * 3);
+          outRgb.fill(255);
+          for (var j = 0; j < positions.length; j += 1) {
+            stampPhotoIntoBuffer(outRgb, boxW, boxH, minX, minY, srcBuf, srcW, srcH, srcC, positions[j]);
+          }
+
+          await activateDocument(targetDocument);
+          createdLayer = await targetDocument.createLayer("pixel", { name: template.name + "_照片拼版" });
+          var layerId = getLayerId(createdLayer);
+          try {
+            if (!createdLayer || layerId === null || layerId === undefined) {
+              throw new Error("创建拼版像素图层失败");
+            }
+
+            var outImage = await imaging.createImageDataFromBuffer(outRgb, {
+              width: boxW,
+              height: boxH,
+              components: 3,
+              colorSpace: "RGB",
+              colorProfile: "sRGB IEC61966-2.1"
+            });
+            try {
+              await imaging.putPixels({
+                documentID: targetDocId,
+                layerID: layerId,
+                imageData: outImage,
+                targetBounds: { left: minX, top: minY }
+              });
+            } finally {
+              if (outImage && typeof outImage.dispose === "function") {
+                outImage.dispose();
+              }
+            }
+
+            result = {
+              ok: true,
+              placedCount: positions.length,
+              sourceSize: { width: srcW, height: srcH },
+              layerSize: { width: srcW, height: srcH },
+              pixelComposite: true,
+              message: template.name + " 已拼版：" + positions.length + " 张"
+            };
+          } catch (modalError) {
+            if (createdLayer) {
+              try {
+                if (typeof createdLayer.delete !== "function") {
+                  throw new Error("图层不支持 delete");
+                }
+                await createdLayer.delete();
+              } catch (cleanupError) {
+                dirtyLayerError = new Error(
+                  "拼版像素图异常且残留空图层清理失败，已停止回退叠加：" +
+                    (cleanupError && cleanupError.message ? cleanupError.message : String(cleanupError || "未知错误"))
+                );
+              }
+            }
+            throw modalError;
+          }
+        },
+        "证件照复制排版"
+      );
+    } catch (error) {
+      window.IDPhotoPhotoshopExecution.throwIfCancelled(error);
+      if (dirtyLayerError) {
+        throw dirtyLayerError;
+      }
+      console.warn("[layerService] imaging composite unavailable, falling back to layer copies", error);
+      return null;
+    }
+
+    return result;
+  }
+
+  async function placePhotoCopies(sourceDocument, targetDocument, layoutPlan, template, options) {
+    var sourceSize = assertPreparedSize(sourceDocument, template);
+    var compositeResult = await tryPlacePhotoCopiesWithImaging(sourceDocument, targetDocument, layoutPlan, template, options);
+    if (compositeResult) {
+      return compositeResult;
+    }
+
     var sourceLayer = getSourceLayer(sourceDocument);
-    var sourceSize;
     var placedLayers = [];
     var position;
     var layer;
@@ -536,8 +823,6 @@
     if (!sourceLayer) {
       throw new Error("当前文档没有可复制的完整图像画面，请检查是否成功生成盖印可见源图层");
     }
-
-    sourceSize = assertPreparedSize(sourceDocument, template);
 
     await window.IDPhotoPhotoshopExecution.executeAsModal(
       async function () {
@@ -600,6 +885,8 @@
   window.IDPhotoLayerService = {
     placePhotoCopies: placePhotoCopies,
     placeSourcePhotoCopies: placePhotoCopies,
+    normalizeRightAngle: normalizeRightAngle,
+    stampPhotoIntoBuffer: stampPhotoIntoBuffer,
     getLayerSize: getLayerSize,
     getLayerBounds: getLayerBounds,
     getLayerBoundsByName: getLayerBoundsByName,

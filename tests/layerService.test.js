@@ -338,3 +338,303 @@ test("moveLayerTo rejects when the final bounds miss the target", async () => {
 
   await assert.rejects(service.moveLayerTo(layer, 100, 60, "missed"), /图层未到达目标位置/);
 });
+
+test("placePhotoCopies composites all slots into one pixel layer via photoshop.imaging and disposes buffers", async () => {
+  const srcW = 3, srcH = 2, srcC = 3;
+  // Asymmetric 3x2 pixels (row-major):
+  // (0,0)=[10,1,1] (1,0)=[20,2,2] (2,0)=[30,3,3]
+  // (0,1)=[40,4,4] (1,1)=[50,5,5] (2,1)=[60,6,6]
+  const srcPixels = new Uint8Array([
+    10, 1, 1, 20, 2, 2, 30, 3, 3,
+    40, 4, 4, 50, 5, 5, 60, 6, 6
+  ]);
+  const disposed = [];
+  const getCalls = [];
+  const putCalls = [];
+  const createdLayers = [];
+  let dupCalls = 0;
+
+  const targetDocument = {
+    id: 2,
+    width: 20,
+    height: 20,
+    layers: [],
+    activeLayers: [],
+    async activate() {},
+    async createLayer(kind, opts) {
+      assert.equal(kind, "pixel");
+      const layer = makeLayer(99, 0, 0, 1, 1);
+      layer.name = opts && opts.name;
+      createdLayers.push(layer);
+      this.layers.unshift(layer);
+      return layer;
+    }
+  };
+  const sourceDocument = {
+    id: 1,
+    width: srcW,
+    height: srcH,
+    layers: [makeLayer(1, 0, 0, srcW, srcH)],
+    async duplicateLayers() {
+      dupCalls += 1;
+      return [];
+    }
+  };
+
+  const service = loadLayerService({
+    app: { activeDocument: targetDocument },
+    core: { async executeAsModal(cb) { await cb(); } },
+    action: { async batchPlay() {} },
+    imaging: {
+      async getPixels(opts) {
+        getCalls.push(opts);
+        return {
+          imageData: {
+            width: srcW,
+            height: srcH,
+            components: srcC,
+            async getData() { return srcPixels; },
+            dispose() { disposed.push("src"); }
+          }
+        };
+      },
+      async createImageDataFromBuffer(buffer, opts) {
+        return {
+          width: opts.width,
+          height: opts.height,
+          components: opts.components,
+          colorProfile: opts.colorProfile,
+          _buffer: new Uint8Array(buffer),
+          dispose() { disposed.push("out"); }
+        };
+      },
+      async putPixels(opts) {
+        putCalls.push(opts);
+      }
+    }
+  });
+
+  // Four slots covering 0, 90 (CW), -90 (CCW), and 180 degrees.
+  const layoutPlan = {
+    canvas: { widthPx: 20, heightPx: 20 },
+    positions: [
+      { x: 2, y: 1, width: 3, height: 2, rotate: 0 },
+      { x: 6, y: 1, width: 2, height: 3, rotate: 90 },
+      { x: 9, y: 1, width: 2, height: 3, rotate: -90 },
+      { x: 12, y: 1, width: 3, height: 2, rotate: 180 }
+    ]
+  };
+
+  const result = await service.placePhotoCopies(
+    sourceDocument,
+    targetDocument,
+    layoutPlan,
+    { name: "1寸", widthPx: srcW, heightPx: srcH }
+  );
+
+  assert.equal(result.pixelComposite, true);
+  assert.equal(result.placedCount, 4);
+  assert.deepEqual(JSON.parse(JSON.stringify(result.sourceSize)), { width: srcW, height: srcH });
+  assert.equal(dupCalls, 0);
+  assert.equal(getCalls.length, 1);
+  assert.equal(getCalls[0].colorProfile, "sRGB IEC61966-2.1");
+  assert.equal(getCalls[0].applyAlpha, false);
+  assert.equal(createdLayers.length, 1);
+  assert.equal(putCalls.length, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(putCalls[0].targetBounds)), { left: 2, top: 1 });
+  assert.equal(putCalls[0].imageData.width, 13);
+  assert.equal(putCalls[0].imageData.height, 3);
+  assert.equal(putCalls[0].imageData.colorProfile, "sRGB IEC61966-2.1");
+  assert.deepEqual(disposed, ["src", "out"]);
+
+  const buf = putCalls[0].imageData._buffer;
+  const pxAt = (canvasX, canvasY) => {
+    const off = ((canvasY - 1) * 13 + (canvasX - 2)) * 3;
+    return [buf[off], buf[off + 1], buf[off + 2]];
+  };
+  // White canvas fill in gap (canvasX=5, canvasY=1)
+  assert.deepEqual(pxAt(5, 1), [255, 255, 255]);
+  // 0 deg at (2,1): top-left = (0,0), bottom-right = (2,1)
+  assert.deepEqual(pxAt(2, 1), [10, 1, 1]);
+  assert.deepEqual(pxAt(4, 2), [60, 6, 6]);
+  // 90 deg CW at (6,1), 2x3: (0,0) -> (dx=srcH-1=1, dy=0) => (7,1); (2,0) -> (dx=1, dy=2) => (7,3); (0,1) -> (dx=0, dy=0) => (6,1)
+  assert.deepEqual(pxAt(7, 1), [10, 1, 1]);
+  assert.deepEqual(pxAt(7, 3), [30, 3, 3]);
+  assert.deepEqual(pxAt(6, 1), [40, 4, 4]);
+  // -90 deg CCW at (9,1), 2x3: (0,0) -> (dx=0, dy=srcW-1=2) => (9,3); (2,0) -> (dx=0, dy=0) => (9,1); (2,1) -> (dx=1, dy=0) => (10,1)
+  assert.deepEqual(pxAt(9, 3), [10, 1, 1]);
+  assert.deepEqual(pxAt(9, 1), [30, 3, 3]);
+  assert.deepEqual(pxAt(10, 1), [60, 6, 6]);
+  // 180 deg at (12,1), 3x2: (0,0) -> (2,1) => (14,2); (2,1) -> (0,0) => (12,1)
+  assert.deepEqual(pxAt(14, 2), [10, 1, 1]);
+  assert.deepEqual(pxAt(12, 1), [60, 6, 6]);
+});
+
+test("stampPhotoIntoBuffer alpha-blends 4-channel RGBA onto background RGB", () => {
+  const service = loadLayerService({ action: { async batchPlay() {} } });
+  const out = new Uint8Array(2 * 1 * 3);
+  out.fill(255);
+  // Pixel 0: alpha=0 (transparent -> background); Pixel 1: red with alpha=128 (~50% blend with white)
+  const srcRgba = new Uint8Array([
+    10, 20, 30, 0,
+    255, 0, 0, 128
+  ]);
+  service.stampPhotoIntoBuffer(out, 2, 1, 0, 0, srcRgba, 2, 1, 4, { x: 0, y: 0, rotate: 0 });
+  assert.deepEqual(Array.from(out.slice(0, 3)), [255, 255, 255]);
+  assert.equal(out[3], 255);
+  assert.equal(out[4], Math.round((0 * 128 + 255 * 127) / 255));
+  assert.equal(out[5], Math.round((0 * 128 + 255 * 127) / 255));
+});
+
+test("placePhotoCopies falls back to DOM layers when separateLayers is true or putPixels fails (deleting orphan pixel layer)", async () => {
+  const srcW = 10, srcH = 10;
+  let getPixelCalls = 0;
+  let deletedOrphan = 0;
+  let modalDepth = 0;
+  let failDelete = false;
+  let nextId = 50;
+  const runModal = async (cb) => {
+    modalDepth += 1;
+    try {
+      await cb();
+    } finally {
+      modalDepth -= 1;
+    }
+  };
+
+  const makeTarget = () => ({
+    id: 2,
+    width: 100,
+    height: 100,
+    layers: [],
+    activeLayers: [],
+    async activate() {},
+    async createLayer(_kind, opts) {
+      assert.ok(modalDepth > 0, "createLayer must run inside executeAsModal");
+      const layer = {
+        id: nextId++,
+        name: opts && opts.name,
+        bounds: { left: 0, top: 0, right: 1, bottom: 1 },
+        async delete() {
+          assert.ok(modalDepth > 0, "delete must run inside executeAsModal");
+          if (failDelete) throw new Error("delete blocked");
+          deletedOrphan += 1;
+          const idx = target.layers.indexOf(this);
+          if (idx >= 0) target.layers.splice(idx, 1);
+        }
+      };
+      this.layers.unshift(layer);
+      return layer;
+    }
+  });
+
+  // Case 1: separateLayers: true skips imaging
+  let target = makeTarget();
+  const makeSource = () => ({
+    id: 1,
+    width: srcW,
+    height: srcH,
+    layers: [makeLayer(1, 0, 0, srcW, srcH)],
+    async duplicateLayers(_layers, dest) {
+      const copy = makeLayer(nextId++, 0, 0, srcW, srcH);
+      dest.layers.unshift(copy);
+      return [copy];
+    }
+  });
+  const serviceSeparate = loadLayerService({
+    app: { activeDocument: target },
+    core: { executeAsModal: runModal },
+    action: { async batchPlay() {} },
+    imaging: {
+      async getPixels() { getPixelCalls += 1; throw new Error("should not run"); },
+      async createImageDataFromBuffer() { return {}; },
+      async putPixels() {}
+    }
+  });
+  const domRes = await serviceSeparate.placePhotoCopies(
+    makeSource(),
+    target,
+    { canvas: { widthPx: 100, heightPx: 100 }, positions: [{ x: 10, y: 10, width: 10, height: 10, rotate: 0 }] },
+    { name: "1寸", widthPx: srcW, heightPx: srcH },
+    { separateLayers: true }
+  );
+  assert.equal(getPixelCalls, 0);
+  assert.equal(domRes.pixelComposite, undefined);
+  assert.equal(domRes.placedCount, 1);
+
+  // Case 2: imaging.putPixels throws -> deletes orphan pixel layer & falls back to DOM
+  target = makeTarget();
+  const disposed = [];
+  const serviceFallback = loadLayerService({
+    app: { activeDocument: target },
+    core: { executeAsModal: runModal },
+    action: { async batchPlay() {} },
+    imaging: {
+      async getPixels() {
+        return {
+          imageData: {
+            width: srcW,
+            height: srcH,
+            components: 3,
+            async getData() { return new Uint8Array(srcW * srcH * 3); },
+            dispose() { disposed.push("src"); }
+          }
+        };
+      },
+      async createImageDataFromBuffer(_b, opts) {
+        return { width: opts.width, height: opts.height, components: 3, dispose() { disposed.push("out"); } };
+      },
+      async putPixels() {
+        throw new Error("putPixels transient failure");
+      }
+    }
+  });
+  const fallbackRes = await serviceFallback.placePhotoCopies(
+    makeSource(),
+    target,
+    { canvas: { widthPx: 100, heightPx: 100 }, positions: [{ x: 10, y: 10, width: 10, height: 10, rotate: 0 }] },
+    { name: "1寸", widthPx: srcW, heightPx: srcH }
+  );
+  assert.equal(deletedOrphan, 1);
+  assert.deepEqual(disposed, ["src", "out"]);
+  assert.equal(fallbackRes.placedCount, 1);
+  assert.equal(fallbackRes.pixelComposite, undefined);
+  assert.equal(target.layers.length, 1);
+  assert.equal(target.layers[0].name, "1寸_照片_1");
+
+  // Case 3: orphan cleanup throws inside executeAsModal -> refuse silent DOM stacking
+  target = makeTarget();
+  failDelete = true;
+  await assert.rejects(
+    serviceFallback.placePhotoCopies(
+      makeSource(),
+      target,
+      { canvas: { widthPx: 100, heightPx: 100 }, positions: [{ x: 10, y: 10, width: 10, height: 10, rotate: 0 }] },
+      { name: "1寸", widthPx: srcW, heightPx: srcH }
+    ),
+    /残留空图层清理失败/
+  );
+  assert.equal(target.layers.filter((l) => l.name === "1寸_照片_1").length, 0);
+});
+
+test("normalizeRightAngle rejects non-integer or invalid angles while keeping optional undefined/null at 0", () => {
+  const service = loadLayerService({ action: { async batchPlay() {} } });
+  for (const [input, expected] of [
+    [undefined, 0],
+    [null, 0],
+    ["", 0],
+    [0, 0],
+    [90, 90],
+    [-90, 270],
+    [180, 180],
+    [270, 270],
+    [89.6, null],
+    [90.1, null],
+    [0.4, null],
+    ["invalid", null],
+    [Number.NaN, null],
+    [Number.POSITIVE_INFINITY, null]
+  ]) {
+    assert.equal(service.normalizeRightAngle(input), expected, "angle=" + String(input));
+  }
+});

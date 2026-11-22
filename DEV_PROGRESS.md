@@ -1,4 +1,10 @@
-## 当前阶段 v0.6.30 换底色直接打（11-01）
+## 当前阶段 v0.6.31 拼版与信息条像素直绘提速 + 索引短名防抖（11-22）
+
+- 性能改造（Task 1）：`layerService.tryPlacePhotoCopiesWithImaging` 与 `infoBarRenderer.tryDrawPortraitWithImaging` 统一使用 `photoshop.imaging`（`sRGB IEC61966-2.1` / `applyAlpha: false`）与内存直角旋转合成，出错先清理已建空像素层再回退 DOM；`debugMode` 仍走分图层便于调试；`layoutWorkflow.js` 保持 5 参内部调用签名并用闭包传直读源，输出 `[perf]` 耗时日志。
+- 稳定性修复：针对 11-20/21 三次 `identity index unavailable` 报错，`archiveNamingService.atomic` 非暂存索引与 `exportService.writePrivateIndex` 改为短临时名并仅对瞬态 FS 错误重试 3 次（`.idphoto-*` 暂存桥接记录契约不变）。
+- 待办边界：单元测试与发布核查脚本通过后，仍需重启/接入真实 Photoshop 完成 11 模板像素核对与实测安装（暂不动系统 `External` 插件目录，不杀运行中的 Photoshop）。
+
+## v0.6.30 换底色直接打（11-01）
 
 - REP-02/R2：R1 Claude 终审已关闭 REP-01、采纳 REP-02/P2。本轮在 `c9b2eb4` 上区分远端已终结历史与在途补传，恢复撤回后新建交付；新增正式 ended-history 回归并保留 REP-01 原 17 项。证据在 `review/recolor-early-print-20261101-r2/`，本地提交后提供手动交审文件，不自动转发审查会话，待复审及 Claude 终审；未推送、未安装。
 - REP-01/R1：Claude 终审采纳 P2 后整改接收/取码窗口，增加正式 R-01、R-06/R-07、R-08、慢取码和红白蓝连点回归。原失败与终审保留，新证据在 `review/recolor-early-print-20261101-r1/`，新本地提交交回原审；尚未独立关闭，不安装、不推送。

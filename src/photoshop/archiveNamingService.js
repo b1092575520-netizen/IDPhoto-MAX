@@ -13,36 +13,129 @@
   var batch = null;
   function beginBatch() { batch = []; }
   function takeBatch() { var staged = batch || []; batch = null; return staged; }
+  async function matchesStagedCleanup(item, candidate) {
+    var cleanup = item && item.cleanup;
+    if (!cleanup || !candidate) return false;
+    if (cleanup.file && cleanup.file.nativePath && candidate.nativePath &&
+        key(cleanup.file.nativePath) !== key(candidate.nativePath)) return false;
+    if (typeof candidate.read !== "function") {
+      return !cleanup.file || candidate === cleanup.file;
+    }
+    var actual = await candidate.read({ format: storage().formats.utf8 });
+    if (cleanup.wrote) return actual === cleanup.expectedContent;
+    return actual === "" || actual === cleanup.expectedContent;
+  }
   async function removeStaged(items) {
     for (var item of items || []) {
-      if (!item.cleanup) continue;
-      try { var leftover = await optional(item.cleanup.folder, item.cleanup.name); if (leftover) await leftover.delete(); }
-      catch (_) { /* Published by the bridge, or already gone. */ }
+      var cleanup = item && item.cleanup;
+      if (!cleanup || item.committed) continue;
+      if (item.file && item.file.name && item.file.name !== cleanup.name) continue;
+      try {
+        var leftover = await optional(cleanup.folder, cleanup.name);
+        if (leftover && await matchesStagedCleanup(item, leftover)) await leftover.delete();
+      } catch (_) { /* Published by the bridge, or already gone. */ }
     }
   }
   async function discardBatch() { await removeStaged(takeBatch()); }
   function stagedRecord(folder, name) {
     return (batch || []).find(function (item) { return item.recordName === name && key(item.cleanup.folder.nativePath) === key(folder.nativePath); });
   }
+  function waitMs(ms) {
+    if (typeof setTimeout !== "function") return Promise.resolve();
+    return new Promise(function (resolve) { setTimeout(resolve, ms); });
+  }
+  function isTransientFsError(error) {
+    var msg = error && error.message ? error.message : String(error || "");
+    return /no such file or directory|ENOENT|EBUSY|EPERM|EACCES|sharing violation/i.test(msg);
+  }
+  function isCollisionError(error) {
+    var msg = error && error.message ? error.message : String(error || "");
+    return /already exists|EEXIST/i.test(msg);
+  }
+  function shortTempName(name) {
+    var suffix = "-" + protocol().id().slice(0, 6) + ".tmp";
+    var base = name.indexOf("archive-") === 0 ? name.slice(0, 12) : name.slice(0, 15);
+    return base + suffix;
+  }
   async function atomic(folder, name, value, overwrite, immediate) {
-    var temporary = name + "." + protocol().id() + ".tmp";
-    var file = await folder.createFile(temporary, { overwrite: false }), staged = false;
-    try {
-      await file.write(JSON.stringify(value), { format: storage().formats.utf8 });
-      if (/^\.idphoto-(?:output-|archive)/.test(name)) {
-        if (overwrite) throw new Error("归档身份记录不允许覆盖");
-        if (batch && !immediate) {
-          batch.push({ operation: "commit-archive-record", file: file, recordName: name, content: JSON.stringify(value),
-            cleanup: { folder: folder, name: temporary } });
-          staged = true;
-        } else await window.IDPhotoPrintService.commitArchiveRecord(file);
-      } else await file.moveTo(folder, { newName: name, overwrite: overwrite === true });
-    } finally {
-      if (!staged) {
-        var leftover = await optional(folder, temporary);
-        if (leftover) await leftover.delete();
+    var isStagedRecord = /^\.idphoto-(?:output-|archive)/.test(name);
+    var serialized = JSON.stringify(value);
+    if (isStagedRecord) {
+      if (overwrite) throw new Error("归档身份记录不允许覆盖");
+      for (var stagedAttempt = 0; stagedAttempt < 5; stagedAttempt++) {
+        var temporary = name + "." + protocol().id() + ".tmp";
+        var file = null, createdStaged = false, wroteStaged = false, staged = false, committed = false;
+        try {
+          file = await folder.createFile(temporary, { overwrite: false });
+          createdStaged = Boolean(file);
+          await file.write(serialized, { format: storage().formats.utf8 });
+          wroteStaged = true;
+          if (batch && !immediate) {
+            batch.push({ operation: "commit-archive-record", file: file, recordName: name, content: serialized,
+              cleanup: { folder: folder, name: temporary, expectedContent: serialized, wrote: true, file: file } });
+            staged = true;
+          } else {
+            await window.IDPhotoPrintService.commitArchiveRecord(file);
+            committed = true;
+          }
+          return;
+        } catch (stagedError) {
+          if (!createdStaged && isCollisionError(stagedError) && stagedAttempt < 4) continue;
+          throw stagedError;
+        } finally {
+          if (createdStaged && !staged && !committed) {
+            await removeStaged([{
+              file: file,
+              committed: false,
+              cleanup: { folder: folder, name: temporary, expectedContent: serialized, wrote: wroteStaged, file: file }
+            }]);
+          }
+        }
+      }
+      return;
+    }
+
+    var lastError = null;
+    var transientCount = 0;
+    for (var attempt = 0; attempt < 5; attempt++) {
+      var shortTmp = shortTempName(name);
+      var tmpFile = null;
+      var created = false;
+      var moved = false;
+      try {
+        tmpFile = await folder.createFile(shortTmp, { overwrite: false });
+        created = Boolean(tmpFile);
+        await tmpFile.write(serialized, { format: storage().formats.utf8 });
+        await tmpFile.moveTo(folder, { newName: name, overwrite: overwrite === true });
+        moved = true;
+        return;
+      } catch (error) {
+        lastError = error;
+        if (!created && isCollisionError(error)) {
+          if (attempt < 4) continue;
+          break;
+        }
+        if (!isTransientFsError(error) || transientCount >= 2) break;
+        transientCount += 1;
+        try {
+          var already = await optional(folder, name);
+          if (already && JSON.stringify(JSON.parse(await already.read({ format: storage().formats.utf8 }))) === serialized) {
+            return;
+          }
+        } catch (_) { /* continue retry */ }
+        await waitMs(40 * transientCount);
+      } finally {
+        if (created && !moved) {
+          try {
+            var left = await optional(folder, shortTmp);
+            if (left && (!tmpFile || !tmpFile.nativePath || !left.nativePath || key(left.nativePath) === key(tmpFile.nativePath))) {
+              await left.delete();
+            }
+          } catch (_) { /* committed or removed */ }
+        }
       }
     }
+    throw lastError;
   }
   async function withDirectory(folder, callback) {
     // createFile(overwrite:false) is the shared atomic admission point with the

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.31
+- 拼版加速（`layerService.js` / `layoutWorkflow.js`）：使用 `photoshop.imaging` 单次读取 `sRGB` 像素并在内存中按 `0° / 90° / -90° / 180°` 及 RGBA 白底混合拼出整版单像素图层再 `putPixels`，替代 8–10 次跨文档复制图层与逐层移动；`debugMode` 或不支持 `imaging` 时自动清理残留并回退原 DOM 分图层逻辑。
+- 信息条小头像直绘（`infoBarRenderer.js`）：取件码条（`-90°` 逆时针/水平）与普通条（`+90°` 顺时针/水平）在直接来源且非 `debugMode` 时改用 `imaging.getPixels(targetSize)` 直接旋转写入像素图层，消除冗余 `duplicateLayerToDocument` 与同名层重赋值；补齐 `layoutWorkflow.js` 的 `[perf]` 各阶段耗时日志。
+- 归档索引防抖与短临时名（`archiveNamingService.js` / `exportService.js`）：非暂存索引文件改用短临时文件名（`archive-XXXX-XXXXXX.tmp` / `.idx-*.tmp`）规避 Windows 260 字符路径上限，保持 `.idphoto-*` 暂存桥接记录原 `.<32hex>.tmp` 契约；仅对瞬态 FS 错误重试最多 3 次，非瞬态故障立即上报。
+
 ## 0.6.30
 - REP-02/R2：先查先打任务本身的远端状态。已发布、撤回或取消的历史按普通旧规格处理，撤回后可取新码；只有仍在途的先打保留原目标校验和串行等待，本地 completed 不代替远端发布。
 - REP-01/R1：先打补传清单已写但未登记、或已登记尚无 DeliveryId 时，按先打记录核对原连接和原目标。同规格只打印并保留原任务/字节；换规格也先打，等待前序照片远端发布后串行追加。前台失败的后续规格不再转为后台 PS 重排/存档。

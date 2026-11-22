@@ -1216,3 +1216,400 @@ test("a blocked bridge keeps the earlier archive until the redo is saved again",
   assert.equal(f.day.entries.has(f.old.fileName), false);
   assert.equal(f.day.entries.has(blocked.fileName), true);
 });
+
+test("archiveNamingService uses short temp names and retries transient FS errors while keeping staged contracts", async () => {
+  const root = makeFolder("root");
+  const loaded = loadExportService(root);
+  for (const module of ["core/deliveryProtocol", "photoshop/archiveNamingService"]) {
+    vm.runInContext(fs.readFileSync(path.join(__dirname, "../src", module + ".js"), "utf8"), loaded.context);
+  }
+  const protocol = loaded.context.window.IDPhotoDeliveryProtocol;
+  const folder = await root.createFolder(protocol.id());
+  const payload = JSON.stringify({ version: 1, files: [{ role: "photo", sha256: "a".repeat(64) }] });
+  await (await folder.createFile("request.json", { overwrite: false })).write(payload);
+  const task = { id: folder.name, folder, fingerprint: protocol.sha256(payload) };
+  const variant = variantFixture(loaded.context.window.IDPhotoVariantService, "blue");
+  const photo = { saveAs: { jpg: async (file) => file.write(new Uint8Array([255, 216, 1, 2, 255, 217]).buffer) } };
+
+  const origCreateFile = folder.createFile.bind(folder);
+  const nonStagedTempNames = [];
+  let transientStep = 0;
+  folder.createFile = async (name, opts) => {
+    if (name.endsWith(".tmp")) {
+      nonStagedTempNames.push(name);
+      if (name.startsWith("archive-") && transientStep === 0) {
+        transientStep = 1;
+        throw new Error("no such file or directory");
+      }
+    }
+    const entry = await origCreateFile(name, opts);
+    if (name.startsWith("archive-") && name.endsWith(".tmp") && transientStep === 1) {
+      transientStep = 2;
+      entry.moveTo = async () => {
+        throw new Error("no such file or directory");
+      };
+    }
+    return entry;
+  };
+
+  const dayTempNames = [];
+  const origBridgeRun = loaded.context.window.IDPhotoPrintService.runArchiveOperations.bind(
+    loaded.context.window.IDPhotoPrintService
+  );
+  loaded.context.window.IDPhotoPrintService.runArchiveOperations = async (items) => {
+    for (const item of items) {
+      if (item && item.cleanup && item.cleanup.name) dayTempNames.push(item.cleanup.name);
+    }
+    return origBridgeRun(items);
+  };
+
+  const result = await loaded.service.exportSingleJpg(photo, { ...exportOptions(638, 898, variant), deliveryTask: task });
+  assert.equal(result.ok, true);
+  assert.equal(result.indexUnavailable, undefined);
+
+  const archiveTemps = nonStagedTempNames.filter((n) => n.startsWith("archive-"));
+  assert.equal(archiveTemps.length, 3);
+  for (const tmp of archiveTemps) {
+    assert.ok(tmp.length <= 24, "short temp name length <= 24, got " + tmp.length);
+  }
+  assert.ok(nonStagedTempNames.every((n) => n.length <= 28));
+  assert.equal(Array.from(folder.entries.keys()).some((n) => n.endsWith(".tmp")), false);
+  const committedArchive = Array.from(folder.entries.keys()).find((n) => /^archive-[a-f0-9]{32}\.json$/.test(n));
+  assert.ok(committedArchive, "archive-*.json committed after retries");
+
+  const stagedRecords = dayTempNames.filter((n) => /^\.idphoto-(?:output|archive)-/.test(n));
+  assert.ok(stagedRecords.length >= 2);
+  for (const staged of stagedRecords) {
+    assert.match(staged, /^\.idphoto-(?:output|archive)-[a-f0-9]{32}\.json\.[a-f0-9]{32}\.tmp$/);
+  }
+});
+
+test("archiveNamingService collision on preexisting temp preserves it untouched across retries", async () => {
+  const root = makeFolder("root");
+  const loaded = loadExportService(root);
+  for (const module of ["core/deliveryProtocol", "photoshop/archiveNamingService"]) {
+    vm.runInContext(fs.readFileSync(path.join(__dirname, "../src", module + ".js"), "utf8"), loaded.context);
+  }
+  const protocol = loaded.context.window.IDPhotoDeliveryProtocol;
+  const folder = await root.createFolder(protocol.id());
+  const payload = JSON.stringify({ version: 1, files: [{ role: "photo", sha256: "b".repeat(64) }] });
+  await (await folder.createFile("request.json", { overwrite: false })).write(payload);
+  const task = { id: folder.name, folder, fingerprint: protocol.sha256(payload) };
+  const variant = variantFixture(loaded.context.window.IDPhotoVariantService, "red");
+  const photo = { saveAs: { jpg: async (file) => file.write(new Uint8Array([255, 216, 4, 5, 255, 217]).buffer) } };
+
+  const origCreateFile = folder.createFile.bind(folder);
+  const preexistingContent = "OTHER_OWNER_TMP";
+  let collidedName = null;
+  let archiveTmpCalls = 0;
+  folder.createFile = async (name, opts) => {
+    if (name.startsWith("archive-") && name.endsWith(".tmp")) {
+      archiveTmpCalls += 1;
+      if (archiveTmpCalls === 1) {
+        collidedName = name;
+        const alien = await origCreateFile(name, { overwrite: false });
+        alien.content = preexistingContent;
+        throw new Error("EEXIST: entry already exists");
+      }
+    }
+    return origCreateFile(name, opts);
+  };
+
+  const result = await loaded.service.exportSingleJpg(photo, { ...exportOptions(638, 898, variant), deliveryTask: task });
+  assert.equal(result.ok, true);
+  assert.equal(result.indexUnavailable, undefined);
+  assert.equal(archiveTmpCalls, 2);
+  assert.ok(folder.entries.has(collidedName), "preexisting archive-*.tmp must stay untouched");
+  assert.equal(folder.entries.get(collidedName).content, preexistingContent);
+  const committed = Array.from(folder.entries.keys()).find((n) => /^archive-[a-f0-9]{32}\.json$/.test(n));
+  assert.ok(committed);
+});
+
+test("writePrivateIndex retries transient FS errors but fails immediately on non-transient errors", async () => {
+  // Case 1: two transient moveTo failures -> succeeds on 3rd attempt cleanly
+  {
+    const root = makeFolder("root");
+    const loaded = loadExportService(root);
+    const variant = variantFixture(loaded.context.window.IDPhotoVariantService, "blue");
+    let moveAttempts = 0;
+    const tempNames = [];
+    const doc = {
+      saveAs: {
+        async jpg() {
+          const cache = root.entries.get("archive-index-cache");
+          const origCreate = cache.createFile.bind(cache);
+          cache.createFile = async (name, opts) => {
+            const entry = await origCreate(name, opts);
+            if (name.startsWith(".idx-") && name.endsWith(".tmp")) {
+              tempNames.push(name);
+              const origMove = entry.moveTo.bind(entry);
+              entry.moveTo = async (dst, mvOpts) => {
+                moveAttempts += 1;
+                if (moveAttempts === 1) throw new Error("no such file or directory");
+                if (moveAttempts === 2) throw new Error("EBUSY: resource busy");
+                return origMove(dst, mvOpts);
+              };
+            }
+            return entry;
+          };
+        }
+      }
+    };
+    const res = await loaded.service.exportSingleJpg(doc, exportOptions(638, 898, variant));
+    assert.equal(res.ok, true);
+    assert.equal(res.indexUnavailable, undefined);
+    assert.equal(moveAttempts, 3);
+    assert.equal(tempNames.length, 3);
+    const cache = root.entries.get("archive-index-cache");
+    assert.equal(Array.from(cache.entries.keys()).some((n) => n.endsWith(".tmp")), false);
+  }
+
+  // Case 2: exclusive temp collision (EEXIST) preserves preexisting temp file and succeeds cleanly
+  {
+    const root = makeFolder("root");
+    const loaded = loadExportService(root);
+    const variant = variantFixture(loaded.context.window.IDPhotoVariantService, "blue");
+    const preexistingContent = "DO_NOT_DELETE_PREEXISTING_TMP";
+    let injectedName = null;
+    let createCalls = 0;
+    const doc = {
+      saveAs: {
+        async jpg() {
+          const cache = root.entries.get("archive-index-cache");
+          const origCreate = cache.createFile.bind(cache);
+          cache.createFile = async (name, opts) => {
+            if (name.startsWith(".idx-") && name.endsWith(".tmp")) {
+              createCalls += 1;
+              if (createCalls === 1) {
+                injectedName = name;
+                await origCreate(name, { overwrite: false });
+                (await cache.getEntry(name)).content = preexistingContent;
+                throw new Error("EEXIST: file already exists");
+              }
+            }
+            return origCreate(name, opts);
+          };
+        }
+      }
+    };
+    const res = await loaded.service.exportSingleJpg(doc, exportOptions(638, 898, variant));
+    assert.equal(res.ok, true);
+    assert.equal(res.indexUnavailable, undefined);
+    assert.equal(createCalls, 2);
+    const cache = root.entries.get("archive-index-cache");
+    assert.ok(cache.entries.has(injectedName), "preexisting tmp file must not be deleted on EEXIST");
+    assert.equal(cache.entries.get(injectedName).content, preexistingContent);
+    const idxEntry = Array.from(cache.entries.values()).find((e) => e.name && !e.name.endsWith(".tmp"));
+    assert.ok(idxEntry && JSON.parse(idxEntry.content).version === 1);
+  }
+
+  // Case 3: non-transient error does not retry
+  {
+    const root = makeFolder("root");
+    const loaded = loadExportService(root);
+    const variant = variantFixture(loaded.context.window.IDPhotoVariantService, "blue");
+    let tmpCreated = 0;
+    const doc = {
+      saveAs: {
+        async jpg() {
+          const cache = root.entries.get("archive-index-cache");
+          const origCreate = cache.createFile.bind(cache);
+          cache.createFile = async (name, opts) => {
+            const entry = await origCreate(name, opts);
+            if (name.endsWith(".tmp")) {
+              tmpCreated += 1;
+              entry.moveTo = async () => { throw new Error("index move failed"); };
+            }
+            return entry;
+          };
+        }
+      }
+    };
+    const res = await loaded.service.exportSingleJpg(doc, exportOptions(638, 898, variant));
+    assert.equal(res.ok, true);
+    assert.equal(res.indexUnavailable, true);
+    assert.equal(tmpCreated, 1);
+  }
+});
+
+test("A-01 staged .idphoto-* records retry on EEXIST, never delete alien reused temp paths, and isolate partial bridge failures", async () => {
+  // Helper to load exportService + archiveNamingService cleanly
+  function createHarness() {
+    const root = makeFolder("root");
+    const loaded = loadExportService(root);
+    for (const module of ["core/deliveryProtocol", "photoshop/archiveNamingService"]) {
+      vm.runInContext(fs.readFileSync(path.join(__dirname, "../src", module + ".js"), "utf8"), loaded.context);
+    }
+    return {
+      root,
+      loaded,
+      window: loaded.context.window,
+      naming: loaded.context.window.IDPhotoArchiveNamingService,
+      protocol: loaded.context.window.IDPhotoDeliveryProtocol
+    };
+  }
+
+  // Case 1: Immediate commit (retire) hits EEXIST -> preserves OTHER, retries with new .32hex.tmp, and preserves OTHER written after commit
+  {
+    const h = createHarness();
+    const folder = await h.root.createFolder("day-immediate");
+    const origCreate = folder.createFile.bind(folder);
+    const id = h.protocol.id();
+    let calls = 0;
+    let firstTemp = null;
+    let secondTemp = null;
+    folder.createFile = async (name, opts) => {
+      calls += 1;
+      if (calls === 1) {
+        firstTemp = name;
+        const alien = await origCreate(name, { overwrite: false });
+        alien.content = "OTHER";
+        throw new Error("EEXIST: file already exists");
+      }
+      secondTemp = name;
+      return origCreate(name, opts);
+    };
+    let committedTargets = 0;
+    const origCommit = h.window.IDPhotoPrintService.commitArchiveRecord.bind(h.window.IDPhotoPrintService);
+    h.window.IDPhotoPrintService.commitArchiveRecord = async (file) => {
+      await origCommit(file);
+      committedTargets += 1;
+      // Another writer reuses the old staging path right after commit
+      const reused = await origCreate(secondTemp, { overwrite: false });
+      reused.content = "OTHER";
+    };
+
+    await h.naming.retire(folder, { archiveId: id });
+    assert.equal(calls, 2);
+    assert.match(firstTemp, /^\.idphoto-archive-retired-[a-f0-9]{32}\.json\.[a-f0-9]{32}\.tmp$/);
+    assert.match(secondTemp, /^\.idphoto-archive-retired-[a-f0-9]{32}\.json\.[a-f0-9]{32}\.tmp$/);
+    assert.notEqual(firstTemp, secondTemp);
+    assert.equal(committedTargets, 1);
+    assert.equal(folder.entries.get(firstTemp).content, "OTHER");
+    assert.equal(folder.entries.get(secondTemp).content, "OTHER");
+    assert.ok(folder.entries.has(".idphoto-archive-retired-" + id + ".json"));
+  }
+
+  // Case 2: Batch queuing hits EEXIST -> preserves OTHER, queues 1 item with new .32hex.tmp, bridge commits and preserves OTHER at old path
+  {
+    const h = createHarness();
+    const folder = await h.root.createFolder("day-batch");
+    const origCreate = folder.createFile.bind(folder);
+    const id = h.protocol.id();
+    let calls = 0;
+    let firstTemp = null;
+    let secondTemp = null;
+    folder.createFile = async (name, opts) => {
+      calls += 1;
+      if (calls === 1) {
+        firstTemp = name;
+        const alien = await origCreate(name, { overwrite: false });
+        alien.content = "OTHER";
+        throw new Error("EEXIST: file already exists");
+      }
+      secondTemp = name;
+      return origCreate(name, opts);
+    };
+
+    h.naming.beginBatch();
+    await h.naming.retire(folder, { archiveId: id });
+    const queued = h.naming.takeBatch();
+    assert.equal(calls, 2);
+    assert.equal(queued.length, 1);
+    assert.match(queued[0].cleanup.name, /^\.idphoto-archive-retired-[a-f0-9]{32}\.json\.[a-f0-9]{32}\.tmp$/);
+    assert.equal(folder.entries.get(firstTemp).content, "OTHER");
+
+    const taskFolder = await h.root.createFolder(h.protocol.id());
+    const payload = JSON.stringify({ version: 1, files: [{ role: "photo", sha256: "d".repeat(64) }] });
+    await (await taskFolder.createFile("request.json", { overwrite: false })).write(payload);
+    const task = { id: taskFolder.name, folder: taskFolder, fingerprint: h.protocol.sha256(payload) };
+    const variant = variantFixture(h.window.IDPhotoVariantService, "blue");
+    const photo = { saveAs: { jpg: async (file) => file.write(new Uint8Array([255, 216, 6, 7, 255, 217]).buffer) } };
+
+    // Full save through flushArchiveBridge where another writer reuses staged temp paths immediately after commit
+    const oldTemps = [];
+    const origRun = h.window.IDPhotoPrintService.runArchiveOperations.bind(h.window.IDPhotoPrintService);
+    h.window.IDPhotoPrintService.runArchiveOperations = async (items) => {
+      await origRun(items);
+      for (const item of items) {
+        if (item.cleanup) {
+          const dayFolder = item.cleanup.folder;
+          if (!dayFolder.entries.has(item.cleanup.name)) {
+            const alien = await dayFolder.createFile(item.cleanup.name, { overwrite: false });
+            alien.content = "OTHER";
+            oldTemps.push({ folder: dayFolder, name: item.cleanup.name });
+          }
+        }
+      }
+    };
+    const res = await h.loaded.service.exportSingleJpg(photo, { ...exportOptions(638, 898, variant), deliveryTask: task });
+    assert.equal(res.ok, true);
+    assert.ok(oldTemps.length >= 2);
+    for (const old of oldTemps) {
+      assert.equal(old.folder.entries.get(old.name).content, "OTHER");
+    }
+    const day = h.root.entries.get("2026").entries.get("2026-07").entries.get("2026-07-13");
+    assert.ok(day.entries.has(".idphoto-jpg-index.json"));
+  }
+
+  // Case 3: Partial bridge failure (item 0 committed & old path reused with "OTHER", item 1 failed & still pending)
+  {
+    const h = createHarness();
+    const taskFolder = await h.root.createFolder(h.protocol.id());
+    const payload = JSON.stringify({ version: 1, files: [{ role: "photo", sha256: "e".repeat(64) }] });
+    await (await taskFolder.createFile("request.json", { overwrite: false })).write(payload);
+    const task = { id: taskFolder.name, folder: taskFolder, fingerprint: h.protocol.sha256(payload) };
+    const variant = variantFixture(h.window.IDPhotoVariantService, "white");
+    const photo = { saveAs: { jpg: async (file) => file.write(new Uint8Array([255, 216, 8, 9, 255, 217]).buffer) } };
+
+    let firstStaged = null;
+    let lastStaged = null;
+    const origRun = h.window.IDPhotoPrintService.runArchiveOperations.bind(h.window.IDPhotoPrintService);
+    h.window.IDPhotoPrintService.runArchiveOperations = async (items) => {
+      assert.ok(items.length >= 2);
+      // Commit only item[0] (whose old path gets reused with OTHER), then fail before remaining items
+      await h.window.IDPhotoPrintService.commitArchiveRecord(items[0].file);
+      firstStaged = items[0];
+      lastStaged = items[items.length - 1];
+      const reused = await firstStaged.cleanup.folder.createFile(firstStaged.cleanup.name, { overwrite: false });
+      reused.content = "OTHER";
+      throw new Error("bridge aborted midway");
+    };
+
+    const res = await h.loaded.service.exportSingleJpg(photo, { ...exportOptions(638, 898, variant), deliveryTask: task });
+    assert.equal(res.ok, true);
+    // Item 0 committed record is intact and its reused old temp path with OTHER was NOT deleted
+    assert.ok(firstStaged.cleanup.folder.entries.has(firstStaged.recordName));
+    assert.equal(firstStaged.cleanup.folder.entries.get(firstStaged.cleanup.name).content, "OTHER");
+    // Uncommitted lastStaged temp file (ours) WAS cleaned up
+    assert.equal(lastStaged.cleanup.folder.entries.has(lastStaged.cleanup.name), false);
+    void origRun;
+  }
+
+  // Case 4: Write fails or commit fails when another writer swaps temp content to "OTHER" -> OTHER stays untouched; own leftover cleaned
+  {
+    const h = createHarness();
+    const folder = await h.root.createFolder("day-fail");
+    const origCreate = folder.createFile.bind(folder);
+    let ownTempName = null;
+    folder.createFile = async (name, opts) => {
+      ownTempName = name;
+      const entry = await origCreate(name, opts);
+      entry.write = async () => {
+        entry.content = "OTHER";
+        throw new Error("disk write failed");
+      };
+      return entry;
+    };
+    await assert.rejects(h.naming.retire(folder, { archiveId: h.protocol.id() }), /disk write failed/);
+    assert.equal(folder.entries.get(ownTempName).content, "OTHER", "replaced content must not be deleted on write failure");
+
+    // Own failed commit (content matches ours) IS cleaned up
+    const folder2 = await h.root.createFolder("day-fail-own");
+    h.window.IDPhotoPrintService.commitArchiveRecord = async () => {
+      throw new Error("bridge failed");
+    };
+    await assert.rejects(h.naming.retire(folder2, { archiveId: h.protocol.id() }), /bridge failed/);
+    assert.equal(folder2.entries.size, 0, "own failed staged temp should be cleaned up cleanly");
+  }
+});

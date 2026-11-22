@@ -385,3 +385,340 @@ for (const raw of loadTemplates().getAllTemplates()) {
     assert.doesNotMatch(other.text,/直接领取|“福清印象照相馆”/);
   });
 }
+
+function makeImagingRendererHarness(options = {}) {
+  let nextLayerId = 1;
+  let createdTextLayer = null;
+  let deletedPixelLayers = 0;
+  let modalDepth = 0;
+  const textKnownLayerIds = [];
+  const textCommands = [];
+  const duplicateCalls = [];
+  const getPixelsCalls = [];
+  const putPixelsCalls = [];
+  const disposed = [];
+  let sourceSizePx = options.sourceSize || { width: 600, height: 900 };
+
+  const targetDocument = {
+    id: 200,
+    width: 3600,
+    height: 2400,
+    layers: [],
+    activeLayers: [],
+    async activate() {},
+    async createLayer(kind, layerOptions) {
+      assert.equal(kind, "pixel");
+      const layer = {
+        id: nextLayerId++,
+        kind: "pixel",
+        name: layerOptions && layerOptions.name,
+        bounds: { left: 0, top: 0, right: 1, bottom: 1 },
+        async delete() {
+          assert.ok(modalDepth > 0, "infoBar pixel delete must run inside executeAsModal");
+          deletedPixelLayers += 1;
+          const idx = targetDocument.layers.indexOf(this);
+          if (idx >= 0) targetDocument.layers.splice(idx, 1);
+        }
+      };
+      targetDocument.layers.unshift(layer);
+      targetDocument.activeLayers = [layer];
+      return layer;
+    }
+  };
+  const sourceLayer = {
+    id: 900,
+    bounds: { left: 0, top: 0, right: sourceSizePx.width, bottom: sourceSizePx.height }
+  };
+  const sourceDocument = {
+    id: 100,
+    width: sourceSizePx.width,
+    height: sourceSizePx.height,
+    layers: [sourceLayer],
+    activeLayers: [sourceLayer]
+  };
+
+  const photoshop = {
+    app: { activeDocument: targetDocument },
+    core: { async executeAsModal(callback) { modalDepth += 1; try { await callback(); } finally { modalDepth -= 1; } } },
+    imaging: {
+      async getPixels(opts) {
+        getPixelsCalls.push(opts);
+        const w = opts.targetSize.width;
+        const h = opts.targetSize.height;
+        const buf = new Uint8Array(w * h * 3);
+        buf.fill(180);
+        // Mark 4 corners distinctly so rotation orientation can be checked deterministically.
+        const setPx = (x, y, r, g, b) => {
+          const off = (y * w + x) * 3;
+          buf[off] = r; buf[off + 1] = g; buf[off + 2] = b;
+        };
+        setPx(0, 0, 11, 22, 33);         // src top-left
+        setPx(w - 1, 0, 44, 55, 66);     // src top-right
+        setPx(0, h - 1, 77, 88, 99);     // src bottom-left
+        setPx(w - 1, h - 1, 111, 122, 133); // src bottom-right
+        return {
+          imageData: {
+            width: w,
+            height: h,
+            components: 3,
+            async getData() { return buf; },
+            dispose() { disposed.push("src"); }
+          }
+        };
+      },
+      async createImageDataFromBuffer(buffer, opts) {
+        return {
+          width: opts.width,
+          height: opts.height,
+          components: opts.components,
+          colorProfile: opts.colorProfile,
+          _buffer: new Uint8Array(buffer),
+          dispose() { disposed.push("out"); }
+        };
+      },
+      async putPixels(opts) {
+        if (options.failPutPixels) throw new Error("portrait putPixels failure");
+        putPixelsCalls.push(opts);
+        const layer = targetDocument.layers.find((item) => item.id === opts.layerID);
+        if (layer) {
+          layer.bounds = {
+            left: opts.targetBounds.left,
+            top: opts.targetBounds.top,
+            right: opts.targetBounds.left + opts.imageData.width,
+            bottom: opts.targetBounds.top + opts.imageData.height
+          };
+        }
+      }
+    },
+    action: {
+      async batchPlay(commands) {
+        const command = commands[0];
+        if (command && command._obj === "transform") {
+          const layer = targetDocument.layers.find((l) => l.id === command._target[0]._id);
+          const b = layer.bounds, w = b.right - b.left, h = b.bottom - b.top;
+          layer.bounds = { left: b.left, top: b.top, right: b.left + h, bottom: b.top + w };
+          layer.rotated = command.angle._value;
+          return [];
+        }
+        if (command && command._obj === "move" && command._target[0]._id) {
+          const idx = targetDocument.layers.findIndex((l) => l.id === command._target[0]._id);
+          if (idx === 0) throw new Error("already at front");
+          const [layer] = targetDocument.layers.splice(idx, 1);
+          targetDocument.layers.unshift(layer);
+          targetDocument.activeLayers = [layer];
+          return [];
+        }
+        if (command && command._obj === "make" && command._target[0]._ref === "textLayer") {
+          textCommands.push(command);
+          const pt = command.using.textClickPoint;
+          const x = pt.horizontal._value, y = pt.vertical._value;
+          createdTextLayer = {
+            id: nextLayerId++,
+            kind: "text",
+            bounds: { left: x, top: y, right: x + 120, bottom: y + 40 },
+            async resize(wp, hp) {
+              this.bounds.right = this.bounds.left + ((this.bounds.right - this.bounds.left) * wp) / 100;
+              this.bounds.bottom = this.bounds.top + ((this.bounds.bottom - this.bounds.top) * hp) / 100;
+            }
+          };
+          targetDocument.layers.unshift(createdTextLayer);
+          targetDocument.activeLayers = [createdTextLayer];
+        }
+        return [];
+      }
+    }
+  };
+
+  const context = {
+    console: { log() {}, warn() {}, error() {} },
+    require(name) {
+      assert.equal(name, "photoshop");
+      return photoshop;
+    },
+    window: {}
+  };
+  vm.createContext(context);
+  loadPhotoshopExecution(context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/photoshop/layerService.js"), "utf8"), context);
+  const realLayerService = context.window.IDPhotoLayerService;
+  context.window.IDPhotoLayerService = {
+    stampPhotoIntoBuffer: realLayerService.stampPhotoIntoBuffer,
+    async duplicateLayerToDocument(srcDoc, _srcLayer, dstDoc) {
+      duplicateCalls.push({ srcDoc, dstDoc });
+      const layer = {
+        id: nextLayerId++,
+        bounds: { left: 0, top: 0, right: sourceSizePx.width, bottom: sourceSizePx.height },
+        async resize(percent) {
+          this.bounds.right = this.bounds.left + ((this.bounds.right - this.bounds.left) * percent) / 100;
+          this.bounds.bottom = this.bounds.top + ((this.bounds.bottom - this.bounds.top) * percent) / 100;
+        }
+      };
+      dstDoc.layers.unshift(layer);
+      dstDoc.activeLayers = [layer];
+      return layer;
+    },
+    findLayerByName: realLayerService.findLayerByName,
+    getLayerBounds: (layer) => layer.bounds,
+    getDocumentLayerIds: () => ({}),
+    async moveLayerTo(layer, x, y) {
+      const w = layer.bounds.right - layer.bounds.left;
+      const h = layer.bounds.bottom - layer.bounds.top;
+      layer.bounds = { left: x, top: y, right: x + w, bottom: y + h };
+      return layer.bounds;
+    },
+    async runNewLayerOperation(_doc, op, _lbl, knownIds) {
+      textKnownLayerIds.push(knownIds);
+      createdTextLayer = null;
+      await op();
+      return createdTextLayer;
+    }
+  };
+  context.window.IDPhotoEntryCodeService = {
+    async prepare() { return { text: "https://mp.weixin.qq.com/a/test", custom: false, logo: null, exclusive: false, reason: "" }; },
+    readsBack() { return true; },
+    async draw(doc, _prep, rect, opts) {
+      const layer = { id: nextLayerId++, name: opts.name, bounds: { left: rect.x, top: rect.y, right: rect.x + rect.width, bottom: rect.y + rect.height } };
+      doc.layers.unshift(layer);
+      doc.activeLayers = [layer];
+      return layer;
+    }
+  };
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/core/deliveryProtocol.js"), "utf8"), context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/core/pickupStripLayout.js"), "utf8"), context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/core/classicStripLayout.js"), "utf8"), context);
+  vm.runInContext(fs.readFileSync(rendererPath, "utf8"), context, { filename: rendererPath });
+
+  return {
+    renderer: context.window.IDPhotoInfoBarRenderer,
+    sourceDocument,
+    targetDocument,
+    duplicateCalls,
+    getPixelsCalls,
+    putPixelsCalls,
+    disposed,
+    get deletedPixelLayers() { return deletedPixelLayers; }
+  };
+}
+
+test("renderPickupStrip draws vertical (-90 CCW) and horizontal (0) portraits via imaging without duplicating layers", async () => {
+  const templates = loadTemplates();
+  for (const [templateId, expectedAngle] of [["standard-two-inch", -90], ["one-inch", 0]]) {
+    const template = templates.forDelivery(templates.getTemplateById(templateId), true);
+    const harness = makeImagingRendererHarness();
+    const res = await harness.renderer.renderInfoBar(
+      harness.targetDocument,
+      template.infoBar,
+      { shopName: "福清印象照相馆", shopPhone: "13003825982" },
+      {
+        dateText: "2026.11.22",
+        pickupCodeMode: true,
+        pickupCode: "A2B3C4",
+        template,
+        sourceDocument: harness.sourceDocument,
+        sourceSize: { width: 600, height: 900 }
+      }
+    );
+    assert.equal(res.ok, true, templateId);
+    assert.equal(harness.duplicateCalls.length, 0, templateId + " should avoid DOM duplicateLayer");
+    assert.equal(harness.getPixelsCalls.length, 1);
+    assert.equal(harness.getPixelsCalls[0].colorProfile, "sRGB IEC61966-2.1");
+    assert.equal(harness.getPixelsCalls[0].applyAlpha, false);
+    assert.equal(harness.putPixelsCalls.length, 1);
+    assert.deepEqual(harness.disposed, ["src", "out"]);
+    const img = harness.putPixelsCalls[0].imageData;
+    const px = (x, y) => {
+      const off = (y * img.width + x) * 3;
+      return [img._buffer[off], img._buffer[off + 1], img._buffer[off + 2]];
+    };
+    if (expectedAngle === -90) {
+      // -90 CCW: src top-left (0,0) -> dst bottom-left (0, img.height-1); src top-right -> dst top-left (0,0)
+      assert.deepEqual(px(0, img.height - 1), [11, 22, 33]);
+      assert.deepEqual(px(0, 0), [44, 55, 66]);
+    } else {
+      assert.deepEqual(px(0, 0), [11, 22, 33]);
+      assert.deepEqual(px(img.width - 1, img.height - 1), [111, 122, 133]);
+    }
+  }
+});
+
+test("renderClassicStrip draws vertical (+90 CW) and horizontal (0) portraits via imaging without duplicating layers", async () => {
+  const templates = loadTemplates();
+  for (const [templateId, vertical] of [["standard-two-inch", true], ["one-inch", false]]) {
+    const template = templates.forDelivery(templates.getTemplateById(templateId), false);
+    const harness = makeImagingRendererHarness();
+    const res = await harness.renderer.renderInfoBar(
+      harness.targetDocument,
+      template.infoBar,
+      { shopName: "福清印象照相馆", shopPhone: "13003825982" },
+      {
+        dateText: "2026.11.22",
+        pickupCodeMode: false,
+        template,
+        sourceDocument: harness.sourceDocument,
+        sourceSize: { width: 600, height: 900 }
+      }
+    );
+    assert.equal(res.ok, true, templateId);
+    assert.equal(harness.duplicateCalls.length, 0);
+    assert.equal(harness.getPixelsCalls.length, 1);
+    assert.equal(harness.putPixelsCalls.length, 1);
+    assert.deepEqual(harness.disposed, ["src", "out"]);
+    const img = harness.putPixelsCalls[0].imageData;
+    const px = (x, y) => {
+      const off = (y * img.width + x) * 3;
+      return [img._buffer[off], img._buffer[off + 1], img._buffer[off + 2]];
+    };
+    if (vertical) {
+      // +90 CW: src top-left (0,0) -> dst top-right (img.width-1, 0); src bottom-left -> dst top-left (0,0)
+      assert.deepEqual(px(img.width - 1, 0), [11, 22, 33]);
+      assert.deepEqual(px(0, 0), [77, 88, 99]);
+    } else {
+      assert.deepEqual(px(0, 0), [11, 22, 33]);
+      assert.deepEqual(px(img.width - 1, 0), [44, 55, 66]);
+    }
+  }
+});
+
+test("imaging portrait respects debugMode=true and falls back cleanly on putPixels error (deleting orphan layer)", async () => {
+  const templates = loadTemplates();
+  const template = templates.forDelivery(templates.getTemplateById("one-inch"), true);
+
+  // debugMode: skips imaging, runs DOM duplicate
+  const debugHarness = makeImagingRendererHarness();
+  await debugHarness.renderer.renderInfoBar(
+    debugHarness.targetDocument,
+    template.infoBar,
+    { shopName: "福清印象照相馆", shopPhone: "13003825982" },
+    {
+      dateText: "2026.11.22",
+      pickupCodeMode: true,
+      pickupCode: "A2B3C4",
+      template,
+      sourceDocument: debugHarness.sourceDocument,
+      sourceSize: { width: 600, height: 900 },
+      debugMode: true
+    }
+  );
+  assert.equal(debugHarness.getPixelsCalls.length, 0);
+  assert.equal(debugHarness.duplicateCalls.length, 1);
+
+  // putPixels fails: deletes empty pixel layer, disposes buffers, falls back to DOM duplicate
+  const failHarness = makeImagingRendererHarness({ failPutPixels: true });
+  const res = await failHarness.renderer.renderInfoBar(
+    failHarness.targetDocument,
+    template.infoBar,
+    { shopName: "福清印象照相馆", shopPhone: "13003825982" },
+    {
+      dateText: "2026.11.22",
+      pickupCodeMode: true,
+      pickupCode: "A2B3C4",
+      template,
+      sourceDocument: failHarness.sourceDocument,
+      sourceSize: { width: 600, height: 900 }
+    }
+  );
+  assert.equal(res.ok, true);
+  assert.equal(failHarness.deletedPixelLayers, 1);
+  assert.deepEqual(failHarness.disposed, ["src", "out"]);
+  assert.equal(failHarness.duplicateCalls.length, 1);
+});

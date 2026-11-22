@@ -110,40 +110,124 @@
     return Object.assign({}, shared, local || {});
   }
 
+  function waitMs(ms) {
+    if (typeof setTimeout !== "function") return Promise.resolve();
+    return new Promise(function (resolve) { setTimeout(resolve, ms); });
+  }
+
+  function isTransientFsError(error) {
+    var msg = error && error.message ? error.message : String(error || "");
+    return /no such file or directory|ENOENT|EBUSY|EPERM|EACCES|sharing violation/i.test(msg);
+  }
+
+  function isCollisionError(error) {
+    var msg = error && error.message ? error.message : String(error || "");
+    return /already exists|EEXIST/i.test(msg);
+  }
+
   async function writePrivateIndex(folder, index) {
     var location = await getPrivateIndex(folder);
     // Refuse to overwrite a record for a different archive directory.
     await readPrivateIndex(location);
-    var pendingName = location.name + "." + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2) + ".tmp";
-    var file = await location.folder.createFile(pendingName, { overwrite: false });
-    try {
-      await file.write(JSON.stringify({ version: 1, directory: location.directory, entries: index }), { format: require("uxp").storage.formats.utf8 });
-      await file.moveTo(location.folder, { newName: location.name, overwrite: true });
-    } finally {
-      try { await (await location.folder.getEntry(pendingName)).delete(); } catch (missing) { /* committed or absent */ }
+    var payload = JSON.stringify({ version: 1, directory: location.directory, entries: index });
+    var lastError = null;
+    var transientCount = 0;
+    for (var attempt = 0; attempt < 5; attempt++) {
+      var pendingName = ".idx-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8) + ".tmp";
+      var file = null;
+      var created = false;
+      var moved = false;
+      try {
+        file = await location.folder.createFile(pendingName, { overwrite: false });
+        created = Boolean(file);
+        await file.write(payload, { format: require("uxp").storage.formats.utf8 });
+        await file.moveTo(location.folder, { newName: location.name, overwrite: true });
+        moved = true;
+        return;
+      } catch (error) {
+        lastError = error;
+        if (!created && isCollisionError(error)) {
+          if (attempt < 4) continue;
+          throw error;
+        }
+        if (!isTransientFsError(error) || transientCount >= 2) throw error;
+        transientCount += 1;
+        await waitMs(40 * transientCount);
+      } finally {
+        if (created && !moved) {
+          try {
+            var left = await location.folder.getEntry(pendingName);
+            if (left && (!file || !file.nativePath || !left.nativePath || String(left.nativePath).toLowerCase() === String(file.nativePath).toLowerCase())) {
+              await left.delete();
+            }
+          } catch (missing) {
+            /* committed or absent */
+          }
+        }
+      }
     }
+    throw lastError;
   }
 
   // UXP cannot overwrite a Hidden file on Windows. The native bridge commits and
   // hides the staged index; it travels in the save's single bridge launch.
-  async function stageJpgIdentityIndex(folder, index) {
-    var pendingName = JPG_INDEX_NAME + "." + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2) + ".tmp";
-    var file = await folder.createFile(pendingName, { overwrite: false });
-    var item = { operation: "commit-archive-index", file: file, cleanup: { folder: folder, name: pendingName } };
-    try {
-      await file.write(JSON.stringify({ version: 1, entries: index }), { format: require("uxp").storage.formats.utf8 });
-    } catch (error) {
-      await removeStagedItems([item]);
-      throw error;
+  async function matchesStagedItemOwnership(item, candidate) {
+    var cleanup = item && item.cleanup;
+    if (!cleanup || !candidate) return false;
+    if (cleanup.file && cleanup.file.nativePath && candidate.nativePath &&
+        String(cleanup.file.nativePath).toLowerCase() !== String(candidate.nativePath).toLowerCase()) {
+      return false;
     }
-    return item;
+    if (typeof candidate.read !== "function") {
+      return !cleanup.file || candidate === cleanup.file;
+    }
+    var actual = await candidate.read({ format: require("uxp").storage.formats.utf8 });
+    if (cleanup.wrote) return actual === cleanup.expectedContent;
+    return actual === "" || actual === cleanup.expectedContent;
+  }
+
+  async function stageJpgIdentityIndex(folder, index) {
+    var payload = JSON.stringify({ version: 1, entries: index });
+    for (var attempt = 0; attempt < 5; attempt++) {
+      var pendingName = JPG_INDEX_NAME + "." + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2) + ".tmp";
+      var file = null;
+      var created = false;
+      var wrote = false;
+      var item = null;
+      try {
+        file = await folder.createFile(pendingName, { overwrite: false });
+        created = Boolean(file);
+        item = {
+          operation: "commit-archive-index",
+          file: file,
+          cleanup: { folder: folder, name: pendingName, expectedContent: payload, wrote: false, file: file }
+        };
+        await file.write(payload, { format: require("uxp").storage.formats.utf8 });
+        wrote = true;
+        item.cleanup.wrote = true;
+        return item;
+      } catch (error) {
+        if (!created && isCollisionError(error) && attempt < 4) continue;
+        if (created && item) {
+          item.cleanup.wrote = wrote;
+          await removeStagedItems([item]);
+        }
+        throw error;
+      }
+    }
   }
 
   async function removeStagedItems(items) {
     for (var item of items) {
-      if (!item.cleanup) continue;
-      // Address only the staging name; the File object may now refer to the committed file.
-      try { await (await item.cleanup.folder.getEntry(item.cleanup.name)).delete(); } catch (absent) { /* committed */ }
+      var cleanup = item && item.cleanup;
+      if (!cleanup || item.committed) continue;
+      if (item.file && item.file.name && item.file.name !== cleanup.name) continue;
+      try {
+        var entry = await cleanup.folder.getEntry(cleanup.name);
+        if (entry && await matchesStagedItemOwnership(item, entry)) {
+          await entry.delete();
+        }
+      } catch (absent) { /* committed or absent */ }
     }
   }
 
@@ -153,14 +237,18 @@
     var naming = window.IDPhotoArchiveNamingService;
     var all = (naming && naming.takeBatch ? naming.takeBatch() : []).concat(items);
     if (!all.length) return null;
+    var succeeded = false;
     try {
       if (indexExecutor) await indexExecutor(all);
       else await window.IDPhotoPrintService.runArchiveOperations(all);
+      succeeded = true;
       return null;
     } catch (error) {
       return error;
     } finally {
-      await removeStagedItems(all);
+      if (!succeeded) {
+        await removeStagedItems(all);
+      }
     }
   }
 
