@@ -15,6 +15,7 @@ function harness(options = {}) {
     async getEntry(name) {
       if (name === 'connection-response.json' || name === 'code-response.json') assert.equal(modalDepth, 0, 'Never wait for backend inside Photoshop modal execution');
       if (name === 'connection-response.json' && options.connection !== false) {
+        if (options.beforeConnectionRead) await options.beforeConnectionRead();
         const request = JSON.parse(await (await this.getEntry('connection-request.json')).read());
         return { read: async () => JSON.stringify({ version: 1, requestId: options.staleConnection ? 'old' : request.requestId,
           protocol: options.connectionProtocol || request.protocol, sourceRoot: options.wrongConnectionRoot ? 'elsewhere' : this.nativePath,
@@ -62,15 +63,80 @@ function harness(options = {}) {
     IDPhotoSettingsStore:{load:()=>({})},
     IDPhotoInfoBarRenderer:{renderInfoBar:async(d,bar,settings,opts)=>{renders.push({id:d.id,source:opts.sourceDocument.id,code:opts.pickupCode,mode:opts.pickupCodeMode,date:opts.dateText,entry:opts.entryLink&&opts.entryLink.link});clock+=options.renderDelay||0;if(options.renderFail)throw 'injected Photoshop failure';return {ok:true,createdCount:1,message:'rendered'};}},
   };
-  class Clock extends Date { static now(){clock+=1500;return clock;} }
-  const context=vm.createContext({window,console,Date:Clock,setTimeout:fn=>{if(options.onSleep)options.onSleep(window.IDPhotoDeliveryService);fn();},require:name=>{assert.equal(name,'uxp');return {storage:{localFileSystem:filesystem,formats:{binary:'binary',utf8:'utf8'}}};}});
+  class Clock extends Date { static now(){if(!options.measuredClock)clock+=1500;return clock;} }
+  const context=vm.createContext({window,console,Date:Clock,setTimeout:(fn,ms)=>{if(options.measuredClock)clock+=ms;if(options.onSleep)options.onSleep(window.IDPhotoDeliveryService,ms);fn();},require:name=>{assert.equal(name,'uxp');return {storage:{localFileSystem:filesystem,formats:{binary:'binary',utf8:'utf8'}}};}});
   for(const file of ['core/sourceEligibilityService','core/deliveryProtocol','core/deliverySpecifications','photoshop/deliveryService'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../src',file+'.js'),'utf8'),context);
   window.IDPhotoSourceEligibilityService.checkSource = () => ({ eligible: options.eligible !== false });
   const reload=()=>vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/photoshop/deliveryService.js'),'utf8'),context);
   const taskCount=()=>{let count=0;function walk(entry){if(entry.children.has('context.json'))count++;for(const child of entry.children.values())if(child.isFolder)walk(child);}walk(root);return count;};
   const loadWorkflow=()=>vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/core/layoutWorkflow.js'),'utf8'),context);
-  return {options,get service(){return window.IDPhotoDeliveryService;},reload,loadWorkflow,taskCount,window,doc,app,original,photo,files,closed,renders,canvases,duplicates,info:{id:original.id,name:'test',widthPx:3000,heightPx:4000,sourceMetadata:{}}};
+  return {options,get service(){return window.IDPhotoDeliveryService;},clock:()=>clock,reload,loadWorkflow,taskCount,window,doc,app,original,photo,files,closed,renders,canvases,duplicates,info:{id:original.id,name:'test',widthPx:3000,heightPx:4000,sourceMetadata:{}}};
 }
+function handshakeGate(h, mode) {
+  let observed,release;
+  const opened=new Promise(resolve=>{observed=resolve;});
+  const held=new Promise(resolve=>{release=resolve;});
+  h.options.beforeConnectionRead=async()=>{observed();await held;};
+  h.window.IDPhotoDeliveryAutomationService={
+    plan:()=>({kind:'new',previousTaskIds:[],groupTaskIds:[]}), created(){}, failure(){},
+    store:()=>({group:()=>({on:false})}),
+    async resolve(task){const {value,error}=await task.preparedConnection;if(error)throw error;
+      assert.equal(value.consumerId,'test-consumer');throw Error('test boundary: no delivery writes');}
+  };
+  return {opened,release:()=>{if(mode==='handshake-fail')h.options.connectionState='stopping';release();}};
+}
+for (const mode of ['esc','crop-fail','handshake-fail','handshake-delayed']) {
+  test(`foreground layout starts a nonce exchange during crop and handles ${mode} without submitting`,async()=>{
+    const h=harness(),gate=handshakeGate(h,mode);
+    let reached;const cropping=new Promise(resolve=>{reached=resolve;});
+    const template={...h.window.IDPhotoTemplates.getTemplateById(),id:'one',name:'Template',widthPx:600,heightPx:800};
+    h.window.IDPhotoTemplateOverrideService={getEffectiveTemplateByName:()=>template};
+    h.window.IDPhotoRatioChecker={checkDocumentRatio:()=>({ok:true,canCheck:true,errorPercent:0})};
+    h.window.IDPhotoCropService.prepareSinglePhoto=async()=>{
+      reached();
+      // A crop promise deliberately stays open until the handshake read starts.
+      await Promise.race([gate.opened,new Promise((_,reject)=>setTimeout(()=>reject(Error('serial crop/handshake')),150))]);
+      if(mode==='esc'||mode==='crop-fail')throw Object.assign(Error(mode),{cancelled:mode==='esc'});
+      return {document:h.photo};
+    };
+    h.window.IDPhotoCanvasService={createSixInchCanvas:async()=>({document:h.doc(3600,2400)})};
+    h.window.IDPhotoLayoutEngine={createLayoutPlan:()=>({positions:[{}],infoBar:template.infoBar})};
+    h.window.IDPhotoLayerService={placePhotoCopies:async()=>({placedCount:1})};
+    h.loadWorkflow();
+    try{
+      const running=h.window.IDPhotoLayoutWorkflow.create({}).run({templateNames:['Template'],sourceDocument:h.original,docInfo:h.info,delivery:true,skipPrint:true,skipExport:true});
+      await cropping;
+      if(mode.startsWith('handshake')){
+        await gate.opened;
+        await new Promise(resolve=>setImmediate(resolve));
+        assert.ok(![...h.files.keys()].some(key=>key.endsWith('/request.json')));
+        gate.release();
+      }
+      const result=await running;
+      assert.equal(result.ok,false);
+      assert.equal(result.cancelled,mode==='esc');
+      assert.match(result.failures[0].error.message,mode==='handshake-fail'?/停止/:mode==='handshake-delayed'?/test boundary/:new RegExp(mode));
+      assert.equal(h.taskCount(),1);
+      assert.equal(h.service.latest().preparedConnection,undefined);
+      assert.equal([...h.files.keys()].some(key=>/\/(request|complete|code-request)\.json$/.test(key)),false);
+      assert.equal(h.closed.includes(h.original.id),false);
+      console.log(JSON.stringify({layoutParallel:true,mode}));
+    }finally{gate.release();}
+  });
+}
+test('response appearing on first sleep is read within 60 ms; prolonged connection waits back off',async()=>{
+  const sleeps=[];
+  const h=harness({measuredClock:true,connection:false,onSleep:(service,ms)=>{sleeps.push(ms);h.options.connection=true;}});
+  const started=h.clock();await h.service.connection();const handshakeMs=h.clock()-started;
+  const clocks=[];const quiet=harness({measuredClock:true,connection:false,onSleep:(_,ms)=>clocks.push(ms)});
+  await assert.rejects(quiet.service.connection(),error=>error.code==='CONNECTION_PENDING');
+  const fast=harness({measuredClock:true,receipt:false,onSleep:()=>{fast.options.receipt=true;}});
+  await fast.service.electronic(fast.original,fast.info,{});
+  console.log(JSON.stringify({handshakeMs,codePollMs:fast.clock(),longPollCount:clocks.length,intervals:[...new Set(clocks)]}));
+  assert.ok(handshakeMs<60);assert.deepEqual(sleeps,[20]);
+  assert.equal(quiet.clock(),6000);assert.deepEqual([...new Set(clocks)],[20,50,100,200]);
+  assert.ok(fast.clock()<60);
+});
 test('timeout and reload retain one immutable logical task; explicit electronic retry confirms a new attempt without new delivery', async () => {
   const h=harness({receipt:false});
   await assert.rejects(h.service.electronic(h.original,h.info,{}),/超时/);

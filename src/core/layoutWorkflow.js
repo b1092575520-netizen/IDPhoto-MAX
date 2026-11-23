@@ -780,6 +780,9 @@
           successResults.push({ templateName: templateNames[index], result: singleResult });
         } catch (error) {
           failures.push({ templateName: templateNames[index], error: error });
+          // The opening nonce exchange is bounded and observes its own errors.
+          // Do not wait for it or carry its result into recovery on crop failure.
+          if (runOptions.activeDeliveryTask) delete runOptions.activeDeliveryTask.preparedConnection;
           if (runOptions.activeDeliveryTask && window.IDPhotoDeliveryService.retainForegroundFailure) {
             try { await window.IDPhotoDeliveryService.retainForegroundFailure(runOptions.activeDeliveryTask); }
             catch (retainError) { reportError("delivery-retain", retainError); }

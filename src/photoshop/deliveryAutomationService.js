@@ -84,7 +84,7 @@
       input = Object.assign({}, saved, { requestId: requestId, connectionRequestId: connected.requestId });
       payload = JSON.stringify(input); await atomic(requests, id + ".json", payload, true);
     } else { payload = JSON.stringify(input); await atomic(requests, id + ".json", payload); }
-    var fingerprint = protocol().sha256(payload), deadline = Date.now() + 60000;
+    var fingerprint = protocol().sha256(payload), started = Date.now(), deadline = started + 60000;
     var attempt = { stopped: false }; activeBridge = attempt;
     try {
     while (Date.now() < deadline) {
@@ -101,7 +101,7 @@
         }
         return output.data;
       }
-      await new Promise(function (resolve) { setTimeout(resolve, 200); });
+      await window.IDPhotoDeliveryService.pollWait(started, deadline);
     }
     var timeout = new Error("后台核对超时，原任务保留，连接恢复后继续"); timeout.retryable = true; throw timeout;
     } finally { if (activeBridge === attempt) activeBridge = null; }
@@ -146,7 +146,14 @@
       }
     }
     var service = window.IDPhotoDeliveryService, root = await fs().getEntryForPersistentToken(task.sourceRootToken);
-    var connected = await service.connection(root, task.consumerId || undefined);
+    var prepared = task.preparedConnection;
+    delete task.preparedConnection;
+    var outcome = prepared && await prepared;
+    if (outcome && outcome.error) throw outcome.error;
+    var connected = outcome && await service.connectionIsCurrent(outcome.value, root) ? outcome.value :
+      await service.connection(root, task.consumerId || (outcome && outcome.value.consumerId) || undefined);
+    if (outcome && outcome.value.sourceIdentity !== connected.sourceIdentity) throw new Error("原交接目录身份已变化，停止自动恢复");
+    if (task.consumerId && task.consumerId !== connected.consumerId) throw new Error("当前交接消费者与原任务不同，请恢复原队列后重试");
     if (connected.automationProtocol !== PROTOCOL) throw new Error("后台尚不支持自动交付，请使用本轮配套后台；原任务保留");
     if (task.sourceIdentity && task.sourceIdentity !== connected.sourceIdentity) throw new Error("原交接目录身份已变化，停止自动恢复");
     task.consumerId = connected.consumerId; task.sourceIdentity = connected.sourceIdentity;

@@ -1,4 +1,9 @@
-## 当前阶段 v0.6.31 拼版与信息条像素直绘提速 + 索引短名防抖（11-22）
+## 当前阶段 v0.6.32 信息条出码极速化方案 A（11-23）
+
+- 并行预握手与自适应轮询：`deliveryService.js` 在自动交付写完 `context.json` 后并行发起 `task.preparedConnection`（不占 Modal 锁，同根复用进行中的握手并隔离消费方检查），`deliveryAutomationService.js` 校验 `connectionIsCurrent`、`sourceIdentity` 与 `consumerId` 后复用或重握，`layoutWorkflow.js` 在裁图失败/Esc 取消时清理预握手引用；`connection()`、`confirmCode()` 与 `bridge()` 改用 `20 → 50 → 100 → 200 ms` 自适应退避轮询。
+- 验收与安装：经 Codex 独立审查通过（0 P1/P2，527/527 单测与 6/6 发布核查全绿），配合 `yx Applets candidate-12` 同步上线。
+
+## v0.6.31 拼版与信息条像素直绘提速 + 索引短名防抖（11-22）
 
 - 性能改造（Task 1）：`layerService.tryPlacePhotoCopiesWithImaging` 与 `infoBarRenderer.tryDrawPortraitWithImaging` 统一使用 `photoshop.imaging`（`sRGB IEC61966-2.1` / `applyAlpha: false`）与内存直角旋转合成，出错先清理已建空像素层再回退 DOM；`debugMode` 仍走分图层便于调试；`layoutWorkflow.js` 保持 5 参内部调用签名并用闭包传直读源，输出 `[perf]` 耗时日志。
 - 稳定性修复：针对 11-20/21 三次 `identity index unavailable` 报错，`archiveNamingService.atomic` 非暂存索引与 `exportService.writePrivateIndex` 改为短临时名并仅对瞬态 FS 错误重试 3 次（`.idphoto-*` 暂存桥接记录契约不变）。

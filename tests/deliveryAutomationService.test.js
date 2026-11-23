@@ -59,6 +59,8 @@ function harness(options = {}) {
         if (options.connectionWait) await options.connectionWait();
         return connected;
       },
+      pollWait: async () => { clock += 1000; },
+      connectionIsCurrent: async () => options.preparedCurrent !== false,
       previewTask: async taskId => "data:image/jpeg;base64," + taskId
     }
   };
@@ -126,10 +128,28 @@ function harness(options = {}) {
     window.IDPhotoDeliveryAutomationService.created(task, "token-" + n);
     return task;
   }
-  return { options, memory, snapshots, requests, root, connected, prior, next, reload: load,
+  return { options, memory, snapshots, requests, root, connected, prior, next, reload: load, delivery: window.IDPhotoDeliveryService,
     identity: window.IDPhotoDeliveryIdentity, templates: window.IDPhotoTemplates,
     advance: amount => { clock += amount; }, get service() { return window.IDPhotoDeliveryAutomationService; } };
 }
+test('prepared nonce avoids a second handshake but never bypasses old-spec query',async()=>{
+  const h=harness();const previous=h.prior(1,'source-A');
+  const task=h.next(2,info('source-A','blue'));
+  task.preparedConnection=Promise.resolve({value:h.connected});
+  h.delivery.connection=async()=>{throw Error('unnecessary second handshake');};
+  await h.service.resolve(task,photo);
+  assert.equal(task.preparedConnection,undefined);
+  assert.equal(h.requests[0].action,'queryTasks');
+  assert.ok(h.requests[0].taskIds.includes(previous.id));
+});
+test('superseded prepared nonce must re-handshake and reject a changed original directory',async()=>{
+  const h=harness({preparedCurrent:false});const task=h.next(2,info('source-A','blue'));
+  task.preparedConnection=Promise.resolve({value:h.connected});
+  let calls=0;
+  h.delivery.connection=async(root,expected)=>{calls++;assert.equal(expected,h.connected.consumerId);return {...h.connected,sourceIdentity:'foreign-directory'};};
+  await assert.rejects(h.service.resolve(task,photo),/目录身份已变化/);
+  assert.equal(calls,1);assert.equal(h.requests.length,0);
+});
 
 test("an exact legacy capture key is retained across the identity upgrade, and multiple matches stop", () => {
   const h = harness();

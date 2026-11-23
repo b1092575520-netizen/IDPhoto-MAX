@@ -174,13 +174,36 @@
     return saved;
   }
   function pathKey(value) { return String(value || "").replace(/\//g, "\\").replace(/\\+$/, "").toLowerCase(); }
+  function pollWait(started, deadline) {
+    var elapsed = Date.now() - started;
+    var interval = elapsed < 1600 ? 20 : elapsed < 2400 ? 50 : elapsed < 3600 ? 100 : 200;
+    return new Promise(function (resolve) { setTimeout(resolve, Math.min(interval, Math.max(0, deadline - Date.now()))); });
+  }
+  async function connectionIsCurrent(response, folder) {
+    if (pathKey(response.sourceRoot) !== pathKey(folder.nativePath)) throw new Error("原交接目录已变化，停止自动恢复");
+    try {
+      var request = JSON.parse(await (await folder.getEntry("connection-request.json")).read({ format: format(false) }));
+      return request.requestId === response.requestId && request.protocol === CONNECTION_PROTOCOL;
+    } catch (_) { return false; }
+  }
+  var connections = new Map();
   async function connection(folder, expectedConsumer) {
     folder = folder || await root();
+    var key = pathKey(folder.nativePath), pending = connections.get(key);
+    if (!pending) {
+      pending = exchangeConnection(folder).finally(function () { connections.delete(key); });
+      connections.set(key, pending);
+    }
+    var response = await pending;
+    if (expectedConsumer && response.consumerId !== expectedConsumer) throw new Error("当前交接消费者与原任务不同，请恢复原队列后重试");
+    return response;
+  }
+  async function exchangeConnection(folder) {
     var requestId = protocol().id();
     notify("正在核对插件与后台的本次连接…");
     await writeAtomic(folder, "connection-request.json", JSON.stringify({ version: 1, requestId: requestId,
       sourceRoot: folder.nativePath, protocol: CONNECTION_PROTOCOL }));
-    var deadline = Date.now() + 6000;
+    var started = Date.now(), deadline = started + 6000;
     while (Date.now() < deadline) {
       var response = null;
       try { response = JSON.parse(await (await folder.getEntry("connection-response.json")).read({ format: format(false) })); }
@@ -193,12 +216,11 @@
         if (response.state === "stopping") throw new Error("后台正在停止，请等待当前请求收束后再启动；未创建交付");
         if (response.state === "stopped") throw new Error("后台尚未启动，请在照片交付管理中启动后台");
         if (response.ready === true && response.state === "running" && response.sourceIdentity && response.consumerId) {
-          if (expectedConsumer && response.consumerId !== expectedConsumer) throw new Error("当前交接消费者与原任务不同，请恢复原队列后重试");
           notify("交接已连通；云端尚未核对");
           return response;
         }
       }
-      await new Promise(function (resolve) { setTimeout(resolve, 200); });
+      await pollWait(started, deadline);
     }
     var unavailable = new Error("交接尚未连通：请打开配套照片交付管理并连接当前插件。尚不能确认是后台未启动还是目录不一致。");
     unavailable.code = "CONNECTION_PENDING"; unavailable.retryable = true; throw unavailable;
@@ -250,6 +272,9 @@
       foregroundOnly: task.foregroundOnly });
     task.contextFingerprint = protocol().sha256(context);
     await writeAtomic(folder, "context.json", context);
+    // Only the nonce exchange overlaps Photoshop; no delivery is requested.
+    if (automation) task.preparedConnection = connection(sourceRoot).then(
+      function (value) { return { value: value }; }, function (error) { return { error: error }; });
     var taskToken = await fs().createPersistentToken(folder);
     if (automation) {
       automation.created(task, taskToken);
@@ -560,7 +585,7 @@
     try {
     await writeAtomic(task.folder, "code-request.json", JSON.stringify({ version: 2, taskId: task.id, manifestFingerprint: task.fingerprint,
       requestId: task.confirmationId, contextKey: task.contextKey || "", deliveryId: task.deliveryId || "" }));
-    var deadline = Date.now() + waitMs, code = "";
+    var started = Date.now(), deadline = started + waitMs, code = "";
     while (Date.now() < deadline) {
       if (attempt.cancelled) throw protocol().pickupCodeError("已停止本机等待；原任务保留，不代表云端取消");
       code = await readCode(task);
@@ -573,7 +598,7 @@
         if (task.confirmationRejected) confirmationError.retryable = false;
         throw confirmationError;
       }
-      await new Promise(function (resolve) { setTimeout(resolve, 200); });
+      await pollWait(started, deadline);
     }
     if (attempt.cancelled) throw protocol().pickupCodeError("已停止本机等待；原任务保留，不代表云端取消");
     if (!code) throw protocol().pickupCodeError("取码超时：交付管理 " + Math.round(waitMs / 1000) + " 秒内没给取件码");
@@ -783,6 +808,7 @@
       failure = error && typeof error === "object" ? error : new Error(errorText(error));
       if (task && task.completionWritten) failure.completed = true;
       if (task) {
+        delete task.preparedConnection;
         if (task.automation && !task.completionWritten) window.IDPhotoDeliveryAutomationService.failure(task, failure);
         try { await status(task, { error: errorText(failure) }); }
         catch (statusError) { addDiagnostic(failure, "错误记录未能写入", statusError); }
@@ -1508,7 +1534,8 @@
   window.IDPhotoDeliveryService = { begin: begin, prepare: prepare, savePhoto: savePhoto, requestCode: requestCode,
     markEarlyPrint: markEarlyPrint, saveEarlyOutput: saveEarlyOutput, finishEarlyOutput: finishEarlyOutput,
     entryForTarget: entryForTarget, resolveDependencies: resolveDependencies, receiving: receiving,
-    verifyEarlyTarget: verifyEarlyTarget, retainForegroundFailure: retainForegroundFailure,
+    verifyEarlyTarget: verifyEarlyTarget, retainForegroundFailure: retainForegroundFailure, pollWait: pollWait,
+    connectionIsCurrent: connectionIsCurrent,
     archivePhoto: archivePhoto, complete: complete, electronic: electronic, multi: multi, regenerate: regenerate,
     receiveInformationTasks: receiveInformationTasks,
     pending: pending, retryPending: function (id) { return retryPending(id, false); }, deferPending: deferPending, startOutput: startOutput, abortOutput: abortOutput, notePrinted: notePrinted,

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.32
+- 信息条出码极速化（`deliveryService.js` / `deliveryAutomationService.js` / `layoutWorkflow.js`，配套桌面 `candidate-12`）：新自动交付写出 `context.json` 后即并行发起本次连接握手（不持有 Photoshop Modal 锁、不提前写建单或取码请求），同根去重并在使用前重查 `sourceRoot` 与最新 nonce；Esc 取消或裁图失败立即清理本次预握手且无未捕获拒绝。
+- 自适应快速轮询（`pollWait`）：连接握手、取码回执与自动化桥接前 1.6 秒按 `20 ms` 轮询，随后按 `50 / 100 / 200 ms` 平滑退避，显著降低文件落盘到响应的尾延迟同时避免长等待空转。
+
 ## 0.6.31
 - 拼版加速（`layerService.js` / `layoutWorkflow.js`）：使用 `photoshop.imaging` 单次读取 `sRGB` 像素并在内存中按 `0° / 90° / -90° / 180°` 及 RGBA 白底混合拼出整版单像素图层再 `putPixels`，替代 8–10 次跨文档复制图层与逐层移动；`debugMode` 或不支持 `imaging` 时自动清理残留并回退原 DOM 分图层逻辑。
 - 信息条小头像直绘（`infoBarRenderer.js`）：取件码条（`-90°` 逆时针/水平）与普通条（`+90°` 顺时针/水平）在直接来源且非 `debugMode` 时改用 `imaging.getPixels(targetSize)` 直接旋转写入像素图层，消除冗余 `duplicateLayerToDocument` 与同名层重赋值；补齐 `layoutWorkflow.js` 的 `[perf]` 各阶段耗时日志。

@@ -1,0 +1,63 @@
+{
+  "label": "v0.6.32",
+  "baselineCommit": "074f080191e7ab7d0372c154974925079841bd22",
+  "baselineArchiveSha256": "890b0faac578c3ae603532ed81fb8d57edb84ce75abdfe45c7f2e65209ceda00",
+  "status": "frozen-development-candidate; see delivery report for incomplete gates; not released",
+  "files": [
+    {
+      "path": "manifest.json",
+      "archive": "plugin-overlay.zip",
+      "sha256": "bb132dfb897736beaf5be5478ee716cc381becddc8f2262ccad485c0dffbcfc9",
+      "baselineSha256": "cf57408c994e482060937f374cd1d4e32f723e3c1d5671d2db553068eb39deeb",
+      "bytes": 882
+    },
+    {
+      "path": "package.json",
+      "archive": "plugin-overlay.zip",
+      "sha256": "ab0171ccb4c7d53a601335cda772aae63ef46413b68d9cc2b801075fa318b2bd",
+      "baselineSha256": "d57d475b8dc0915848e09013e0fd7f7b5d16d05e764e7fda67dab58318664630",
+      "bytes": 430
+    },
+    {
+      "path": "src/core/layoutWorkflow.js",
+      "archive": "plugin-overlay.zip",
+      "sha256": "9ccd12796fbf754e56524a187427667f1a10ae2778e6b7eab16f057ec76726a3",
+      "baselineSha256": "ed62db8833cad02404dafedb5c1ef98ea647a1a117253b7d20fd297dcd76711a",
+      "bytes": 40997
+    },
+    {
+      "path": "src/photoshop/deliveryAutomationService.js",
+      "archive": "plugin-overlay.zip",
+      "sha256": "9ddb1ffe21cc071894ade69ea5cce519fc56c55d2f36ef0517389052498682ee",
+      "baselineSha256": "62884f5ee074b102aec60e5eb86fdbdf828d7be879602e513d3ce76d3e947ec2",
+      "bytes": 25869
+    },
+    {
+      "path": "src/photoshop/deliveryService.js",
+      "archive": "plugin-overlay.zip",
+      "sha256": "346f9bd522f1d89df6efb37c1e08bff66f41141d2e24620d63ddc35a15d51d9d",
+      "baselineSha256": "1141b73c5cb710af3dafeabc562868fc954495425d47518d53b658168c6a7c87",
+      "bytes": 112274
+    },
+    {
+      "path": "tests/deliveryAutomationService.test.js",
+      "archive": "plugin-overlay.zip",
+      "sha256": "6011b5001cf5c08d8e0704451c4f08ed4aff42fdd4989cd7486d49e48238fd0f",
+      "baselineSha256": "c052633e513cd3fe23ea59fba63b6d0b819a51cbac924dfa163b469167fb4d85",
+      "bytes": 31225
+    },
+    {
+      "path": "tests/deliveryService.test.js",
+      "archive": "plugin-overlay.zip",
+      "sha256": "214064ad35d36479654bf80e64309c114c59ca3bce6aed90c31fcd1752f1b13a",
+      "baselineSha256": "fe6d527c57a1d8a7364d5089ec09648046f057161aa8c0ebbb23dbf3f5a5c452",
+      "bytes": 51342
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "plugin-overlay.zip",
+      "sha256": "9097d29481c2bf405051639ac9d0c300b2381ed02a47caca1c2fbfc2ccffd1dd"
+    }
+  ]
+}
