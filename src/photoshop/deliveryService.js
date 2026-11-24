@@ -742,7 +742,6 @@
     if (!task.fingerprint) throw new Error("高清成片尚未可靠交接，未生成发布完成信号。");
     var artifacts = [];
     var suffix = task.outputAttemptId ? "-" + task.outputAttemptId : "";
-    if (task.mode === "print") artifacts.push(await saveJpeg(task, targetDocument, "layout" + suffix + ".jpg", "layout"));
     try { artifacts.push(await cropInfo(task, targetDocument, infoBar, "info" + suffix + ".jpg")); await status(task, { info: "saved" }); }
     catch (error) { await status(task, { info: "failed", infoError: errorText(error) }); }
     await writeCompletion(task, artifacts);
@@ -1164,7 +1163,7 @@
   async function saveEarlyOutput(task, document, infoBar) {
     var early = await readEarlyPrint(task);
     if (!early || early.version !== 2 || early.outputState !== "preparing") throw new Error("先打输出状态不匹配，停止补传");
-    var artifacts = [await saveJpeg(task, document, "layout.jpg", "layout"), await cropInfo(task, document, infoBar, "info.jpg")];
+    var artifacts = [await cropInfo(task, document, infoBar, "info.jpg")];
     await writeAtomic(task.folder, "early-print.json", JSON.stringify(Object.assign({}, early, { artifacts: artifacts, outputState: "prepared" })));
   }
   async function finishEarlyOutput(task, result) {
@@ -1181,9 +1180,10 @@
   }
   async function earlyArtifacts(task, early) {
     try {
-    if (early.version !== 2 || early.outputState !== "submitted" || !Array.isArray(early.artifacts) || early.artifacts.length !== 2)
+    if (early.version !== 2 || early.outputState !== "submitted" || !Array.isArray(early.artifacts) ||
+        (early.artifacts.length !== 1 && early.artifacts.length !== 2))
       throw new Error("先打输出尚未确认或缺少当次图片，停止自动补传，请人工核对");
-    for (var role of ["layout", "info"]) {
+    for (var role of early.artifacts.length === 2 ? ["layout", "info"] : ["info"]) {
       var artifact = early.artifacts.find(function (item) { return item.role === role && item.path === role + ".jpg"; });
       if (!artifact) throw new Error("先打图片清单不匹配，停止自动补传");
       var bytes = await (await task.folder.getEntry(artifact.path)).read({ format: format(true) });

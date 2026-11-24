@@ -442,12 +442,28 @@ test("0.6.30 #1 red then white immediately: same dedicated code, one permission,
   assert.equal(h.renders[1].entryLink.link, h.renders[0].entryLink.link);
   assert.ok(h.renders[1].entryLink.link);
   assert.match(result.successResults[0].result.deliveryResult.message, /取件码 A7K3P9 · 这张电子版稍后自动补上/);
-  await white.folder.getEntry("layout.jpg"); await white.folder.getEntry("info.jpg");
+  await assert.rejects(white.folder.getEntry("layout.jpg")); await white.folder.getEntry("info.jpg");
   await assert.rejects(white.folder.getEntry("complete.json"));
   ready(h, red); h.advance(5000);
   await finishEarly(h, white);
   assert.equal((await h.json(white.folder, "request.json")).targetDeliveryId, red.deliveryId);
-  assert.equal((await h.json(white.folder, "complete.json")).artifacts.length, 2);
+  assert.deepEqual((await h.json(white.folder, "complete.json")).artifacts.map(x => x.role), ["info"]);
+});
+
+async function addLegacyLayout(h, task) {
+  const value = await h.json(task.folder, "early-print.json");
+  const info = value.artifacts.find(x => x.role === "info");
+  const bytes = await (await task.folder.getEntry(info.path)).read();
+  await (await task.folder.createFile("layout.jpg", { overwrite: false })).write(bytes);
+  value.artifacts.unshift({ ...info, path: "layout.jpg", role: "layout" });
+  await (await task.folder.getEntry("early-print.json")).write(JSON.stringify(value));
+}
+
+test("0.6.33 old two-artifact early print recovers after restart", async () => {
+  const { h, red, white, result } = await earlyScenario(); assert.equal(result.ok, true);
+  await addLegacyLayout(h, white);
+  ready(h, red); h.reload(); await finishEarly(h, white);
+  assert.deepEqual((await h.json(white.folder, "complete.json")).artifacts.map(x => x.role), ["layout", "info"]);
 });
 
 test("0.6.30 #2 denied white permission stops the order across restart", async () => {
@@ -611,10 +627,16 @@ test("0.6.30 unknown or disconnected target never prints a locally remembered co
 });
 
 test("0.6.30 damaged artifacts, markers, source bindings and changed codes stop file-only recovery", async () => {
-  for (const fault of ["artifact", "marker", "connection", "code", "legacy", "interrupted-print"]) {
+  for (const fault of ["artifact", "legacy-layout-size", "legacy-layout-hash", "marker", "connection", "code", "legacy", "interrupted-print"]) {
     const { h, red, white, result } = await earlyScenario(); assert.equal(result.ok, true);
     ready(h, red);
-    if (fault === "artifact") await (await white.folder.getEntry("layout.jpg")).write(new Uint8Array([1, 2, 3]).buffer);
+    if (fault === "artifact") await (await white.folder.getEntry("info.jpg")).write(new Uint8Array([1, 2, 3]).buffer);
+    if (fault.startsWith("legacy-layout-")) {
+      await addLegacyLayout(h, white);
+      const file = await white.folder.getEntry("layout.jpg");
+      const data = new Uint8Array(await file.read()); data[0] ^= 1;
+      await file.write(fault.endsWith("hash") ? data.buffer : data.slice(1).buffer);
+    }
     if (["marker", "legacy", "interrupted-print"].includes(fault)) {
       const value = await h.json(white.folder, "early-print.json");
       if (fault === "marker") value.contextFingerprint = "f".repeat(64);

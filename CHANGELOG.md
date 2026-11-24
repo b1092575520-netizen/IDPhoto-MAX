@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.33
+
+- 冲印交接与先打补传只保存信息条，省去额外拼版 JPEG；保留旧清单的完整性校验与恢复。
+- 配套电脑端和云端提供预占出码与同图批量核对。候选待独立审查，未安装或部署。
+
 ## 0.6.32
 - 信息条出码极速化（`deliveryService.js` / `deliveryAutomationService.js` / `layoutWorkflow.js`，配套桌面 `candidate-12`）：新自动交付写出 `context.json` 后即并行发起本次连接握手（不持有 Photoshop Modal 锁、不提前写建单或取码请求），同根去重并在使用前重查 `sourceRoot` 与最新 nonce；Esc 取消或裁图失败立即清理本次预握手且无未捕获拒绝。
 - 自适应快速轮询（`pollWait`）：连接握手、取码回执与自动化桥接前 1.6 秒按 `20 ms` 轮询，随后按 `50 / 100 / 200 ms` 平滑退避，显著降低文件落盘到响应的尾延迟同时避免长等待空转。

@@ -1,4 +1,8 @@
-## 当前阶段 v0.6.32 信息条出码极速化方案 A（11-23）
+## 当前阶段 v0.6.33 信息条出码极限提速方案 A-Max（11-24）
+
+冲印交接仅保存信息条。历史先打记录如果声明了拼版图，恢复时仍核对尺寸字节数与 SHA-256；不改变原成片 JPEG 导出路径。配套候选为交付管理 candidate-13，待独立审查。
+
+## v0.6.32 信息条出码极速化方案 A（11-23）
 
 - 并行预握手与自适应轮询：`deliveryService.js` 在自动交付写完 `context.json` 后并行发起 `task.preparedConnection`（不占 Modal 锁，同根复用进行中的握手并隔离消费方检查），`deliveryAutomationService.js` 校验 `connectionIsCurrent`、`sourceIdentity` 与 `consumerId` 后复用或重握，`layoutWorkflow.js` 在裁图失败/Esc 取消时清理预握手引用；`connection()`、`confirmCode()` 与 `bridge()` 改用 `20 → 50 → 100 → 200 ms` 自适应退避轮询。
 - 验收与安装：经 Codex 独立审查通过（0 P1/P2，527/527 单测与 6/6 发布核查全绿），配合 `yx Applets candidate-12` 同步上线。
